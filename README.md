@@ -2,10 +2,10 @@
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/cybozu-go/moco-agent?tab=overview)](https://pkg.go.dev/github.com/cybozu-go/moco-agent?tab=overview)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cybozu-go/moco-agent)](https://goreportcard.com/report/github.com/cybozu-go/moco-agent)
 
-Template repository for Neco
+MOCO Agent
 ============================
 
-**Project Status**: Initial development
+MOCO Agent includes support tools to work MySQL Operator [MOCO].
 
 Documentation
 -------------
@@ -18,3 +18,4 @@ Docker images
 Docker images are available on [Quay.io](https://quay.io/repository/cybozu/moco-agent)
 
 [releases]: https://github.com/cybozu-go/moco-agent/releases
+[MOCO]: https://github.com/cybozu-go/moco
