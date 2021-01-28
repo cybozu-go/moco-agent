@@ -1,4 +1,4 @@
-# Build the moco-controller binary
+# Build the moco-agent binary
 FROM quay.io/cybozu/golang:1.15-focal as builder
 
 WORKDIR /workspace
