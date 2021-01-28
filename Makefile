@@ -43,7 +43,7 @@ mod:
 	git add go.mod
 
 .PHONY: setup
-setup: custom-checker staticcheck nilerr ineffassign
+setup: custom-checker staticcheck nilerr
 
 .PHONY: custom-checker
 custom-checker:

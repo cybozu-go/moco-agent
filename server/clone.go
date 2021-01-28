@@ -13,8 +13,8 @@ import (
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
+	"github.com/cybozu-go/moco-agent/initialize"
 	"github.com/cybozu-go/moco/accessor"
-	"github.com/cybozu-go/moco/initialize"
 	"github.com/cybozu-go/moco/metrics"
 	"github.com/cybozu-go/well"
 	"github.com/go-sql-driver/mysql"

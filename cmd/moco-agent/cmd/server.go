@@ -41,7 +41,7 @@ func (l promhttpLogger) Println(v ...interface{}) {
 }
 
 var agentCmd = &cobra.Command{
-	Use:   "agent",
+	Use:   "server",
 	Short: "Start MySQL agent service",
 	Long:  `Start MySQL agent service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
