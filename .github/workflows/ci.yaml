@@ -15,7 +15,15 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: ${{ env.go-version }}
+      - name: Cache Tools
+        id: cache-tools
+        uses: actions/cache@v2
+        with:
+          path: |
+            bin
+          key: cache-${{ env.cache-version }}-go-${{ env.go-version }}-${{ hashFiles('Makefile') }}
       - run: make setup
+        if: steps.cache-tools.outputs.cache-hit != 'true'
       - run: make validate
   test:
     name: Small Tests

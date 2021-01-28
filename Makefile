@@ -5,6 +5,13 @@ GO111MODULE = on
 GOOS := $(shell go env GOOS)
 GOARCH := $(shell go env GOARCH)
 
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
+
 .PHONY: all
 all: build/moco-agent
 
@@ -14,7 +21,6 @@ validate: setup
 	staticcheck ./...
 	test -z "$$(nilerr ./... 2>&1 | tee /dev/stderr)"
 	test -z "$$(custom-checker -restrictpkg.packages=html/template,log $$(go list -tags='$(GOTAGS)' ./... ) 2>&1 | tee /dev/stderr)"
-	ineffassign .
 	go build ./...
 	go vet ./...
 	test -z "$$(go vet ./... | tee /dev/stderr)"
@@ -55,12 +61,6 @@ staticcheck:
 nilerr:
 	if ! which nilerr >/dev/null; then \
 		cd /tmp; env GOFLAGS= GO111MODULE=on go get github.com/gostaticanalysis/nilerr/cmd/nilerr; \
-	fi
-
-.PHONY: ineffassign
-ineffassign:
-	if ! which ineffassign >/dev/null; then \
-		cd /tmp; env GOFLAGS= GO111MODULE=on go get github.com/gordonklaus/ineffassign; \
 	fi
 
 .PHONY: clean
