@@ -35,12 +35,12 @@ Bump version
 
 1. Determine a new version number.  Let it write `$VERSION` as `VERSION=x.y.z`.
 1. Checkout `main` branch.
-1. Make a branch to release, for example by `git neco dev "$VERSION"`
+1. Make a branch to release, for example by `git neco dev "bump-v$VERSION"`
 1. Edit `CHANGELOG.md` for the new version ([example][]).
 1. Commit the change and push it.
 
     ```console
-    $ git commit -a -m "Bump version to $VERSION"
+    $ git commit -a -m "Bump version to v$VERSION"
     $ git neco review
     ```
 1. Merge this branch.
@@ -51,7 +51,7 @@ Bump version
     $ git tag "v$VERSION"
     $ git push origin "v$VERSION"
 
-Now the version is bumped up and the latest container image is uploaded to [quay.io](https://quay.io/cybozu/neco-template).
+Now the version is bumped up and the latest container image is uploaded to [GitHub Container Registry](https://github.com/orgs/cybozu-go/packages/container/package/moco-agent).
 
 Publish GitHub release page
 ---------------------------
