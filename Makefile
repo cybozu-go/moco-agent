@@ -12,6 +12,8 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+GO_FILES := $(shell find . -name '*.go' -print)
+
 .PHONY: all
 all: build/moco-agent
 
@@ -32,8 +34,8 @@ test:
 	docker build -t mysql-with-go:latest ./initialize/ --build-arg MYSQL_VERSION=$(MYSQL_VERSION)
 	docker run -v $(PWD):/go/src/github.com/cybozu-go/moco -e GOPATH=/tmp --rm mysql-with-go:latest sh -c "CGO_ENABLED=0 go test -v ./initialize"
 
-# Build entrypoint binary
-build/moco-agent:
+# Build moco-agent binary
+build/moco-agent: $(GO_FILES)
 	mkdir -p build
 	GO111MODULE=on go build -o $@ ./cmd/moco-agent
 

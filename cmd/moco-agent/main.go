@@ -1,7 +1,13 @@
 package main
 
-import "github.com/cybozu-go/moco-agent/cmd/moco-agent/cmd"
+import (
+	"os"
+
+	"github.com/cybozu-go/moco-agent/cmd/moco-agent/cmd"
+)
 
 func main() {
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
