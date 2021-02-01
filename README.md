@@ -15,7 +15,7 @@ Documentation
 Docker images
 -------------
 
-Docker images are available on [Quay.io](https://quay.io/repository/cybozu/moco-agent)
+Docker images are available on [GitHub Container Registry](https://github.com/orgs/cybozu-go/packages/container/package/moco-agent)
 
 [releases]: https://github.com/cybozu-go/moco-agent/releases
 [MOCO]: https://github.com/cybozu-go/moco
