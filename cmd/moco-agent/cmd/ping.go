@@ -19,7 +19,7 @@ var pingCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		_, err := os.Stat("/var/lib/mysql/init-once-completed")
 		if err != nil {
-			return nil
+			return err
 		}
 
 		bin := "mysqladmin"
