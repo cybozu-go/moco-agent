@@ -14,7 +14,6 @@ LABEL org.opencontainers.image.source https://github.com/cybozu-go/moco-agent
 
 WORKDIR /
 COPY --from=builder /workspace/moco-agent /
-COPY --from=builder /workspace/ping.sh /
 USER 10000:10000
 
 ENTRYPOINT ["/moco-agent"]

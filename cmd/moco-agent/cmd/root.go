@@ -10,9 +10,9 @@ import (
 
 var (
 	rootCmd = &cobra.Command{
-		Use:   "entrypoint",
-		Short: "Entrypoint for MySQL instances managed by MOCO",
-		Long:  `Entrypoint for MySQL instances managed by MOCO.`,
+		Use:   "moco-agent",
+		Short: "Agent for MySQL instances managed by MOCO",
+		Long:  `Agent for MySQL instances managed by MOCO.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// without this, each subcommand's RunE would display usage text.
 			cmd.SilenceUsage = true
