@@ -15,9 +15,8 @@ import (
 )
 
 var (
-	initOnceCompletedPath = filepath.Join(moco.MySQLDataPath, "init-once-completed")
-	passwordFilePath      = filepath.Join(moco.TmpPath, "moco-root-password")
-	miscConfPath          = filepath.Join(moco.MySQLDataPath, "misc.cnf")
+	passwordFilePath = filepath.Join(moco.TmpPath, "moco-root-password")
+	miscConfPath     = filepath.Join(moco.MySQLDataPath, "misc.cnf")
 )
 
 var initCmd = &cobra.Command{

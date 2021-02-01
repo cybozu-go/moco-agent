@@ -17,7 +17,7 @@ var pingCmd = &cobra.Command{
 	Short: "Send ping to a MySQL instance",
 	Long:  `Send ping to a MySQL instance.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		_, err := os.Stat("/var/lib/mysql/init-once-completed")
+		_, err := os.Stat(initOnceCompletedPath)
 		if err != nil {
 			return err
 		}
