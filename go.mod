@@ -3,6 +3,7 @@ module github.com/cybozu-go/moco-agent
 go 1.15
 
 require (
+	github.com/aws/aws-sdk-go v1.27.0
 	github.com/cybozu-go/log v1.6.0
 	github.com/cybozu-go/moco v0.4.0
 	github.com/cybozu-go/well v1.10.0
