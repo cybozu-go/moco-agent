@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/cybozu-go/moco"
+	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco/accessor"
-	"github.com/cybozu-go/moco/metrics"
 	"github.com/cybozu-go/moco/test_utils"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -36,7 +36,7 @@ func testRotate() {
 		)
 
 		registry = prometheus.NewRegistry()
-		metrics.RegisterAgentMetrics(registry)
+		metrics.RegisterMetrics(registry)
 	})
 
 	AfterEach(func() {

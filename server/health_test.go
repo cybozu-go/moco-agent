@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/cybozu-go/moco"
+	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco/accessor"
-	"github.com/cybozu-go/moco/metrics"
 	"github.com/cybozu-go/moco/test_utils"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -47,7 +47,7 @@ func testHealth() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		registry = prometheus.NewRegistry()
-		metrics.RegisterAgentMetrics(registry)
+		metrics.RegisterMetrics(registry)
 
 		agent = New(test_utils.Host, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", replicaPort,
 			&accessor.MySQLAccessorConfig{

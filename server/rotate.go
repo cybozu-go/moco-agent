@@ -9,7 +9,7 @@ import (
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
-	"github.com/cybozu-go/moco/metrics"
+	"github.com/cybozu-go/moco-agent/metrics"
 )
 
 // RotateLog rotates log files

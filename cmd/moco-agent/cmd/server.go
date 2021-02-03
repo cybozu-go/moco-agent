@@ -10,9 +10,9 @@ import (
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
+	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server"
 	"github.com/cybozu-go/moco/accessor"
-	"github.com/cybozu-go/moco/metrics"
 	"github.com/cybozu-go/well"
 	"github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
@@ -82,7 +82,7 @@ var agentCmd = &cobra.Command{
 		mysql.SetLogger(mysqlLogger{})
 
 		registry := prometheus.NewRegistry()
-		metrics.RegisterAgentMetrics(registry)
+		metrics.RegisterMetrics(registry)
 		mux.Handle("/metrics", promhttp.HandlerFor(
 			registry,
 			promhttp.HandlerOpts{

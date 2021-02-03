@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/cybozu-go/moco"
+	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco/accessor"
-	"github.com/cybozu-go/moco/metrics"
 	"github.com/cybozu-go/moco/test_utils"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -104,7 +104,7 @@ func testClone() {
 
 		By("initializing metrics registry")
 		registry = prometheus.NewRegistry()
-		metrics.RegisterAgentMetrics(registry)
+		metrics.RegisterMetrics(registry)
 
 		cloneCount, err := getMetric(registry, metricsPrefix+"clone_count")
 		Expect(err).ShouldNot(HaveOccurred())
