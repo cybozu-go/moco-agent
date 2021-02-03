@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -85,7 +86,7 @@ func (a *Agent) BackupBinaryLog(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		err = uploadBinaryLog(params)
+		err = uploadBinaryLog(r.Context(), db, params)
 		if err != nil {
 			return err
 		}
@@ -181,13 +182,34 @@ func flushBinaryLog(ctx context.Context, db *sqlx.DB) error {
 	return err
 }
 
+func getBinaryLogNames(ctx context.Context, db *sqlx.DB) ([]string, error) {
+	var binaryLogs []struct {
+		LogName string `db:"Log_name"`
+	}
+	err := db.SelectContext(ctx, &binaryLogs, "SHOW BINARY LOGS")
+	if err != nil {
+		return nil, err
+	}
+
+	var names []string
+	for _, binlog := range binaryLogs {
+		names = append(names, binlog.LogName)
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
 func deleteBinaryLog(ctx context.Context, db *sqlx.DB) error {
-	// TODO: specify binary log names
-	_, err := db.ExecContext(ctx, `PURGE BINARY LOGS`)
+	binlogNames, err := getBinaryLogNames(ctx, db)
+	if err != nil {
+		return err
+	}
+	latest := binlogNames[len(binlogNames)-1]
+	_, err = db.ExecContext(ctx, `PURGE BINARY LOGS TO $1`, latest)
 	return err
 }
 
-func uploadBinaryLog(params *BackupBinaryLogParams) error {
+func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogParams) error {
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region:           aws.String("neco"),
 		Endpoint:         aws.String(fmt.Sprintf("%s:%d", params.BucketHost, params.BucketPort)),
@@ -197,21 +219,26 @@ func uploadBinaryLog(params *BackupBinaryLogParams) error {
 	}))
 	uploader := s3manager.NewUploader(sess)
 
-	// Get binlog dir
-	// show variables like log_bin_basename
-	binlogDir := "/var/lib/mysql/"
+	var binlogBasename string
+	err := db.GetContext(ctx, &binlogBasename, `select @@log_bin_basename`)
+	if err != nil {
+		return err
+	}
+	binlogDir := filepath.Dir(binlogBasename)
 
 	// Get binlog file names
-	// show binary logs
-	binaryLogs := []string{}
+	binlogNames, err := getBinaryLogNames(ctx, db)
+	if err != nil {
+		return err
+	}
+	binlogNames = binlogNames[:len(binlogNames)-1]
 
 	// Upload the binary log files to the object Store.
-	for i, filename := range binaryLogs {
-
-		file, err := os.Open(filepath.Join(binlogDir, filename))
+	for i, binlog := range binlogNames {
+		file, err := os.Open(filepath.Join(binlogDir, binlog))
 		if err != nil {
 			log.Error("failed to open binary log", map[string]interface{}{
-				"filename":  filename,
+				"filename":  binlog,
 				log.FnError: err,
 			})
 			return err
@@ -234,13 +261,13 @@ func uploadBinaryLog(params *BackupBinaryLogParams) error {
 		})
 		if err != nil {
 			log.Error("failed to upload binary log", map[string]interface{}{
-				"filename":  filename,
+				"filename":  binlog,
 				log.FnError: err,
 			})
 			return err
 		}
 		log.Info("success to upload binary log", map[string]interface{}{
-			"filename":   filename,
+			"filename":   binlog,
 			"object_url": aws.StringValue(&result.Location),
 		})
 	}
