@@ -23,8 +23,8 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// BackupBinaryLogParams is the paramters for backup binary logs
-type BackupBinaryLogParams struct {
+// BackupBinaryLogsParams is the paramters for backup binary logs
+type BackupBinaryLogsParams struct {
 	FilePrefix   string
 	BucketHost   string
 	BucketPort   int
@@ -35,9 +35,9 @@ type BackupBinaryLogParams struct {
 	SecretAccessKey string
 }
 
-// BackupBinaryLog executes "FLUSH BINARY LOGS;"
+// FlushAndBackupBinaryLogs executes "FLUSH BINARY LOGS;"
 // and upload it to the object storage, then delete it
-func (a *Agent) BackupBinaryLog(w http.ResponseWriter, r *http.Request) {
+func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if r.Method != http.MethodGet {
@@ -82,7 +82,6 @@ func (a *Agent) BackupBinaryLog(w http.ResponseWriter, r *http.Request) {
 
 		err = flushBinaryLog(r.Context(), db)
 		if err != nil {
-
 			return err
 		}
 
@@ -160,13 +159,13 @@ func (a *Agent) FlushBinaryLog(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func parseBackupBinLogParams(v url.Values) (*BackupBinaryLogParams, error) {
-	port, err := strconv.Atoi(mocoagent.BackupBinaryLogBucketPortParam)
+func parseBackupBinLogParams(v url.Values) (*BackupBinaryLogsParams, error) {
+	port, err := strconv.Atoi(v.Get(mocoagent.BackupBinaryLogBucketPortParam))
 	if err != nil {
 		return nil, err
 	}
 
-	return &BackupBinaryLogParams{
+	return &BackupBinaryLogsParams{
 		FilePrefix:      v.Get(mocoagent.BackupBinaryLogFilePrefixParam),
 		BucketHost:      v.Get(mocoagent.BackupBinaryLogBucketHostParam),
 		BucketPort:      port,
@@ -184,7 +183,9 @@ func flushBinaryLog(ctx context.Context, db *sqlx.DB) error {
 
 func getBinaryLogNames(ctx context.Context, db *sqlx.DB) ([]string, error) {
 	var binaryLogs []struct {
-		LogName string `db:"Log_name"`
+		LogName   string `db:"Log_name"`
+		FileSize  int64  `db:"File_size"`
+		Encrypted string `db:"Encrypted"`
 	}
 	err := db.SelectContext(ctx, &binaryLogs, "SHOW BINARY LOGS")
 	if err != nil {
@@ -209,7 +210,7 @@ func deleteBinaryLog(ctx context.Context, db *sqlx.DB) error {
 	return err
 }
 
-func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogParams) error {
+func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogsParams) error {
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region:           aws.String("neco"),
 		Endpoint:         aws.String(fmt.Sprintf("%s:%d", params.BucketHost, params.BucketPort)),

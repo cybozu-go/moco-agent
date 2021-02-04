@@ -70,9 +70,10 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Test Agent", func() {
-	Context("health", testHealth)
-	Context("rotate", testRotate)
-	Context("clone", testClone)
+	// Context("health", testHealth)
+	// Context("rotate", testRotate)
+	// Context("clone", testClone)
+	Context("backup_binlog", testBackupBinaryLogs)
 })
 
 func getMetric(registry *prometheus.Registry, metricName string) (*promgo.Metric, error) {
