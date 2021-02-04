@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybozu-go/moco/test_utils"
+	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/go-sql-driver/mysql"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -21,10 +21,10 @@ import (
 const (
 	token           = "dummy-token"
 	metricsPrefix   = "moco_agent_"
-	donorHost       = "moco-test-mysqld-donor"
+	donorHost       = "moco-agent-test-mysqld-donor"
 	donorPort       = 3307
 	donorServerID   = 1
-	replicaHost     = "moco-test-mysqld-replica"
+	replicaHost     = "moco-agent-test-mysqld-replica"
 	replicaPort     = 3308
 	replicaServerID = 2
 )

@@ -11,8 +11,8 @@ import (
 
 	"github.com/cybozu-go/moco"
 	"github.com/cybozu-go/moco-agent/metrics"
+	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/cybozu-go/moco/accessor"
-	"github.com/cybozu-go/moco/test_utils"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
