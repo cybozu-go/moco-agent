@@ -9,6 +9,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/test_utils"
@@ -19,11 +23,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+const (
+	binlogPrefix    = "binlog"
+	binlogDirPrefix = "moco-agent-test-binlog-base-"
+	bucketName      = "moco-agent-test-bucket"
+)
+
 func testBackupBinaryLogs() {
 	var tmpDir string
 	var binlogDir string
 	var agent *Agent
 	var registry *prometheus.Registry
+	var sess *session.Session
 
 	BeforeEach(func() {
 		var err error
@@ -40,22 +51,36 @@ func testBackupBinaryLogs() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterAgentMetrics(registry)
 
-		By("initializing MySQL replica")
-		binlogDir, err = ioutil.TempDir("", "moco-agent-test-binlog-base-")
+		By("creating MySQL and MinIO containers")
+		binlogDir, err = ioutil.TempDir("", binlogDirPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
 		fmt.Println(binlogDir)
-		err = os.Chmod(binlogDir, 0777)
+		err = os.Chmod(binlogDir, 0777|os.ModeSetgid)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.MySQLVersion = "8.0.20"
-		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir)
+		test_utils.StopAndRemoveMySQLD(replicaHost)
+		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, binlogPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
+
+		test_utils.StopMinIO("moco-agent-test-minio")
+		err = test_utils.StartMinIO("moco-agent-test-minio", 9000)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("initializing MySQL replica")
 		err = test_utils.InitializeMySQL(replicaPort)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		By("initializing MinIO object storage")
-		test_utils.StopMinIO("moco-agent-test-minio")
-		err = test_utils.StartMinIO("moco-agent-test-minio", 9000)
+		By("initializing MinIO")
+		sess = session.Must(session.NewSession(&aws.Config{
+			Region:           aws.String("neco"),
+			Endpoint:         aws.String(fmt.Sprintf("%s:%d", "localhost", 9000)),
+			DisableSSL:       aws.Bool(true),
+			S3ForcePathStyle: aws.Bool(true),
+			Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
+		}))
+
+		err = createBucket(sess, bucketName)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("setting environment variables for password")
@@ -68,14 +93,14 @@ func testBackupBinaryLogs() {
 	})
 
 	It("should flush and backup binlog", func() {
-		By("calling /backup-binlog API")
+		By("calling /flush-backup-binlog API")
 		req := httptest.NewRequest("GET", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries := url.Values{
 			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogFilePrefixParam:   []string{"binlog-backup"},
+			mocoagent.BackupBinaryLogFilePrefixParam:   []string{binlogPrefix},
 			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
 			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
-			mocoagent.BackupBinaryLogBucketNameParam:   []string{"moco-test-bucket"},
+			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
 			mocoagent.BackupBinaryLogBucketRegionParam: []string{""},
 
 			mocoagent.AccessKeyIDParam:     []string{"minioadmin"},
@@ -88,8 +113,106 @@ func testBackupBinaryLogs() {
 
 		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
 
-		for {
-			time.Sleep(20)
-		}
+		objName := binlogPrefix + "-" + time.Now().Format("20060102") + "-000000"
+		Eventually(func() error {
+			exists, err := checkObjectExistence(sess, bucketName, objName)
+			if err != nil {
+				return err
+			}
+			if exists {
+				return nil
+			}
+			return fmt.Errorf("object %s/%s doesn't exist", bucketName, objName)
+		}).Should(Succeed())
+
+		Eventually(func() error {
+			binlogName := binlogDir + "/" + binlogPrefix + ".000001"
+			_, err := os.Stat(binlogName)
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return fmt.Errorf("file: %s should be deleted, but exists", binlogName)
+		}).Should(Succeed())
 	})
+
+	It("should only flush binlog", func() {
+		By("calling /flush-binlog API without delete flag")
+		req := httptest.NewRequest("GET", "http://"+replicaHost+"/flush-backup-binlog", nil)
+		queries := url.Values{
+			moco.AgentTokenParam: []string{token},
+		}
+		req.URL.RawQuery = queries.Encode()
+
+		res := httptest.NewRecorder()
+		agent.FlushBinaryLogs(res, req)
+
+		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
+
+		Eventually(func() error {
+			binlogSeqs := []string{"000001", "000002"}
+			for _, s := range binlogSeqs {
+				binlogName := binlogDir + "/" + binlogPrefix + "." + s
+				_, err := os.Stat(binlogName)
+				if err != nil {
+					return fmt.Errorf("file: %s should exist, but be deleted", binlogName)
+				}
+			}
+			return nil
+		}, 10*time.Second).Should(Succeed())
+
+		By("calling /flush-binlog API with delete flag")
+		req = httptest.NewRequest("GET", "http://"+replicaHost+"/flush-backup-binlog", nil)
+		queries = url.Values{
+			moco.AgentTokenParam:                []string{token},
+			mocoagent.FlushBinaryLogDeleteparam: []string{"true"},
+		}
+		req.URL.RawQuery = queries.Encode()
+
+		res = httptest.NewRecorder()
+		agent.FlushBinaryLogs(res, req)
+
+		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
+
+		Eventually(func() error {
+			binlogSeqs := []string{"000001", "000002"}
+			for _, s := range binlogSeqs {
+				binlogName := binlogDir + "/" + binlogPrefix + "." + s
+				_, err := os.Stat(binlogName)
+				if !os.IsNotExist(err) {
+					return fmt.Errorf("file: %s should be deleted, but exists", binlogName)
+				}
+			}
+			binlogName := binlogDir + "/" + binlogPrefix + ".000003"
+			_, err := os.Stat(binlogName)
+			if err != nil {
+				return fmt.Errorf("file: %s should exist, but not", binlogName)
+			}
+			return nil
+		}, 10*time.Second).Should(Succeed())
+	})
+}
+
+func createBucket(sess *session.Session, bucketName string) error {
+	svc := s3.New(sess)
+	_, err := svc.CreateBucket(&s3.CreateBucketInput{
+		Bucket: aws.String(bucketName),
+	})
+
+	return err
+}
+
+func checkObjectExistence(sess *session.Session, bucketName, objectName string) (bool, error) {
+	svc := s3.New(sess)
+	res, err := svc.ListObjects(&s3.ListObjectsInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		return false, err
+	}
+
+	if len(res.Contents) == 1 && *res.Contents[0].Key == objectName {
+		return true, nil
+	}
+
+	return false, nil
 }

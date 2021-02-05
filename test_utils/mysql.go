@@ -44,8 +44,10 @@ func StartMySQLD(name string, port int, serverID int, opt ...string) error {
 	ctx := context.Background()
 
 	var binlogBaseDir string
-	if len(opt) != 0 {
+	var binlogPrefix string
+	if len(opt) >= 2 {
 		binlogBaseDir = opt[0]
+		binlogPrefix = opt[1]
 	}
 
 	wd, err := os.Getwd()
@@ -72,7 +74,7 @@ func StartMySQLD(name string, port int, serverID int, opt ...string) error {
 		fmt.Sprintf("--server-id=%d", serverID),
 	)
 	if binlogBaseDir != "" {
-		args = append(args, "--log-bin="+binlogBaseDir+"/binlog")
+		args = append(args, "--log-bin="+binlogBaseDir+"/"+binlogPrefix)
 	}
 
 	cmd := well.CommandContext(ctx, "docker", args...)

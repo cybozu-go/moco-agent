@@ -80,7 +80,7 @@ var agentCmd = &cobra.Command{
 		mux.HandleFunc("/clone", agent.Clone)
 		mux.HandleFunc("/health", agent.Health)
 		mux.HandleFunc("/binlog-flush-backup", agent.FlushAndBackupBinaryLogs)
-		mux.HandleFunc("/binlog-flush", agent.FlushBinaryLog)
+		mux.HandleFunc("/binlog-flush", agent.FlushBinaryLogs)
 		mysql.SetLogger(mysqlLogger{})
 
 		registry := prometheus.NewRegistry()

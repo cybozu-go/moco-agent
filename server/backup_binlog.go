@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -23,6 +24,10 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+const (
+	dayLayout = "20060102"
+)
+
 // BackupBinaryLogsParams is the paramters for backup binary logs
 type BackupBinaryLogsParams struct {
 	FilePrefix   string
@@ -33,6 +38,8 @@ type BackupBinaryLogsParams struct {
 
 	AccessKeyID     string
 	SecretAccessKey string
+
+	Day time.Time
 }
 
 // FlushAndBackupBinaryLogs executes "FLUSH BINARY LOGS;"
@@ -70,7 +77,6 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		rootPassword := os.Getenv(moco.RootPasswordEnvName)
 		db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.RootUser, rootPassword)
 		if err != nil {
-			a.sem.Release(1)
 			internalServerError(w, fmt.Errorf("failed to connect to database before flush binary logs: %w", err))
 			log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
 				"hostname":  a.mysqlAdminHostname,
@@ -80,7 +86,7 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 			return err
 		}
 
-		err = flushBinaryLog(r.Context(), db)
+		params.Day, err = flushBinaryLogs(r.Context(), db)
 		if err != nil {
 			return err
 		}
@@ -99,8 +105,8 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// FlushBinaryLog executes "FLUSH BINARY LOGS;" and delete file if required
-func (a *Agent) FlushBinaryLog(w http.ResponseWriter, r *http.Request) {
+// FlushBinaryLogs executes "FLUSH BINARY LOGS;" and delete file if required
+func (a *Agent) FlushBinaryLogs(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if r.Method != http.MethodGet {
@@ -114,10 +120,13 @@ func (a *Agent) FlushBinaryLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deleteFlag, err := strconv.ParseBool(r.URL.Query().Get(mocoagent.FlushBinaryLogDeleteparam))
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	var deleteFlag bool
+	if flag := r.URL.Query().Get(mocoagent.FlushBinaryLogDeleteparam); len(flag) > 0 {
+		deleteFlag, err = strconv.ParseBool(r.URL.Query().Get(mocoagent.FlushBinaryLogDeleteparam))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 
 	if !a.sem.TryAcquire(1) {
@@ -125,38 +134,31 @@ func (a *Agent) FlushBinaryLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	env := well.NewEnvironment(context.Background())
-	env.Go(func(ctx context.Context) error {
-		defer a.sem.Release(1)
+	defer a.sem.Release(1)
 
-		// TODO: change user
-		rootPassword := os.Getenv(moco.RootPasswordEnvName)
-		db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.RootUser, rootPassword)
+	// TODO: change user
+	rootPassword := os.Getenv(moco.RootPasswordEnvName)
+	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.RootUser, rootPassword)
+	if err != nil {
+		internalServerError(w, fmt.Errorf("failed to connect to database before flush binary logs: %w", err))
+		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
+			"hostname":  a.mysqlAdminHostname,
+			"port":      a.mysqlAdminPort,
+			log.FnError: err,
+		})
+	}
+
+	_, err = flushBinaryLogs(r.Context(), db)
+	if err != nil {
+		internalServerError(w, fmt.Errorf("failed to flush binary logs: %w", err))
+	}
+
+	if deleteFlag {
+		err = deleteBinaryLog(r.Context(), db)
 		if err != nil {
-			a.sem.Release(1)
-			internalServerError(w, fmt.Errorf("failed to connect to database before flush binary logs: %w", err))
-			log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
-				"hostname":  a.mysqlAdminHostname,
-				"port":      a.mysqlAdminPort,
-				log.FnError: err,
-			})
-			return err
+			internalServerError(w, fmt.Errorf("failed to delete binary logs: %w", err))
 		}
-
-		err = flushBinaryLog(r.Context(), db)
-		if err != nil {
-			return err
-		}
-
-		if deleteFlag {
-			err = deleteBinaryLog(r.Context(), db)
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
+	}
 }
 
 func parseBackupBinLogParams(v url.Values) (*BackupBinaryLogsParams, error) {
@@ -176,9 +178,9 @@ func parseBackupBinLogParams(v url.Values) (*BackupBinaryLogsParams, error) {
 	}, nil
 }
 
-func flushBinaryLog(ctx context.Context, db *sqlx.DB) error {
+func flushBinaryLogs(ctx context.Context, db *sqlx.DB) (time.Time, error) {
 	_, err := db.ExecContext(ctx, `FLUSH BINARY LOGS`)
-	return err
+	return time.Now(), err
 }
 
 func getBinaryLogNames(ctx context.Context, db *sqlx.DB) ([]string, error) {
@@ -206,7 +208,7 @@ func deleteBinaryLog(ctx context.Context, db *sqlx.DB) error {
 		return err
 	}
 	latest := binlogNames[len(binlogNames)-1]
-	_, err = db.ExecContext(ctx, `PURGE BINARY LOGS TO $1`, latest)
+	_, err = db.ExecContext(ctx, `PURGE BINARY LOGS TO ?`, latest)
 	return err
 }
 
@@ -254,7 +256,7 @@ func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogsP
 			writer.Close()
 		}()
 
-		objectKey := fmt.Sprintf("%s-%d", params.FilePrefix, i)
+		objectKey := fmt.Sprintf("%s-%s-%06d", params.FilePrefix, params.Day.Format(dayLayout), i)
 		result, err := uploader.Upload(&s3manager.UploadInput{
 			Bucket: aws.String(params.BucketName),
 			Key:    aws.String(objectKey),
