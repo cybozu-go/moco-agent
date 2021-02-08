@@ -24,9 +24,10 @@ import (
 )
 
 const (
+	agentTestPrefix = "moco-agent-test-"
 	binlogPrefix    = "binlog"
-	binlogDirPrefix = "moco-agent-test-binlog-base-"
-	bucketName      = "moco-agent-test-bucket"
+	binlogDirPrefix = agentTestPrefix + "binlog-base-"
+	bucketName      = agentTestPrefix + "bucket"
 )
 
 func testBackupBinaryLogs() {
@@ -38,7 +39,7 @@ func testBackupBinaryLogs() {
 
 	BeforeEach(func() {
 		var err error
-		tmpDir, err = ioutil.TempDir("", "moco-agent-test-")
+		tmpDir, err = ioutil.TempDir("", agentTestPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
 		agent = New(test_utils.Host, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, tmpDir, replicaPort,
 			&accessor.MySQLAccessorConfig{
@@ -63,8 +64,8 @@ func testBackupBinaryLogs() {
 		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, binlogPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		test_utils.StopMinIO("moco-agent-test-minio")
-		err = test_utils.StartMinIO("moco-agent-test-minio", 9000)
+		test_utils.StopMinIO(agentTestPrefix + "minio")
+		err = test_utils.StartMinIO(agentTestPrefix+"minio", 9000)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("initializing MySQL replica")
