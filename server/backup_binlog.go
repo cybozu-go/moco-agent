@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"fmt"
@@ -11,7 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"time"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -25,7 +26,7 @@ import (
 )
 
 const (
-	dayLayout = "20060102"
+	dayLayout = "20060102T150405"
 )
 
 // BackupBinaryLogsParams is the paramters for backup binary logs
@@ -38,15 +39,12 @@ type BackupBinaryLogsParams struct {
 
 	AccessKeyID     string
 	SecretAccessKey string
-
-	Day time.Time
 }
 
 // FlushAndBackupBinaryLogs executes "FLUSH BINARY LOGS;"
 // and upload it to the object storage, then delete it
 func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request) {
 	var err error
-
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -69,27 +67,31 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// TODO: change user
+	rootPassword := os.Getenv(moco.RootPasswordEnvName)
+	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.RootUser, rootPassword)
+	if err != nil {
+		internalServerError(w, fmt.Errorf("failed to connect to database before flush binary logs: %w", err))
+		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
+			"hostname":  a.mysqlAdminHostname,
+			"port":      a.mysqlAdminPort,
+			log.FnError: err,
+		})
+		internalServerError(w, err)
+		a.sem.Release(1)
+		return
+	}
+
+	err = flushBinaryLogs(r.Context(), db)
+	if err != nil {
+		internalServerError(w, err)
+		a.sem.Release(1)
+		return
+	}
+
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
 		defer a.sem.Release(1)
-
-		// TODO: change user
-		rootPassword := os.Getenv(moco.RootPasswordEnvName)
-		db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.RootUser, rootPassword)
-		if err != nil {
-			internalServerError(w, fmt.Errorf("failed to connect to database before flush binary logs: %w", err))
-			log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
-				"hostname":  a.mysqlAdminHostname,
-				"port":      a.mysqlAdminPort,
-				log.FnError: err,
-			})
-			return err
-		}
-
-		params.Day, err = flushBinaryLogs(r.Context(), db)
-		if err != nil {
-			return err
-		}
 
 		err = uploadBinaryLog(r.Context(), db, params)
 		if err != nil {
@@ -148,7 +150,7 @@ func (a *Agent) FlushBinaryLogs(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	_, err = flushBinaryLogs(r.Context(), db)
+	err = flushBinaryLogs(r.Context(), db)
 	if err != nil {
 		internalServerError(w, fmt.Errorf("failed to flush binary logs: %w", err))
 	}
@@ -178,9 +180,9 @@ func parseBackupBinLogParams(v url.Values) (*BackupBinaryLogsParams, error) {
 	}, nil
 }
 
-func flushBinaryLogs(ctx context.Context, db *sqlx.DB) (time.Time, error) {
+func flushBinaryLogs(ctx context.Context, db *sqlx.DB) error {
 	_, err := db.ExecContext(ctx, `FLUSH BINARY LOGS`)
-	return time.Now(), err
+	return err
 }
 
 func getBinaryLogNames(ctx context.Context, db *sqlx.DB) ([]string, error) {
@@ -237,6 +239,7 @@ func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogsP
 	binlogNames = binlogNames[:len(binlogNames)-1]
 
 	// Upload the binary log files to the object Store.
+	var objectKeys []string
 	for i, binlog := range binlogNames {
 		file, err := os.Open(filepath.Join(binlogDir, binlog))
 		if err != nil {
@@ -250,13 +253,18 @@ func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogsP
 		reader, writer := io.Pipe()
 		go func() {
 			gw := gzip.NewWriter(writer)
+			defer func() {
+				file.Close()
+				gw.Close()
+				writer.Close()
+			}()
+
+			// TODO: error handling
 			io.Copy(gw, file)
-			file.Close()
-			gw.Close()
-			writer.Close()
 		}()
 
-		objectKey := fmt.Sprintf("%s-%s-%06d", params.FilePrefix, params.Day.Format(dayLayout), i)
+		objectKey := fmt.Sprintf("%s-%06d", params.FilePrefix, i)
+		objectKeys = append(objectKeys, objectKey)
 		result, err := uploader.Upload(&s3manager.UploadInput{
 			Bucket: aws.String(params.BucketName),
 			Key:    aws.String(objectKey),
@@ -275,5 +283,28 @@ func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogsP
 		})
 	}
 
+	// Upload object list
+	objectKey := getListFileObjectKey(params.FilePrefix)
+	result, err := uploader.Upload(&s3manager.UploadInput{
+		Bucket: aws.String(params.BucketName),
+		Key:    aws.String(objectKey),
+		Body:   bytes.NewReader([]byte(strings.Join(objectKeys, "\n"))),
+	})
+	if err != nil {
+		log.Error("failed to upload binary log file list", map[string]interface{}{
+			"filename":  objectKey,
+			log.FnError: err,
+		})
+		return err
+	}
+	log.Info("success to upload binary log file list", map[string]interface{}{
+		"filename":   objectKey,
+		"object_url": aws.StringValue(&result.Location),
+	})
+
 	return nil
+}
+
+func getListFileObjectKey(prefix string) string {
+	return fmt.Sprintf("%s", prefix)
 }

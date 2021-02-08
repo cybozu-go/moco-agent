@@ -1,12 +1,15 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -81,8 +84,9 @@ func testBackupBinaryLogs() {
 			Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
 		}))
 
-		err = createBucket(sess, bucketName)
-		Expect(err).ShouldNot(HaveOccurred())
+		Eventually(func() error {
+			return createBucket(sess, bucketName)
+		}, 10*time.Second).Should(Succeed())
 
 		By("setting environment variables for password")
 		os.Setenv(moco.RootPasswordEnvName, test_utils.RootUserPassword)
@@ -114,16 +118,31 @@ func testBackupBinaryLogs() {
 
 		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
 
-		objName := binlogPrefix + "-" + time.Now().Format("20060102") + "-000000"
+		type BinlogFileListObjectKey struct {
+			BinlogFileListObjectKey string `json:"BinlogFileListObjectKey"`
+		}
+		var objKey BinlogFileListObjectKey
+		err := json.Unmarshal(res.Body.Bytes(), &objKey)
+		Expect(err).ShouldNot(HaveOccurred())
+
 		Eventually(func() error {
-			exists, err := checkObjectExistence(sess, bucketName, objName)
-			if err != nil {
-				return err
+			return checkObjectExistence(sess, bucketName, binlogPrefix)
+		}, 10*time.Second).Should(Succeed())
+
+		objStr, err := getObjectAsString(sess, bucketName, binlogPrefix)
+		Expect(err).ShouldNot(HaveOccurred())
+		objNames := strings.Split(objStr, "\n")
+		expectedObjNames := []string{binlogPrefix + "-000000"}
+		Expect(objNames).Should(Equal(expectedObjNames))
+
+		Eventually(func() error {
+			for _, objName := range objNames {
+				err := checkObjectExistence(sess, bucketName, objName)
+				if err != nil {
+					return err
+				}
 			}
-			if exists {
-				return nil
-			}
-			return fmt.Errorf("object %s/%s doesn't exist", bucketName, objName)
+			return nil
 		}).Should(Succeed())
 
 		Eventually(func() error {
@@ -138,7 +157,7 @@ func testBackupBinaryLogs() {
 
 	It("should only flush binlog", func() {
 		By("calling /flush-binlog API without delete flag")
-		req := httptest.NewRequest("GET", "http://"+replicaHost+"/flush-backup-binlog", nil)
+		req := httptest.NewRequest("GET", "http://"+replicaHost+"/flush-binlog", nil)
 		queries := url.Values{
 			moco.AgentTokenParam: []string{token},
 		}
@@ -162,7 +181,7 @@ func testBackupBinaryLogs() {
 		}, 10*time.Second).Should(Succeed())
 
 		By("calling /flush-binlog API with delete flag")
-		req = httptest.NewRequest("GET", "http://"+replicaHost+"/flush-backup-binlog", nil)
+		req = httptest.NewRequest("GET", "http://"+replicaHost+"/flush-binlog", nil)
 		queries = url.Values{
 			moco.AgentTokenParam:                []string{token},
 			mocoagent.FlushBinaryLogDeleteparam: []string{"true"},
@@ -202,18 +221,31 @@ func createBucket(sess *session.Session, bucketName string) error {
 	return err
 }
 
-func checkObjectExistence(sess *session.Session, bucketName, objectName string) (bool, error) {
+func checkObjectExistence(sess *session.Session, bucketName, objectName string) error {
 	svc := s3.New(sess)
-	res, err := svc.ListObjects(&s3.ListObjectsInput{
+	_, err := svc.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
+		Key:    aws.String(objectName),
 	})
+	return err
+}
+
+func getObjectAsString(sess *session.Session, bucketName, objectName string) (string, error) {
+	svc := s3.New(sess)
+	res, err := svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(objectName),
+	})
+	defer res.Body.Close()
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
-	if len(res.Contents) == 1 && *res.Contents[0].Key == objectName {
-		return true, nil
+	buf := new(strings.Builder)
+	_, err = io.Copy(buf, res.Body)
+	if err != nil {
+		return "", err
 	}
 
-	return false, nil
+	return buf.String(), nil
 }
