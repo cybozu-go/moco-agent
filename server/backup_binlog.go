@@ -154,7 +154,7 @@ func (a *Agent) FlushBinaryLogs(w http.ResponseWriter, r *http.Request) {
 
 	var deleteFlag bool
 	if flag := r.URL.Query().Get(mocoagent.FlushBinaryLogDeleteparam); len(flag) > 0 {
-		deleteFlag, err = strconv.ParseBool(r.URL.Query().Get(mocoagent.FlushBinaryLogDeleteparam))
+		deleteFlag, err = strconv.ParseBool(flag)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return

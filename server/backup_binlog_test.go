@@ -117,6 +117,7 @@ func testBackupBinaryLogs() {
 		agent.FlushAndBackupBinaryLogs(res, req)
 		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
 
+		By("checking the binlog file is uploaded")
 		Eventually(func() error {
 			_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
 				Bucket: aws.String(bucketName),
@@ -144,6 +145,7 @@ func testBackupBinaryLogs() {
 			return nil
 		}).Should(Succeed())
 
+		By("checking the uploaded binlog file is deleted")
 		Eventually(func() error {
 			binlogName := binlogDir + "/" + binlogPrefix + ".000001"
 			_, err := os.Stat(binlogName)
@@ -185,6 +187,7 @@ func testBackupBinaryLogs() {
 		agent.FlushBinaryLogs(res, req)
 		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
 
+		By("calling /flush-backup-binlog API")
 		req = httptest.NewRequest("GET", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries = url.Values{
 			moco.AgentTokenParam:                       []string{token},
@@ -203,6 +206,7 @@ func testBackupBinaryLogs() {
 		agent.FlushAndBackupBinaryLogs(res, req)
 		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
 
+		By("checking the multiple binlog files are uploaded")
 		Eventually(func() error {
 			_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
 				Bucket: aws.String(bucketName),
@@ -230,6 +234,7 @@ func testBackupBinaryLogs() {
 			return nil
 		}).Should(Succeed())
 
+		By("checking the uploaded binlog files are deleted")
 		Eventually(func() error {
 			binlogNames := []string{binlogDir + "/" + binlogPrefix + ".000001", binlogDir + "/" + binlogPrefix + ".000002"}
 			for _, b := range binlogNames {
