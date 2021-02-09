@@ -81,7 +81,8 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		a.sem.Release(1)
 		w.WriteHeader(http.StatusConflict)
 		return
-	} else if strings.HasPrefix(err.Error(), s3.ErrCodeNoSuchKey) {
+	}
+	if strings.HasPrefix(err.Error(), s3.ErrCodeNoSuchKey) {
 		a.sem.Release(1)
 		internalServerError(w, fmt.Errorf("failed to get objects: %w", err))
 		log.Error("failed to get objects", map[string]interface{}{
@@ -319,7 +320,7 @@ func uploadBinaryLog(ctx context.Context, sess *session.Session, db *sqlx.DB, pa
 	}
 
 	// Upload object list
-	objectKey := getListFileObjectKey(params.FilePrefix)
+	objectKey := params.FilePrefix
 	result, err := uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(params.BucketName),
 		Key:    aws.String(objectKey),
@@ -342,8 +343,4 @@ func uploadBinaryLog(ctx context.Context, sess *session.Session, db *sqlx.DB, pa
 
 func getBinlogFileObjectKey(prefix string, index int) string {
 	return fmt.Sprintf("%s-%06d", prefix, index)
-}
-
-func getListFileObjectKey(prefix string) string {
-	return fmt.Sprintf("%s", prefix)
 }

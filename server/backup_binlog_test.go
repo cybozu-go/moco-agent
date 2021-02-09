@@ -318,10 +318,10 @@ func getObjectAsString(sess *session.Session, bucketName, objectName string) (st
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(objectName),
 	})
-	defer res.Body.Close()
 	if err != nil {
 		return "", err
 	}
+	defer res.Body.Close()
 
 	buf := new(strings.Builder)
 	_, err = io.Copy(buf, res.Body)
