@@ -17,16 +17,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/well"
 	"github.com/jmoiron/sqlx"
-)
-
-const (
-	dayLayout = "20060102T150405"
 )
 
 // BackupBinaryLogsParams is the paramters for backup binary logs
@@ -67,25 +64,53 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region:           aws.String(params.BucketRegion),
+		Endpoint:         aws.String(fmt.Sprintf("%s:%d", params.BucketHost, params.BucketPort)),
+		DisableSSL:       aws.Bool(true),
+		S3ForcePathStyle: aws.Bool(true),
+		Credentials:      credentials.NewStaticCredentials(params.AccessKeyID, params.SecretAccessKey, ""),
+	}))
+
+	// prevent re-execution of the same request
+	_, err = s3.New(sess).HeadObject(&s3.HeadObjectInput{
+		Bucket: aws.String(params.BucketName),
+		Key:    aws.String(params.FilePrefix),
+	})
+	if err == nil {
+		a.sem.Release(1)
+		w.WriteHeader(http.StatusConflict)
+		return
+	} else if err.Error() != s3.ErrCodeNoSuchKey {
+		a.sem.Release(1)
+		internalServerError(w, fmt.Errorf("failed to get objects: %w", err))
+		log.Error("failed to get objects", map[string]interface{}{
+			log.FnError: err,
+		})
+		return
+	}
+
 	// TODO: change user
 	rootPassword := os.Getenv(moco.RootPasswordEnvName)
 	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.RootUser, rootPassword)
 	if err != nil {
+		a.sem.Release(1)
 		internalServerError(w, fmt.Errorf("failed to connect to database before flush binary logs: %w", err))
 		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
 			"hostname":  a.mysqlAdminHostname,
 			"port":      a.mysqlAdminPort,
 			log.FnError: err,
 		})
-		internalServerError(w, err)
-		a.sem.Release(1)
 		return
 	}
 
 	err = flushBinaryLogs(r.Context(), db)
 	if err != nil {
-		internalServerError(w, err)
 		a.sem.Release(1)
+		internalServerError(w, fmt.Errorf("failed to flush binary logs: %w", err))
+		log.Error("failed to flush binary logs", map[string]interface{}{
+			log.FnError: err,
+		})
 		return
 	}
 
@@ -93,13 +118,18 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 	env.Go(func(ctx context.Context) error {
 		defer a.sem.Release(1)
 
-		err = uploadBinaryLog(r.Context(), db, params)
+		err = uploadBinaryLog(r.Context(), sess, db, params)
 		if err != nil {
+			// Need not output error log here, because the errors are logged in the function.
 			return err
 		}
 
 		err = deleteBinaryLog(r.Context(), db)
 		if err != nil {
+			internalServerError(w, fmt.Errorf("failed to delete binary logs: %w", err))
+			log.Error("failed to delete binary logs", map[string]interface{}{
+				log.FnError: err,
+			})
 			return err
 		}
 
@@ -135,7 +165,6 @@ func (a *Agent) FlushBinaryLogs(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		return
 	}
-
 	defer a.sem.Release(1)
 
 	// TODO: change user
@@ -153,12 +182,18 @@ func (a *Agent) FlushBinaryLogs(w http.ResponseWriter, r *http.Request) {
 	err = flushBinaryLogs(r.Context(), db)
 	if err != nil {
 		internalServerError(w, fmt.Errorf("failed to flush binary logs: %w", err))
+		log.Error("failed to flush binary logs", map[string]interface{}{
+			log.FnError: err,
+		})
 	}
 
 	if deleteFlag {
 		err = deleteBinaryLog(r.Context(), db)
 		if err != nil {
 			internalServerError(w, fmt.Errorf("failed to delete binary logs: %w", err))
+			log.Error("failed to delete binary logs", map[string]interface{}{
+				log.FnError: err,
+			})
 		}
 	}
 }
@@ -214,19 +249,15 @@ func deleteBinaryLog(ctx context.Context, db *sqlx.DB) error {
 	return err
 }
 
-func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogsParams) error {
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region:           aws.String("neco"),
-		Endpoint:         aws.String(fmt.Sprintf("%s:%d", params.BucketHost, params.BucketPort)),
-		DisableSSL:       aws.Bool(true),
-		S3ForcePathStyle: aws.Bool(true),
-		Credentials:      credentials.NewStaticCredentials(params.AccessKeyID, params.SecretAccessKey, ""),
-	}))
+func uploadBinaryLog(ctx context.Context, sess *session.Session, db *sqlx.DB, params *BackupBinaryLogsParams) error {
 	uploader := s3manager.NewUploader(sess)
 
 	var binlogBasename string
 	err := db.GetContext(ctx, &binlogBasename, `select @@log_bin_basename`)
 	if err != nil {
+		log.Error("failed to get binary log basename", map[string]interface{}{
+			log.FnError: err,
+		})
 		return err
 	}
 	binlogDir := filepath.Dir(binlogBasename)
@@ -234,6 +265,9 @@ func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogsP
 	// Get binlog file names
 	binlogNames, err := getBinaryLogNames(ctx, db)
 	if err != nil {
+		log.Error("failed to get binary log names", map[string]interface{}{
+			log.FnError: err,
+		})
 		return err
 	}
 	binlogNames = binlogNames[:len(binlogNames)-1]
@@ -259,11 +293,12 @@ func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogsP
 				writer.Close()
 			}()
 
-			// TODO: error handling
+			// We need not error handling here.
+			// If this copy will fail, the following uploader.Upload() get failed.
 			io.Copy(gw, file)
 		}()
 
-		objectKey := fmt.Sprintf("%s-%06d", params.FilePrefix, i)
+		objectKey := getBinlogFileObjectKey(params.FilePrefix, i)
 		objectKeys = append(objectKeys, objectKey)
 		result, err := uploader.Upload(&s3manager.UploadInput{
 			Bucket: aws.String(params.BucketName),
@@ -303,6 +338,10 @@ func uploadBinaryLog(ctx context.Context, db *sqlx.DB, params *BackupBinaryLogsP
 	})
 
 	return nil
+}
+
+func getBinlogFileObjectKey(prefix string, index int) string {
+	return fmt.Sprintf("%s-%06d", prefix, index)
 }
 
 func getListFileObjectKey(prefix string) string {

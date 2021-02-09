@@ -221,15 +221,6 @@ func createBucket(sess *session.Session, bucketName string) error {
 	return err
 }
 
-func checkObjectExistence(sess *session.Session, bucketName, objectName string) error {
-	svc := s3.New(sess)
-	_, err := svc.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(bucketName),
-		Key:    aws.String(objectName),
-	})
-	return err
-}
-
 func getObjectAsString(sess *session.Session, bucketName, objectName string) (string, error) {
 	svc := s3.New(sess)
 	res, err := svc.GetObject(&s3.GetObjectInput{
