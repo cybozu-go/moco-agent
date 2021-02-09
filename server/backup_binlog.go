@@ -81,7 +81,7 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		a.sem.Release(1)
 		w.WriteHeader(http.StatusConflict)
 		return
-	} else if err.Error() != s3.ErrCodeNoSuchKey {
+	} else if strings.HasPrefix(err.Error(), s3.ErrCodeNoSuchKey) {
 		a.sem.Release(1)
 		internalServerError(w, fmt.Errorf("failed to get objects: %w", err))
 		log.Error("failed to get objects", map[string]interface{}{
