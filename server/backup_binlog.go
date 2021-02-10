@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -22,6 +23,7 @@ import (
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
+	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/well"
 	"github.com/jmoiron/sqlx"
 )
@@ -42,7 +44,7 @@ type BackupBinaryLogsParams struct {
 // and upload it to the object storage, then delete it
 func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request) {
 	var err error
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
@@ -105,6 +107,9 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	metrics.IncrementBinlogBackupCountMetrics()
+	startTime := time.Now()
+
 	err = flushBinaryLogs(r.Context(), db)
 	if err != nil {
 		a.sem.Release(1)
@@ -112,6 +117,7 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		log.Error("failed to flush binary logs", map[string]interface{}{
 			log.FnError: err,
 		})
+		metrics.IncrementBinlogBackupFailureCountMetrics("flush")
 		return
 	}
 
@@ -122,6 +128,7 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		err = uploadBinaryLog(ctx, sess, db, params)
 		if err != nil {
 			// Need not output error log here, because the errors are logged in the function.
+			metrics.IncrementBinlogBackupFailureCountMetrics("upload")
 			return err
 		}
 
@@ -131,8 +138,12 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 			log.Error("failed to delete binary logs", map[string]interface{}{
 				log.FnError: err,
 			})
+			metrics.IncrementBinlogBackupFailureCountMetrics("delete")
 			return err
 		}
+
+		durationSeconds := time.Since(startTime).Seconds()
+		metrics.UpdateCloneDurationSecondsMetrics(durationSeconds)
 
 		return nil
 	})

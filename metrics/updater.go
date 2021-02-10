@@ -1,5 +1,17 @@
 package metrics
 
+func IncrementBinlogBackupCountMetrics() {
+	binlogBackupCountMetrics.Inc()
+}
+
+func IncrementBinlogBackupFailureCountMetrics(action string) {
+	binlogBackupFailureCountMetrics.WithLabelValues(action).Inc()
+}
+
+func UpdateBinlogBackupDurationSecondsMetrics(durationSeconds float64) {
+	binlogBackupDurationSecondsMetrics.Observe(durationSeconds)
+}
+
 func IncrementCloneCountMetrics() {
 	cloneCountMetrics.Inc()
 }
@@ -22,4 +34,16 @@ func IncrementLogRotationFailureCountMetrics() {
 
 func UpdateLogRotationDurationSecondsMetrics(durationSeconds float64) {
 	logRotationDurationSecondsMetrics.Observe(durationSeconds)
+}
+
+func IncrementDumpBackupCountMetrics() {
+	dumpBackupCountMetrics.Inc()
+}
+
+func IncrementDumpBackupFailureCountMetrics(action string) {
+	dumpBackupFailureCountMetrics.WithLabelValues(action).Inc()
+}
+
+func UpdateDumpBackupDurationSecondsMetrics(durationSeconds float64) {
+	dumpBackupDurationSecondsMetrics.Observe(durationSeconds)
 }
