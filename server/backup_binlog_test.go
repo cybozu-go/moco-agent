@@ -99,10 +99,10 @@ func testBackupBinaryLogs() {
 
 	It("should flush and backup binlog", func() {
 		By("calling /flush-backup-binlog API")
-		req := httptest.NewRequest("GET", "http://"+replicaHost+"/flush-backup-binlog", nil)
+		req := httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries := url.Values{
 			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogFilePrefixParam:   []string{binlogPrefix},
+			mocoagent.BackupBinaryLogBackupIDParam:     []string{binlogPrefix},
 			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
 			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
 			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
@@ -156,10 +156,10 @@ func testBackupBinaryLogs() {
 		}).Should(Succeed())
 
 		By("calling /flush-backup-binlog API with the same prefix")
-		req = httptest.NewRequest("GET", "http://"+replicaHost+"/flush-backup-binlog", nil)
+		req = httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries = url.Values{
 			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogFilePrefixParam:   []string{binlogPrefix},
+			mocoagent.BackupBinaryLogBackupIDParam:     []string{binlogPrefix},
 			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
 			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
 			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
@@ -177,7 +177,7 @@ func testBackupBinaryLogs() {
 
 	It("should backup multiple binlog files", func() {
 		By("calling /flush-binlog API without delete flag")
-		req := httptest.NewRequest("GET", "http://"+replicaHost+"/flush-binlog", nil)
+		req := httptest.NewRequest("POST", "http://"+replicaHost+"/flush-binlog", nil)
 		queries := url.Values{
 			moco.AgentTokenParam: []string{token},
 		}
@@ -188,10 +188,10 @@ func testBackupBinaryLogs() {
 		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
 
 		By("calling /flush-backup-binlog API")
-		req = httptest.NewRequest("GET", "http://"+replicaHost+"/flush-backup-binlog", nil)
+		req = httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries = url.Values{
 			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogFilePrefixParam:   []string{binlogPrefix},
+			mocoagent.BackupBinaryLogBackupIDParam:     []string{binlogPrefix},
 			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
 			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
 			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
@@ -249,7 +249,7 @@ func testBackupBinaryLogs() {
 
 	It("should only flush binlog", func() {
 		By("calling /flush-binlog API without delete flag")
-		req := httptest.NewRequest("GET", "http://"+replicaHost+"/flush-binlog", nil)
+		req := httptest.NewRequest("POST", "http://"+replicaHost+"/flush-binlog", nil)
 		queries := url.Values{
 			moco.AgentTokenParam: []string{token},
 		}
@@ -272,7 +272,7 @@ func testBackupBinaryLogs() {
 		}, 10*time.Second).Should(Succeed())
 
 		By("calling /flush-binlog API with delete flag")
-		req = httptest.NewRequest("GET", "http://"+replicaHost+"/flush-binlog", nil)
+		req = httptest.NewRequest("POST", "http://"+replicaHost+"/flush-binlog", nil)
 		queries = url.Values{
 			moco.AgentTokenParam:                []string{token},
 			mocoagent.FlushBinaryLogDeleteparam: []string{"true"},

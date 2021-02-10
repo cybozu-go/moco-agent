@@ -1,7 +1,7 @@
 package mocoagent
 
 const (
-	BackupBinaryLogFilePrefixParam   = "file_prefix"
+	BackupBinaryLogBackupIDParam     = "backup_id"
 	BackupBinaryLogBucketHostParam   = "bucket_host"
 	BackupBinaryLogBucketPortParam   = "bucket_port"
 	BackupBinaryLogBucketNameParam   = "bucket_name"

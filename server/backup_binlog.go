@@ -28,7 +28,7 @@ import (
 
 // BackupBinaryLogsParams is the paramters for backup binary logs
 type BackupBinaryLogsParams struct {
-	FilePrefix   string
+	BackupID     string
 	BucketHost   string
 	BucketPort   int
 	BucketName   string
@@ -42,7 +42,7 @@ type BackupBinaryLogsParams struct {
 // and upload it to the object storage, then delete it
 func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request) {
 	var err error
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
@@ -75,7 +75,7 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 	// prevent re-execution of the same request
 	_, err = s3.New(sess).HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(params.BucketName),
-		Key:    aws.String(params.FilePrefix),
+		Key:    aws.String(params.BackupID),
 	})
 	if err == nil {
 		a.sem.Release(1)
@@ -119,13 +119,13 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 	env.Go(func(ctx context.Context) error {
 		defer a.sem.Release(1)
 
-		err = uploadBinaryLog(r.Context(), sess, db, params)
+		err = uploadBinaryLog(ctx, sess, db, params)
 		if err != nil {
 			// Need not output error log here, because the errors are logged in the function.
 			return err
 		}
 
-		err = deleteBinaryLog(r.Context(), db)
+		err = deleteBinaryLog(ctx, db)
 		if err != nil {
 			internalServerError(w, fmt.Errorf("failed to delete binary logs: %w", err))
 			log.Error("failed to delete binary logs", map[string]interface{}{
@@ -142,7 +142,7 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 func (a *Agent) FlushBinaryLogs(w http.ResponseWriter, r *http.Request) {
 	var err error
 
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
@@ -206,7 +206,7 @@ func parseBackupBinLogParams(v url.Values) (*BackupBinaryLogsParams, error) {
 	}
 
 	return &BackupBinaryLogsParams{
-		FilePrefix:      v.Get(mocoagent.BackupBinaryLogFilePrefixParam),
+		BackupID:        v.Get(mocoagent.BackupBinaryLogBackupIDParam),
 		BucketHost:      v.Get(mocoagent.BackupBinaryLogBucketHostParam),
 		BucketPort:      port,
 		BucketName:      v.Get(mocoagent.BackupBinaryLogBucketNameParam),
@@ -299,7 +299,7 @@ func uploadBinaryLog(ctx context.Context, sess *session.Session, db *sqlx.DB, pa
 			io.Copy(gw, file)
 		}()
 
-		objectKey := getBinlogFileObjectKey(params.FilePrefix, i)
+		objectKey := getBinlogFileObjectKey(params.BackupID, i)
 		objectKeys = append(objectKeys, objectKey)
 		result, err := uploader.Upload(&s3manager.UploadInput{
 			Bucket: aws.String(params.BucketName),
@@ -320,7 +320,7 @@ func uploadBinaryLog(ctx context.Context, sess *session.Session, db *sqlx.DB, pa
 	}
 
 	// Upload object list
-	objectKey := params.FilePrefix
+	objectKey := params.BackupID
 	result, err := uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(params.BucketName),
 		Key:    aws.String(objectKey),
