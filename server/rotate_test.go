@@ -2,9 +2,6 @@ package server
 
 import (
 	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -43,19 +40,6 @@ func testRotate() {
 		os.RemoveAll(tmpDir)
 	})
 
-	It("should return 400 with bad requests", func() {
-		By("passing invalid token")
-		req := httptest.NewRequest("GET", "http://"+replicaHost+"/rotate", nil)
-		queries := url.Values{
-			moco.AgentTokenParam: []string{"invalid-token"},
-		}
-		req.URL.RawQuery = queries.Encode()
-
-		res := httptest.NewRecorder()
-		agent.RotateLog(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusBadRequest))
-	})
-
 	It("should rotate log files", func() {
 		err := test_utils.StartMySQLD(donorHost, donorPort, donorServerID)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -82,18 +66,7 @@ func testRotate() {
 			Expect(err).ShouldNot(HaveOccurred())
 		}
 
-		By("calling rotate API")
-		req := httptest.NewRequest("GET", "http://"+replicaHost+"/rotate", nil)
-		queries := url.Values{
-			moco.AgentTokenParam: []string{token},
-		}
-		req.URL.RawQuery = queries.Encode()
-
-		res := httptest.NewRecorder()
-		agent.RotateLog(res, req)
-		body, err := ioutil.ReadAll(res.Body)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK), "body: %s", body)
+		agent.RotateLog()
 
 		for _, file := range logFiles {
 			_, err := os.Stat(file + ".0")
@@ -117,11 +90,8 @@ func testRotate() {
 			Expect(err).ShouldNot(HaveOccurred())
 		}
 
-		res = httptest.NewRecorder()
-		agent.RotateLog(res, req)
-		body, err = ioutil.ReadAll(res.Body)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res).Should(HaveHTTPStatus(http.StatusInternalServerError), "body: %s", body)
+		agent.RotateLog()
+
 		rotationCount, err = getMetric(registry, metricsPrefix+"log_rotation_count")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*rotationCount.Counter.Value).Should(Equal(2.0))
