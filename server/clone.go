@@ -222,7 +222,7 @@ func (a *Agent) clone(ctx context.Context, donorUser, donorPassword, donorHostNa
 		return err
 	}
 
-	metrics.IncrementCloneCountMetrics()
+	metrics.IncrementCloneCountMetrics(a.clusterName)
 
 	startTime := time.Now()
 	_, err = db.ExecContext(ctx, `CLONE INSTANCE FROM ?@?:? IDENTIFIED BY ?`, donorUser, donorHostName, donorPort, donorPassword)
@@ -232,7 +232,7 @@ func (a *Agent) clone(ctx context.Context, donorUser, donorPassword, donorHostNa
 	// And then the "ERROR 3707" (Restart server failed) occurs. This error does not indicate a cloning failure.
 	// So checking the error number here.
 	if err != nil && !strings.HasPrefix(err.Error(), "Error 3707") {
-		metrics.IncrementCloneFailureCountMetrics()
+		metrics.IncrementCloneFailureCountMetrics(a.clusterName)
 
 		log.Error("failed to exec mysql CLONE", map[string]interface{}{
 			"donor_hostname": donorHostName,
@@ -244,7 +244,7 @@ func (a *Agent) clone(ctx context.Context, donorUser, donorPassword, donorHostNa
 		return err
 	}
 
-	metrics.UpdateCloneDurationSecondsMetrics(durationSeconds)
+	metrics.UpdateCloneDurationSecondsMetrics(a.clusterName, durationSeconds)
 
 	log.Info("success to exec mysql CLONE", map[string]interface{}{
 		"donor_hostname": donorHostName,

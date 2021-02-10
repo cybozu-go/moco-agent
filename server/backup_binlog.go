@@ -107,7 +107,7 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	metrics.IncrementBinlogBackupCountMetrics()
+	metrics.IncrementBinlogBackupCountMetrics(a.clusterName)
 	startTime := time.Now()
 
 	err = flushBinaryLogs(r.Context(), db)
@@ -117,7 +117,7 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		log.Error("failed to flush binary logs", map[string]interface{}{
 			log.FnError: err,
 		})
-		metrics.IncrementBinlogBackupFailureCountMetrics("flush")
+		metrics.IncrementBinlogBackupFailureCountMetrics(a.clusterName, "flush")
 		return
 	}
 
@@ -128,7 +128,7 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		err = uploadBinaryLog(ctx, sess, db, params)
 		if err != nil {
 			// Need not output error log here, because the errors are logged in the function.
-			metrics.IncrementBinlogBackupFailureCountMetrics("upload")
+			metrics.IncrementBinlogBackupFailureCountMetrics(a.clusterName, "upload")
 			return err
 		}
 
@@ -138,12 +138,12 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 			log.Error("failed to delete binary logs", map[string]interface{}{
 				log.FnError: err,
 			})
-			metrics.IncrementBinlogBackupFailureCountMetrics("delete")
+			metrics.IncrementBinlogBackupFailureCountMetrics(a.clusterName, "delete")
 			return err
 		}
 
 		durationSeconds := time.Since(startTime).Seconds()
-		metrics.UpdateCloneDurationSecondsMetrics(durationSeconds)
+		metrics.UpdateCloneDurationSecondsMetrics(a.clusterName, durationSeconds)
 
 		return nil
 	})
