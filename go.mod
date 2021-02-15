@@ -8,6 +8,7 @@ require (
 	github.com/cybozu-go/moco v0.4.0
 	github.com/cybozu-go/well v1.10.0
 	github.com/go-sql-driver/mysql v1.5.0
+	github.com/golang/protobuf v1.4.3
 	github.com/google/go-cmp v0.5.4
 	github.com/jmoiron/sqlx v1.3.1
 	github.com/onsi/ginkgo v1.14.2
@@ -18,4 +19,6 @@ require (
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.1
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	google.golang.org/grpc v1.35.0
+	google.golang.org/protobuf v1.25.0
 )

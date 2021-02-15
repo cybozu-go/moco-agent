@@ -101,6 +101,10 @@ func testBackupBinaryLogs() {
 	})
 
 	AfterEach(func() {
+		By("deleting MySQL containers")
+		test_utils.StopAndRemoveMySQLD(donorHost)
+		test_utils.StopAndRemoveMySQLD(replicaHost)
+
 		By("deleting MinIO container")
 		test_utils.StopMinIO(agentTestPrefix + "minio")
 		os.RemoveAll(tmpDir)
