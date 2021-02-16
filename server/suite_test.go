@@ -8,23 +8,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybozu-go/moco/test_utils"
+	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/go-sql-driver/mysql"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	promgo "github.com/prometheus/client_model/go"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 const (
 	token           = "dummy-token"
 	metricsPrefix   = "moco_agent_"
-	donorHost       = "moco-test-mysqld-donor"
+	donorHost       = "moco-agent-test-mysqld-donor"
 	donorPort       = 3307
 	donorServerID   = 1
-	replicaHost     = "moco-test-mysqld-replica"
+	replicaHost     = "moco-agent-test-mysqld-replica"
 	replicaPort     = 3308
 	replicaServerID = 2
 )
@@ -37,7 +35,6 @@ func TestAgent(t *testing.T) {
 }
 
 var _ = BeforeSuite(func(done Done) {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 	mysql.SetLogger(mysql.Logger(log.New(GinkgoWriter, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile)))
 
 	var err error
@@ -73,6 +70,7 @@ var _ = Describe("Test Agent", func() {
 	Context("health", testHealth)
 	Context("rotate", testRotate)
 	Context("clone", testClone)
+	Context("backup_binlog", testBackupBinaryLogs)
 })
 
 func getMetric(registry *prometheus.Registry, metricName string) (*promgo.Metric, error) {
