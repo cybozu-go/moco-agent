@@ -20,18 +20,9 @@ func (a *Agent) RotateLog() {
 	startTime := time.Now()
 
 	errFile := filepath.Join(a.logDir, moco.MySQLErrorLogName)
-	_, err := os.Stat(errFile)
-	if err == nil {
-		err := os.Rename(errFile, errFile+".0")
-		if err != nil {
-			log.Error("failed to rotate err log file", map[string]interface{}{
-				log.FnError: err,
-			})
-			metrics.IncrementLogRotationFailureCountMetrics()
-			return
-		}
-	} else if !os.IsNotExist(err) {
-		log.Error("failed to stat err log file", map[string]interface{}{
+	err := os.Rename(errFile, errFile+".0")
+	if err != nil && !os.IsNotExist(err) {
+		log.Error("failed to rotate err log file", map[string]interface{}{
 			log.FnError: err,
 		})
 		metrics.IncrementLogRotationFailureCountMetrics()
@@ -39,18 +30,9 @@ func (a *Agent) RotateLog() {
 	}
 
 	slowFile := filepath.Join(a.logDir, moco.MySQLSlowLogName)
-	_, err = os.Stat(slowFile)
-	if err == nil {
-		err := os.Rename(slowFile, slowFile+".0")
-		if err != nil {
-			log.Error("failed to rotate slow query log file", map[string]interface{}{
-				log.FnError: err,
-			})
-			metrics.IncrementLogRotationFailureCountMetrics()
-			return
-		}
-	} else if !os.IsNotExist(err) {
-		log.Error("failed to stat slow query log file", map[string]interface{}{
+	err = os.Rename(slowFile, slowFile+".0")
+	if err != nil && !os.IsNotExist(err) {
+		log.Error("failed to rotate slow query log file", map[string]interface{}{
 			log.FnError: err,
 		})
 		metrics.IncrementLogRotationFailureCountMetrics()
