@@ -85,26 +85,6 @@ func RegisterMetrics(registry *prometheus.Registry) {
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"cluster_name"})
 
-	binlogBackupCountMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricsNamespace,
-		Subsystem: metricsSubsystem,
-		Name:      "dump_backup_count",
-		Help:      "The dump backup operation count",
-	}, []string{"cluster_name"})
-	binlogBackupFailureCountMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricsNamespace,
-		Subsystem: metricsSubsystem,
-		Name:      "dump_backup_failure_count",
-		Help:      "The failed dump backup operation count",
-	}, []string{"action", "cluster_name"})
-	binlogBackupDurationSecondsMetrics = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Namespace:  metricsNamespace,
-		Subsystem:  metricsSubsystem,
-		Name:       "dump_backup_duration_seconds",
-		Help:       "The time took to dump backup operation",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-	}, []string{"cluster_name"})
-
 	dumpBackupCountMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: metricsNamespace,
 		Subsystem: metricsSubsystem,

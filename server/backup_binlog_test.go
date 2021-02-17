@@ -17,9 +17,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
+	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/cybozu-go/moco/accessor"
-	"github.com/cybozu-go/moco/metrics"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
@@ -52,7 +52,7 @@ func testBackupBinaryLogs() {
 		)
 
 		registry = prometheus.NewRegistry()
-		metrics.RegisterAgentMetrics(registry)
+		metrics.RegisterMetrics(registry)
 
 		By("creating MySQL and MinIO containers")
 		binlogDir, err = ioutil.TempDir("", binlogDirPrefix)
