@@ -17,15 +17,17 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 const (
-	addressFlag           = "address"
-	connMaxLifetimeFlag   = "conn-max-lifetime"
-	connectionTimeoutFlag = "connection-timeout"
-	readTimeoutFlag       = "read-timeout"
+	addressFlag             = "address"
+	connMaxLifetimeFlag     = "conn-max-lifetime"
+	connectionTimeoutFlag   = "connection-timeout"
+	logRotationScheduleFlag = "log-rotation-schedule"
+	readTimeoutFlag         = "read-timeout"
 )
 
 type mysqlLogger struct{}
@@ -76,7 +78,6 @@ var agentCmd = &cobra.Command{
 				ConnectionTimeout: viper.GetDuration(connectionTimeoutFlag),
 				ReadTimeout:       viper.GetDuration(readTimeoutFlag),
 			})
-		mux.HandleFunc("/rotate", agent.RotateLog)
 		mux.HandleFunc("/clone", agent.Clone)
 		mux.HandleFunc("/health", agent.Health)
 		mux.HandleFunc("/binlog-flush-backup", agent.FlushAndBackupBinaryLogs)
@@ -100,6 +101,25 @@ var agentCmd = &cobra.Command{
 			},
 		}
 
+		c := cron.New()
+		if _, err := c.AddFunc(viper.GetString(logRotationScheduleFlag), agent.RotateLog); err != nil {
+			log.Error("failed to parse the cron spec", map[string]interface{}{
+				"spec":      viper.GetString(logRotationScheduleFlag),
+				log.FnError: err,
+			})
+			return err
+		}
+		c.Start()
+		defer func() {
+			ctx := c.Stop()
+
+			select {
+			case <-ctx.Done():
+			case <-time.After(5 * time.Second):
+				log.Error("log rotate job did not finish", nil)
+			}
+		}()
+
 		err = serv.ListenAndServe()
 		if err != nil {
 			return err
@@ -120,6 +140,7 @@ func init() {
 	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", moco.AgentPort), "Listening address and port.")
 	agentCmd.Flags().Duration(connMaxLifetimeFlag, 30*time.Minute, "The maximum amount of time a connection may be reused")
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")
+	agentCmd.Flags().String(logRotationScheduleFlag, "*/5 * * * *", "Cron format schedule for MySQL log rotation")
 	agentCmd.Flags().Duration(readTimeoutFlag, 30*time.Second, "I/O read timeout")
 
 	err := viper.BindPFlags(agentCmd.Flags())
