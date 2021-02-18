@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -173,6 +174,28 @@ func testBackupBinaryLogs() {
 		res = httptest.NewRecorder()
 		agent.FlushAndBackupBinaryLogs(res, req)
 		Expect(res).Should(HaveHTTPStatus(http.StatusConflict))
+
+		By("checking metrics")
+		Eventually(func() error {
+			binlogBackupCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_count")
+			if *binlogBackupCount.Counter.Value != 1.0 {
+				return fmt.Errorf("binlog_backup_count isn't incremented yet: value=%f", *binlogBackupCount.Counter.Value)
+			}
+
+			binlogBackupFailureCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_failure_count")
+			if binlogBackupFailureCount != nil && *binlogBackupFailureCount.Counter.Value != 0.0 {
+				return fmt.Errorf("binlog_backup_failure_count should not be incremented: value=%f", *binlogBackupFailureCount.Counter.Value)
+			}
+
+			binlogBackupDurationSeconds, _ := getMetric(registry, metricsPrefix+"binlog_backup_duration_seconds")
+			for _, quantile := range binlogBackupDurationSeconds.Summary.Quantile {
+				if math.IsNaN(*quantile.Value) {
+					return fmt.Errorf("binlog_backup_duration_seconds should have values: quantile=%f, value=%f", *quantile.Quantile, *quantile.Value)
+				}
+			}
+
+			return nil
+		}, 30*time.Second).Should(Succeed())
 	})
 
 	It("should backup multiple binlog files", func() {
