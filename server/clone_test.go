@@ -106,13 +106,13 @@ func testClone() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		cloneCount, err := getMetric(registry, metricsPrefix+"clone_count")
+		cloneCount, _ := getMetric(registry, metricsPrefix+"clone_count")
 		Expect(cloneCount).Should(BeNil())
 
-		cloneFailureCount, err := getMetric(registry, metricsPrefix+"clone_failure_count")
+		cloneFailureCount, _ := getMetric(registry, metricsPrefix+"clone_failure_count")
 		Expect(cloneFailureCount).Should(BeNil())
 
-		cloneDurationSeconds, err := getMetric(registry, metricsPrefix+"clone_duration_seconds")
+		cloneDurationSeconds, _ := getMetric(registry, metricsPrefix+"clone_duration_seconds")
 		Expect(cloneDurationSeconds).Should(BeNil())
 	})
 
@@ -239,12 +239,12 @@ func testClone() {
 				return fmt.Errorf("clone_count isn't incremented yet: value=%f", *cloneCount.Counter.Value)
 			}
 
-			cloneFailureCount, err := getMetric(registry, metricsPrefix+"clone_failure_count")
+			cloneFailureCount, _ := getMetric(registry, metricsPrefix+"clone_failure_count")
 			if cloneFailureCount != nil && *cloneFailureCount.Counter.Value != 0.0 {
 				return fmt.Errorf("clone_failure_count shouldn't be incremented: value=%f", *cloneFailureCount.Counter.Value)
 			}
 
-			cloneDurationSeconds, err := getMetric(registry, metricsPrefix+"clone_duration_seconds")
+			cloneDurationSeconds, _ := getMetric(registry, metricsPrefix+"clone_duration_seconds")
 			for _, quantile := range cloneDurationSeconds.Summary.Quantile {
 				if math.IsNaN(*quantile.Value) {
 					return fmt.Errorf("clone_duration_seconds should have values: quantile=%f, value=%f", *quantile.Quantile, *quantile.Value)

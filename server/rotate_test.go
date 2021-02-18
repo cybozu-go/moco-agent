@@ -75,7 +75,7 @@ func testRotate() {
 		rotationCount, err := getMetric(registry, metricsPrefix+"log_rotation_count")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*rotationCount.Counter.Value).Should(Equal(1.0))
-		rotationFailureCount, err := getMetric(registry, metricsPrefix+"log_rotation_failure_count")
+		rotationFailureCount, _ := getMetric(registry, metricsPrefix+"log_rotation_failure_count")
 		Expect(rotationFailureCount).Should(BeNil())
 		rotationDurationSeconds, err := getMetric(registry, metricsPrefix+"log_rotation_duration_seconds")
 		Expect(err).ShouldNot(HaveOccurred())

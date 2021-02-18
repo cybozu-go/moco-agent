@@ -143,7 +143,7 @@ func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request)
 		}
 
 		durationSeconds := time.Since(startTime).Seconds()
-		metrics.UpdateCloneDurationSecondsMetrics(a.clusterName, durationSeconds)
+		metrics.UpdateBinlogBackupDurationSecondsMetrics(a.clusterName, durationSeconds)
 
 		return nil
 	})

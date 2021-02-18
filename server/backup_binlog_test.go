@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -178,7 +179,7 @@ func testBackupBinaryLogs() {
 		By("checking metrics")
 		Eventually(func() error {
 			binlogBackupCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_count")
-			if *binlogBackupCount.Counter.Value != 1.0 {
+			if binlogBackupCount == nil || *binlogBackupCount.Counter.Value != 1.0 {
 				return fmt.Errorf("binlog_backup_count isn't incremented yet: value=%f", *binlogBackupCount.Counter.Value)
 			}
 
@@ -188,6 +189,9 @@ func testBackupBinaryLogs() {
 			}
 
 			binlogBackupDurationSeconds, _ := getMetric(registry, metricsPrefix+"binlog_backup_duration_seconds")
+			if binlogBackupDurationSeconds == nil {
+				return errors.New("binlog_backup_duration_seconds should have values: metric=nil")
+			}
 			for _, quantile := range binlogBackupDurationSeconds.Summary.Quantile {
 				if math.IsNaN(*quantile.Value) {
 					return fmt.Errorf("binlog_backup_duration_seconds should have values: quantile=%f, value=%f", *quantile.Quantile, *quantile.Value)
