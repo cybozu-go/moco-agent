@@ -12,6 +12,7 @@ import (
 
 	"github.com/cybozu-go/moco"
 	"github.com/go-sql-driver/mysql"
+	"github.com/google/go-cmp/cmp"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -23,6 +24,54 @@ var (
 	initUser              = "init-user"
 	initPassword          = "init-password"
 )
+
+func TestGenerateMySQLConfiguration(t *testing.T) {
+	ctx := context.Background()
+	tempDir := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(tempDir, moco.MySQLConfTemplatePath), 0777); err != nil {
+		t.Fatalf("failed to craete temp dir: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(tempDir, moco.MySQLConfPath), 0777); err != nil {
+		t.Fatalf("failed to craete temp dir: %v", err)
+	}
+
+	template, err := ioutil.ReadFile("testdata/template-my.cnf")
+	if err != nil {
+		t.Fatalf("failed to load testdata: %v", err)
+	}
+
+	templateConfPath := filepath.Join(tempDir, moco.MySQLConfTemplatePath, moco.MySQLConfName)
+
+	if err := ioutil.WriteFile(templateConfPath, template, 0644); err != nil {
+		t.Fatalf("failed to create mysql configuration file template: %v", err)
+	}
+
+	if err := os.Setenv(moco.PodNameEnvName, "moco-mysqlcluster-0"); err != nil {
+		t.Fatalf("failed to set env %s: %v", moco.PodNameEnvName, err)
+	}
+	defer os.Unsetenv(moco.PodNameEnvName)
+
+	if err := generateMySQLConfiguration(ctx, 1000,
+		filepath.Join(tempDir, moco.MySQLConfTemplatePath), filepath.Join(tempDir, moco.MySQLConfPath), moco.MySQLConfName); err != nil {
+		t.Fatalf("failed to generate mysql configuration file: %v", err)
+	}
+
+	want, err := ioutil.ReadFile("testdata/my.cnf")
+	if err != nil {
+		t.Fatalf("failed to load testdata: %v", err)
+	}
+
+	got, err := ioutil.ReadFile(filepath.Join(tempDir, moco.MySQLConfPath, moco.MySQLConfName))
+	if err != nil {
+		t.Fatalf("failed to load generated mysql configration file: %v", err)
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("generated mysql configration file mismatch (-want +got):\n%s", diff)
+	}
+}
 
 func testInitializeInstance(t *testing.T) {
 	ctx := context.Background()
@@ -398,7 +447,12 @@ func testRetryInitializeOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, miscConfPath)
+	if err := os.Setenv(moco.PodNameEnvName, "moco-mysqlcluster-0"); err != nil {
+		t.Fatalf("failed to set env %s: %v", moco.PodNameEnvName, err)
+	}
+	defer os.Unsetenv(moco.PodNameEnvName)
+
+	err = InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, miscConfPath, 1000)
 	if err != nil {
 		t.Fatal(err)
 	}

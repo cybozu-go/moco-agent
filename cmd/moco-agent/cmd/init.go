@@ -14,6 +14,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	serverIDBaseFlag = "server-id-base"
+)
+
 var (
 	passwordFilePath = filepath.Join(moco.TmpPath, "moco-root-password")
 	miscConfPath     = filepath.Join(moco.MySQLDataPath, "misc.cnf")
@@ -28,7 +32,9 @@ var initCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		well.Go(func(ctx context.Context) error {
 			log.Info("start initialization", nil)
-			err := initialize.InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, miscConfPath)
+			serverIDBase := viper.GetUint32(serverIDBaseFlag)
+
+			err := initialize.InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, miscConfPath, serverIDBase)
 			if err != nil {
 				f, err2 := ioutil.ReadFile("/var/log/mysql/mysql.err")
 				if err2 != nil {
@@ -61,6 +67,8 @@ var initCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(initCmd)
 
+	// ordinal should be increased by 1000 as default because the case server-id is 0 is not suitable for the replication purpose
+	initCmd.Flags().Uint32(serverIDBaseFlag, 1000, "Base value of server-id.")
 	initCmd.Flags().String(moco.PodNameFlag, "", "Pod Name created by StatefulSet")
 	initCmd.Flags().String(moco.PodIPFlag, "", "Pod IP address")
 	err := viper.BindPFlags(initCmd.Flags())
