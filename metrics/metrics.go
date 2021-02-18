@@ -13,18 +13,29 @@ var (
 	binlogBackupCountMetrics           *prometheus.CounterVec
 	binlogBackupFailureCountMetrics    *prometheus.CounterVec
 	binlogBackupDurationSecondsMetrics *prometheus.SummaryVec
-	cloneCountMetrics                  *prometheus.CounterVec
-	cloneFailureCountMetrics           *prometheus.CounterVec
-	cloneDurationSecondsMetrics        *prometheus.SummaryVec
-	logRotationCountMetrics            *prometheus.CounterVec
-	logRotationFailureCountMetrics     *prometheus.CounterVec
-	logRotationDurationSecondsMetrics  *prometheus.SummaryVec
-	dumpBackupCountMetrics             *prometheus.CounterVec
-	dumpBackupFailureCountMetrics      *prometheus.CounterVec
-	dumpBackupDurationSecondsMetrics   *prometheus.SummaryVec
+
+	cloneCountMetrics           *prometheus.CounterVec
+	cloneFailureCountMetrics    *prometheus.CounterVec
+	cloneDurationSecondsMetrics *prometheus.SummaryVec
+
+	logRotationCountMetrics           *prometheus.CounterVec
+	logRotationFailureCountMetrics    *prometheus.CounterVec
+	logRotationDurationSecondsMetrics *prometheus.SummaryVec
+
+	dumpBackupCountMetrics           *prometheus.CounterVec
+	dumpBackupFailureCountMetrics    *prometheus.CounterVec
+	dumpBackupDurationSecondsMetrics *prometheus.SummaryVec
 )
 
+// RegisterMetrics registers MOCO's metrics to the registry
 func RegisterMetrics(registry *prometheus.Registry) {
+	registerBinlogBackupMetrics(registry)
+	registerCloneMetrics(registry)
+	registerLogrotationMetrics(registry)
+	registerDumpBackupMetrics(registry)
+}
+
+func registerBinlogBackupMetrics(registry *prometheus.Registry) {
 	binlogBackupCountMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: metricsNamespace,
 		Subsystem: metricsSubsystem,
@@ -45,6 +56,14 @@ func RegisterMetrics(registry *prometheus.Registry) {
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"cluster_name"})
 
+	registry.MustRegister(
+		binlogBackupCountMetrics,
+		binlogBackupFailureCountMetrics,
+		binlogBackupDurationSecondsMetrics,
+	)
+}
+
+func registerCloneMetrics(registry *prometheus.Registry) {
 	cloneCountMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: metricsNamespace,
 		Subsystem: metricsSubsystem,
@@ -65,6 +84,14 @@ func RegisterMetrics(registry *prometheus.Registry) {
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"cluster_name"})
 
+	registry.MustRegister(
+		cloneCountMetrics,
+		cloneFailureCountMetrics,
+		cloneDurationSecondsMetrics,
+	)
+}
+
+func registerLogrotationMetrics(registry *prometheus.Registry) {
 	logRotationCountMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: metricsNamespace,
 		Subsystem: metricsSubsystem,
@@ -85,6 +112,14 @@ func RegisterMetrics(registry *prometheus.Registry) {
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"cluster_name"})
 
+	registry.MustRegister(
+		logRotationCountMetrics,
+		logRotationFailureCountMetrics,
+		logRotationDurationSecondsMetrics,
+	)
+}
+
+func registerDumpBackupMetrics(registry *prometheus.Registry) {
 	dumpBackupCountMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: metricsNamespace,
 		Subsystem: metricsSubsystem,
@@ -106,15 +141,6 @@ func RegisterMetrics(registry *prometheus.Registry) {
 	}, []string{"cluster_name"})
 
 	registry.MustRegister(
-		binlogBackupCountMetrics,
-		binlogBackupFailureCountMetrics,
-		binlogBackupDurationSecondsMetrics,
-		cloneCountMetrics,
-		cloneFailureCountMetrics,
-		cloneDurationSecondsMetrics,
-		logRotationCountMetrics,
-		logRotationFailureCountMetrics,
-		logRotationDurationSecondsMetrics,
 		dumpBackupCountMetrics,
 		dumpBackupFailureCountMetrics,
 		dumpBackupDurationSecondsMetrics,
