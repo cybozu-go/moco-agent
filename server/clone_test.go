@@ -107,18 +107,13 @@ func testClone() {
 		metrics.RegisterMetrics(registry)
 
 		cloneCount, err := getMetric(registry, metricsPrefix+"clone_count")
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(*cloneCount.Counter.Value).Should(Equal(0.0))
+		Expect(cloneCount).Should(BeNil())
 
 		cloneFailureCount, err := getMetric(registry, metricsPrefix+"clone_failure_count")
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(*cloneFailureCount.Counter.Value).Should(Equal(0.0))
+		Expect(cloneFailureCount).Should(BeNil())
 
 		cloneDurationSeconds, err := getMetric(registry, metricsPrefix+"clone_duration_seconds")
-		Expect(err).ShouldNot(HaveOccurred())
-		for _, quantile := range cloneDurationSeconds.Summary.Quantile {
-			Expect(math.IsNaN(*quantile.Value)).Should(BeTrue())
-		}
+		Expect(cloneDurationSeconds).Should(BeNil())
 	})
 
 	AfterEach(func() {
@@ -184,19 +179,13 @@ func testClone() {
 		By("checking metrics")
 		// In these test cases, the clone will not start actually. So the metrics will not change.
 		Eventually(func() error {
-			cloneCount, err := getMetric(registry, metricsPrefix+"clone_count")
-			if err != nil {
-				return err
-			}
-			if *cloneCount.Counter.Value != 0.0 {
+			cloneCount, _ := getMetric(registry, metricsPrefix+"clone_count")
+			if cloneCount != nil && *cloneCount.Counter.Value != 0.0 {
 				return fmt.Errorf("clone_count shouldn't be incremented: value=%f", *cloneCount.Counter.Value)
 			}
 
-			cloneFailureCount, err := getMetric(registry, metricsPrefix+"clone_failure_count")
-			if err != nil {
-				return err
-			}
-			if *cloneFailureCount.Counter.Value != 0.0 {
+			cloneFailureCount, _ := getMetric(registry, metricsPrefix+"clone_failure_count")
+			if cloneFailureCount != nil && *cloneFailureCount.Counter.Value != 0.0 {
 				return fmt.Errorf("clone_failure_count shouldn't be incremented: value=%f", *cloneFailureCount.Counter.Value)
 			}
 
@@ -251,20 +240,14 @@ func testClone() {
 			}
 
 			cloneFailureCount, err := getMetric(registry, metricsPrefix+"clone_failure_count")
-			if err != nil {
-				return err
-			}
-			if *cloneFailureCount.Counter.Value != 0.0 {
+			if cloneFailureCount != nil && *cloneFailureCount.Counter.Value != 0.0 {
 				return fmt.Errorf("clone_failure_count shouldn't be incremented: value=%f", *cloneFailureCount.Counter.Value)
 			}
 
 			cloneDurationSeconds, err := getMetric(registry, metricsPrefix+"clone_duration_seconds")
-			if err != nil {
-				return err
-			}
 			for _, quantile := range cloneDurationSeconds.Summary.Quantile {
 				if math.IsNaN(*quantile.Value) {
-					return fmt.Errorf("clone_duration_seconds should not have values: quantile=%f, value=%f", *quantile.Quantile, *quantile.Value)
+					return fmt.Errorf("clone_duration_seconds should have values: quantile=%f, value=%f", *quantile.Quantile, *quantile.Value)
 				}
 			}
 
@@ -387,30 +370,19 @@ func testClone() {
 		By("checking metrics")
 		// In these test cases, the clone will start and fail. So the metrics will change.
 		Eventually(func() error {
-			cloneCount, err := getMetric(registry, metricsPrefix+"clone_count")
-			if err != nil {
-				return err
-			}
-			if *cloneCount.Counter.Value != float64(len(testcases)) {
+			cloneCount, _ := getMetric(registry, metricsPrefix+"clone_count")
+			if cloneCount != nil && *cloneCount.Counter.Value != float64(len(testcases)) {
 				return fmt.Errorf("clone_count isn't incremented yet: value=%f", *cloneCount.Counter.Value)
 			}
 
-			cloneFailureCount, err := getMetric(registry, metricsPrefix+"clone_failure_count")
-			if err != nil {
-				return err
-			}
-			if *cloneFailureCount.Counter.Value != float64(len(testcases)) {
+			cloneFailureCount, _ := getMetric(registry, metricsPrefix+"clone_failure_count")
+			if cloneFailureCount != nil && *cloneFailureCount.Counter.Value != float64(len(testcases)) {
 				return fmt.Errorf("clone_failure_count isn't incremented yet: value=%f", *cloneFailureCount.Counter.Value)
 			}
 
-			cloneDurationSeconds, err := getMetric(registry, metricsPrefix+"clone_duration_seconds")
-			if err != nil {
-				return err
-			}
-			for _, quantile := range cloneDurationSeconds.Summary.Quantile {
-				if !math.IsNaN(*quantile.Value) {
-					return fmt.Errorf("clone_duration_seconds should have values: quantile=%f, value=%f", *quantile.Quantile, *quantile.Value)
-				}
+			cloneDurationSeconds, _ := getMetric(registry, metricsPrefix+"clone_duration_seconds")
+			if cloneDurationSeconds != nil {
+				return fmt.Errorf("clone_duration_seconds should not have values: metric=%+v", cloneDurationSeconds)
 			}
 
 			return nil

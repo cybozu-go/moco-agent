@@ -68,6 +68,8 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Test Agent", func() {
+	test_utils.MySQLVersion = "8.0.20"
+
 	Context("health", testHealth)
 	Context("rotate", testRotate)
 	Context("clone", testClone)

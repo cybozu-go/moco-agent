@@ -44,7 +44,7 @@ type BackupBinaryLogsParams struct {
 // and upload it to the object storage, then delete it
 func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request) {
 	var err error
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
