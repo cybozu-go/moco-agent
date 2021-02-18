@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2021-02-18
+
+### Added
+
+- Add backup binlog API. (#6)
+- Deprecate the rotate API and use goroutine to periodically run cron job. (#10)
+
 ## [0.1.0] - 2021-02-01
 
 ### Added
@@ -12,5 +19,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/neco-template/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/cybozu-go/neco-template/compare/4b825dc642cb6eb9a060e54bf8d69288fbee4904...v0.1.0
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/cybozu-go/moco-agent/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/cybozu-go/moco-agent/compare/0913cef5607fd11e17ec2f5679059269fe4371fb...v0.1.0
