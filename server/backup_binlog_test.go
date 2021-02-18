@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -53,9 +52,6 @@ func testBackupBinaryLogs() {
 			},
 		)
 
-		registry = prometheus.NewRegistry()
-		metrics.RegisterMetrics(registry)
-
 		By("creating MySQL and MinIO containers")
 		binlogDir, err = ioutil.TempDir("", binlogDirPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -63,7 +59,6 @@ func testBackupBinaryLogs() {
 		err = os.Chmod(binlogDir, 0777|os.ModeSetgid)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		test_utils.MySQLVersion = "8.0.20"
 		test_utils.StopAndRemoveMySQLD(replicaHost)
 		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, binlogPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -91,6 +86,18 @@ func testBackupBinaryLogs() {
 
 		By("setting environment variables for password")
 		os.Setenv(moco.RootPasswordEnvName, test_utils.RootUserPassword)
+
+		registry = prometheus.NewRegistry()
+		metrics.RegisterMetrics(registry)
+
+		backupBinlogCount, _ := getMetric(registry, metricsPrefix+"backup_binlog_count")
+		Expect(backupBinlogCount).Should(BeNil())
+
+		backupBinlogFailureCount, _ := getMetric(registry, metricsPrefix+"backup_binlog_failure_count")
+		Expect(backupBinlogFailureCount).Should(BeNil())
+
+		backupBinlogDurationSeconds, _ := getMetric(registry, metricsPrefix+"backup_binlog_duration_seconds")
+		Expect(backupBinlogDurationSeconds).Should(BeNil())
 	})
 
 	AfterEach(func() {
@@ -189,9 +196,6 @@ func testBackupBinaryLogs() {
 			}
 
 			binlogBackupDurationSeconds, _ := getMetric(registry, metricsPrefix+"binlog_backup_duration_seconds")
-			if binlogBackupDurationSeconds == nil {
-				return errors.New("binlog_backup_duration_seconds should have values: metric=nil")
-			}
 			for _, quantile := range binlogBackupDurationSeconds.Summary.Quantile {
 				if math.IsNaN(*quantile.Value) {
 					return fmt.Errorf("binlog_backup_duration_seconds should have values: quantile=%f, value=%f", *quantile.Quantile, *quantile.Value)
