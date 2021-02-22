@@ -72,6 +72,7 @@ var _ = Describe("Test Agent", func() {
 	Context("rotate", testRotate)
 	Context("clone", testClone)
 	Context("backup_binlog", testBackupBinaryLogs)
+	Context("healthgRPC", testHealthgRPC)
 })
 
 func getMetric(registry *prometheus.Registry, metricName string) (*promgo.Metric, error) {

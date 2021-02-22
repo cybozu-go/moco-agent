@@ -48,8 +48,6 @@ var agentCmd = &cobra.Command{
 	Short: "Start MySQL agent service",
 	Long:  `Start MySQL agent service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		mux := http.NewServeMux()
-
 		podName := os.Getenv(moco.PodNameEnvName)
 		if podName == "" {
 			return fmt.Errorf("%s is empty", moco.PodNameEnvName)
@@ -81,14 +79,16 @@ var agentCmd = &cobra.Command{
 				ConnectionTimeout: viper.GetDuration(connectionTimeoutFlag),
 				ReadTimeout:       viper.GetDuration(readTimeoutFlag),
 			})
+
+		registry := prometheus.NewRegistry()
+		metrics.RegisterMetrics(registry)
+
+		mux := http.NewServeMux()
 		mux.HandleFunc("/clone", agent.Clone)
 		mux.HandleFunc("/health", agent.Health)
 		mux.HandleFunc("/binlog-flush-backup", agent.FlushAndBackupBinaryLogs)
 		mux.HandleFunc("/binlog-flush", agent.FlushBinaryLogs)
 		mysql.SetLogger(mysqlLogger{})
-
-		registry := prometheus.NewRegistry()
-		metrics.RegisterMetrics(registry)
 		mux.Handle("/metrics", promhttp.HandlerFor(
 			registry,
 			promhttp.HandlerOpts{
@@ -96,7 +96,6 @@ var agentCmd = &cobra.Command{
 				ErrorHandling: promhttp.ContinueOnError,
 			},
 		))
-
 		serv := &well.HTTPServer{
 			Server: &http.Server{
 				Addr:    viper.GetString(addressFlag),
@@ -127,9 +126,24 @@ var agentCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		err = well.Wait()
 
-		if err != nil && !well.IsSignaled(err) {
+		// TODO: switch HTTP server to gRPC server when the all APIs are implemented
+		// lis, err := net.Listen("tcp", viper.GetString(addressFlag))
+		// if err != nil {
+		// 	return err
+		// }
+		// grpcServer := grpc.NewServer()
+		// proto.RegisterHealthServiceServer(grpcServer, server.NewHealthService(agent))
+		// well.Go(func(ctx context.Context) error {
+		// 	return grpcServer.Serve(lis)
+		// })
+		// well.Go(func(ctx context.Context) error {
+		// 	<-ctx.Done()
+		// 	grpcServer.GracefulStop()
+		// 	return nil
+		// })
+
+		if err := well.Wait(); err != nil && !well.IsSignaled(err) {
 			return err
 		}
 

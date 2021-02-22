@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -101,6 +102,10 @@ func testBackupBinaryLogs() {
 	})
 
 	AfterEach(func() {
+		By("deleting MySQL containers")
+		test_utils.StopAndRemoveMySQLD(donorHost)
+		test_utils.StopAndRemoveMySQLD(replicaHost)
+
 		By("deleting MinIO container")
 		test_utils.StopMinIO(agentTestPrefix + "minio")
 		os.RemoveAll(tmpDir)
@@ -205,6 +210,14 @@ func testBackupBinaryLogs() {
 
 			return nil
 		}, 30*time.Second).Should(Succeed())
+
+		Eventually(func() error {
+			if agent.sem.TryAcquire(1) {
+				agent.sem.Release(1)
+				return nil
+			}
+			return errors.New("backup process is still working")
+		}).Should(Succeed())
 	})
 
 	It("should backup multiple binlog files", func() {
@@ -276,6 +289,14 @@ func testBackupBinaryLogs() {
 				}
 			}
 			return nil
+		}).Should(Succeed())
+
+		Eventually(func() error {
+			if agent.sem.TryAcquire(1) {
+				agent.sem.Release(1)
+				return nil
+			}
+			return errors.New("backup process is still working")
 		}).Should(Succeed())
 	})
 
