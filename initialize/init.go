@@ -21,12 +21,18 @@ const timeoutDuration = 30 * time.Second
 
 func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath, miscConfPath string) error {
 	_, err := os.Stat(initOnceCompletedPath)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
 	if err == nil {
 		log.Info("skip data initialization since "+initOnceCompletedPath+" already exists", nil)
 		return nil
+	}
+	if !os.IsNotExist(err) {
+		return err
+	}
+
+	log.Info("remove all files in MySQL data dir", nil)
+	err = removeAllFiles(moco.MySQLDataPath)
+	if err != nil {
+		return err
 	}
 
 	log.Info("initialize mysql database", nil)
@@ -54,6 +60,26 @@ func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath
 
 	log.Info("touch "+initOnceCompletedPath, nil)
 	return touchInitOnceCompleted(ctx, initOnceCompletedPath)
+}
+
+func removeAllFiles(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		err = os.RemoveAll(filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RestoreUsers creates users for MOCO and grants privileges to them.
