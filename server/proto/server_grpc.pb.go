@@ -185,3 +185,125 @@ var CloneService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "server.proto",
 }
+
+// BackupBinlogServiceClient is the client API for BackupBinlogService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type BackupBinlogServiceClient interface {
+	FlushAndBackupBinlog(ctx context.Context, in *FlushAndBackupBinlogRequest, opts ...grpc.CallOption) (*FlushAndBackupBinlogResponse, error)
+	FlushBinlog(ctx context.Context, in *FlushBinlogRequest, opts ...grpc.CallOption) (*FlushBinlogResponse, error)
+}
+
+type backupBinlogServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewBackupBinlogServiceClient(cc grpc.ClientConnInterface) BackupBinlogServiceClient {
+	return &backupBinlogServiceClient{cc}
+}
+
+func (c *backupBinlogServiceClient) FlushAndBackupBinlog(ctx context.Context, in *FlushAndBackupBinlogRequest, opts ...grpc.CallOption) (*FlushAndBackupBinlogResponse, error) {
+	out := new(FlushAndBackupBinlogResponse)
+	err := c.cc.Invoke(ctx, "/BackupBinlogService/FlushAndBackupBinlog", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupBinlogServiceClient) FlushBinlog(ctx context.Context, in *FlushBinlogRequest, opts ...grpc.CallOption) (*FlushBinlogResponse, error) {
+	out := new(FlushBinlogResponse)
+	err := c.cc.Invoke(ctx, "/BackupBinlogService/FlushBinlog", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BackupBinlogServiceServer is the server API for BackupBinlogService service.
+// All implementations must embed UnimplementedBackupBinlogServiceServer
+// for forward compatibility
+type BackupBinlogServiceServer interface {
+	FlushAndBackupBinlog(context.Context, *FlushAndBackupBinlogRequest) (*FlushAndBackupBinlogResponse, error)
+	FlushBinlog(context.Context, *FlushBinlogRequest) (*FlushBinlogResponse, error)
+	mustEmbedUnimplementedBackupBinlogServiceServer()
+}
+
+// UnimplementedBackupBinlogServiceServer must be embedded to have forward compatible implementations.
+type UnimplementedBackupBinlogServiceServer struct {
+}
+
+func (UnimplementedBackupBinlogServiceServer) FlushAndBackupBinlog(context.Context, *FlushAndBackupBinlogRequest) (*FlushAndBackupBinlogResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FlushAndBackupBinlog not implemented")
+}
+func (UnimplementedBackupBinlogServiceServer) FlushBinlog(context.Context, *FlushBinlogRequest) (*FlushBinlogResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FlushBinlog not implemented")
+}
+func (UnimplementedBackupBinlogServiceServer) mustEmbedUnimplementedBackupBinlogServiceServer() {}
+
+// UnsafeBackupBinlogServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to BackupBinlogServiceServer will
+// result in compilation errors.
+type UnsafeBackupBinlogServiceServer interface {
+	mustEmbedUnimplementedBackupBinlogServiceServer()
+}
+
+func RegisterBackupBinlogServiceServer(s grpc.ServiceRegistrar, srv BackupBinlogServiceServer) {
+	s.RegisterService(&BackupBinlogService_ServiceDesc, srv)
+}
+
+func _BackupBinlogService_FlushAndBackupBinlog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FlushAndBackupBinlogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupBinlogServiceServer).FlushAndBackupBinlog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/BackupBinlogService/FlushAndBackupBinlog",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupBinlogServiceServer).FlushAndBackupBinlog(ctx, req.(*FlushAndBackupBinlogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupBinlogService_FlushBinlog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FlushBinlogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupBinlogServiceServer).FlushBinlog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/BackupBinlogService/FlushBinlog",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupBinlogServiceServer).FlushBinlog(ctx, req.(*FlushBinlogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// BackupBinlogService_ServiceDesc is the grpc.ServiceDesc for BackupBinlogService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var BackupBinlogService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "BackupBinlogService",
+	HandlerType: (*BackupBinlogServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "FlushAndBackupBinlog",
+			Handler:    _BackupBinlogService_FlushAndBackupBinlog_Handler,
+		},
+		{
+			MethodName: "FlushBinlog",
+			Handler:    _BackupBinlogService_FlushBinlog_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "server.proto",
+}
