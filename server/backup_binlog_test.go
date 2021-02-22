@@ -104,6 +104,7 @@ func testBackupBinaryLogs() {
 		By("deleting MinIO container")
 		test_utils.StopMinIO(agentTestPrefix + "minio")
 		os.RemoveAll(tmpDir)
+		os.RemoveAll(binlogDir)
 	})
 
 	It("should flush and backup binlog", func() {
