@@ -24,7 +24,7 @@ func testRotate() {
 		var err error
 		tmpDir, err = ioutil.TempDir("", "moco-test-agent-")
 		Expect(err).ShouldNot(HaveOccurred())
-		agent = New(test_utils.Host, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, tmpDir, replicaPort,
+		agent = New(test_utils.Host, clusterName, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, tmpDir, replicaPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -75,9 +75,8 @@ func testRotate() {
 		rotationCount, err := getMetric(registry, metricsPrefix+"log_rotation_count")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*rotationCount.Counter.Value).Should(Equal(1.0))
-		rotationFailureCount, err := getMetric(registry, metricsPrefix+"log_rotation_failure_count")
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(*rotationFailureCount.Counter.Value).Should(Equal(0.0))
+		rotationFailureCount, _ := getMetric(registry, metricsPrefix+"log_rotation_failure_count")
+		Expect(rotationFailureCount).Should(BeNil())
 		rotationDurationSeconds, err := getMetric(registry, metricsPrefix+"log_rotation_duration_seconds")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(len(rotationDurationSeconds.Summary.Quantile)).ShouldNot(Equal(0))

@@ -16,7 +16,7 @@ import (
 func (a *Agent) RotateLog() {
 	ctx := context.Background()
 
-	metrics.IncrementLogRotationCountMetrics()
+	metrics.IncrementLogRotationCountMetrics(a.clusterName)
 	startTime := time.Now()
 
 	errFile := filepath.Join(a.logDir, moco.MySQLErrorLogName)
@@ -25,7 +25,7 @@ func (a *Agent) RotateLog() {
 		log.Error("failed to rotate err log file", map[string]interface{}{
 			log.FnError: err,
 		})
-		metrics.IncrementLogRotationFailureCountMetrics()
+		metrics.IncrementLogRotationFailureCountMetrics(a.clusterName)
 		return
 	}
 
@@ -35,7 +35,7 @@ func (a *Agent) RotateLog() {
 		log.Error("failed to rotate slow query log file", map[string]interface{}{
 			log.FnError: err,
 		})
-		metrics.IncrementLogRotationFailureCountMetrics()
+		metrics.IncrementLogRotationFailureCountMetrics(a.clusterName)
 		return
 	}
 
@@ -46,7 +46,7 @@ func (a *Agent) RotateLog() {
 			"port":      a.mysqlAdminPort,
 			log.FnError: err,
 		})
-		metrics.IncrementLogRotationFailureCountMetrics()
+		metrics.IncrementLogRotationFailureCountMetrics(a.clusterName)
 		return
 	}
 
@@ -56,10 +56,10 @@ func (a *Agent) RotateLog() {
 			"port":      a.mysqlAdminPort,
 			log.FnError: err,
 		})
-		metrics.IncrementLogRotationFailureCountMetrics()
+		metrics.IncrementLogRotationFailureCountMetrics(a.clusterName)
 		return
 	}
 
 	durationSeconds := time.Since(startTime).Seconds()
-	metrics.UpdateLogRotationDurationSecondsMetrics(durationSeconds)
+	metrics.UpdateLogRotationDurationSecondsMetrics(a.clusterName, durationSeconds)
 }

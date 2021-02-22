@@ -11,4 +11,6 @@ const (
 
 	AccessKeyIDParam     = "access_key_id"
 	SecretAccessKeyParam = "secret_access_key"
+
+	ClusterNameEnvKey = "CLUSTER_NAME"
 )

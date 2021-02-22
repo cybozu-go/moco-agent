@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	clusterName     = "moco-agent-test"
 	token           = "dummy-token"
 	metricsPrefix   = "moco_agent_"
 	donorHost       = "moco-agent-test-mysqld-donor"

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -17,9 +18,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
+	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/cybozu-go/moco/accessor"
-	"github.com/cybozu-go/moco/metrics"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
@@ -43,16 +44,13 @@ func testBackupBinaryLogs() {
 		var err error
 		tmpDir, err = ioutil.TempDir("", agentTestPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
-		agent = New(test_utils.Host, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, tmpDir, replicaPort,
+		agent = New(test_utils.Host, clusterName, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, tmpDir, replicaPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
 				ReadTimeout:       30 * time.Second,
 			},
 		)
-
-		registry = prometheus.NewRegistry()
-		metrics.RegisterAgentMetrics(registry)
 
 		By("creating MySQL and MinIO containers")
 		binlogDir, err = ioutil.TempDir("", binlogDirPrefix)
@@ -61,7 +59,6 @@ func testBackupBinaryLogs() {
 		err = os.Chmod(binlogDir, 0777|os.ModeSetgid)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		test_utils.MySQLVersion = "8.0.20"
 		test_utils.StopAndRemoveMySQLD(replicaHost)
 		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, binlogPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -89,12 +86,25 @@ func testBackupBinaryLogs() {
 
 		By("setting environment variables for password")
 		os.Setenv(moco.RootPasswordEnvName, test_utils.RootUserPassword)
+
+		registry = prometheus.NewRegistry()
+		metrics.RegisterMetrics(registry)
+
+		backupBinlogCount, _ := getMetric(registry, metricsPrefix+"backup_binlog_count")
+		Expect(backupBinlogCount).Should(BeNil())
+
+		backupBinlogFailureCount, _ := getMetric(registry, metricsPrefix+"backup_binlog_failure_count")
+		Expect(backupBinlogFailureCount).Should(BeNil())
+
+		backupBinlogDurationSeconds, _ := getMetric(registry, metricsPrefix+"backup_binlog_duration_seconds")
+		Expect(backupBinlogDurationSeconds).Should(BeNil())
 	})
 
 	AfterEach(func() {
 		By("deleting MinIO container")
 		test_utils.StopMinIO(agentTestPrefix + "minio")
 		os.RemoveAll(tmpDir)
+		os.RemoveAll(binlogDir)
 	})
 
 	It("should flush and backup binlog", func() {
@@ -173,6 +183,28 @@ func testBackupBinaryLogs() {
 		res = httptest.NewRecorder()
 		agent.FlushAndBackupBinaryLogs(res, req)
 		Expect(res).Should(HaveHTTPStatus(http.StatusConflict))
+
+		By("checking metrics")
+		Eventually(func() error {
+			binlogBackupCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_count")
+			if binlogBackupCount == nil || *binlogBackupCount.Counter.Value != 1.0 {
+				return fmt.Errorf("binlog_backup_count isn't incremented yet: value=%f", *binlogBackupCount.Counter.Value)
+			}
+
+			binlogBackupFailureCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_failure_count")
+			if binlogBackupFailureCount != nil && *binlogBackupFailureCount.Counter.Value != 0.0 {
+				return fmt.Errorf("binlog_backup_failure_count should not be incremented: value=%f", *binlogBackupFailureCount.Counter.Value)
+			}
+
+			binlogBackupDurationSeconds, _ := getMetric(registry, metricsPrefix+"binlog_backup_duration_seconds")
+			for _, quantile := range binlogBackupDurationSeconds.Summary.Quantile {
+				if math.IsNaN(*quantile.Value) {
+					return fmt.Errorf("binlog_backup_duration_seconds should have values: quantile=%f, value=%f", *quantile.Quantile, *quantile.Value)
+				}
+			}
+
+			return nil
+		}, 30*time.Second).Should(Succeed())
 	})
 
 	It("should backup multiple binlog files", func() {

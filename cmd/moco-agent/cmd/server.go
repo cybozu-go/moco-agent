@@ -10,6 +10,7 @@ import (
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server"
 	"github.com/cybozu-go/moco/accessor"
@@ -66,12 +67,14 @@ var agentCmd = &cobra.Command{
 		}
 		donorPassword := strings.TrimSpace(string(buf))
 
+		clusterName := os.Getenv(mocoagent.ClusterNameEnvKey)
+
 		token := os.Getenv(moco.AgentTokenEnvName)
 		if token == "" {
 			return fmt.Errorf("%s is empty", moco.AgentTokenEnvName)
 		}
 
-		agent := server.New(podName, token,
+		agent := server.New(podName, clusterName, token,
 			miscPassword, donorPassword, moco.ReplicationSourceSecretPath, moco.VarLogPath, moco.MySQLAdminPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   viper.GetDuration(connMaxLifetimeFlag),
