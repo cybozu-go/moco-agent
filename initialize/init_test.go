@@ -274,30 +274,6 @@ func testInstallPlugins(t *testing.T) {
 	}
 }
 
-func testShutdownInstance(t *testing.T) {
-	ctx := context.Background()
-	err := ShutdownInstance(ctx, passwordFilePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = doExec(ctx, nil, "mysqladmin", "ping")
-	if err == nil {
-		t.Fatal("cannot shutdown instance")
-	}
-}
-
-func testTouchInitOnceCompleted(t *testing.T) {
-	ctx := context.Background()
-	err := touchInitOnceCompleted(ctx, initOnceCompletedPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = os.Stat(initOnceCompletedPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func testRestoreUsers(t *testing.T) {
 	ctx := context.Background()
 
@@ -391,6 +367,43 @@ func testRestoreUsers(t *testing.T) {
 	}
 }
 
+func testShutdownInstance(t *testing.T) {
+	ctx := context.Background()
+	err := ShutdownInstance(ctx, passwordFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = doExec(ctx, nil, "mysqladmin", "ping")
+	if err == nil {
+		t.Fatal("cannot shutdown instance")
+	}
+}
+
+func testTouchInitOnceCompleted(t *testing.T) {
+	ctx := context.Background()
+	err := touchInitOnceCompleted(ctx, initOnceCompletedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = os.Stat(initOnceCompletedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testRetryInitializeOnce(t *testing.T) {
+	ctx := context.Background()
+	err := os.Remove(initOnceCompletedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, miscConfPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInit(t *testing.T) {
 	_, err := os.Stat(filepath.Join("/", ".dockerenv"))
 	if err != nil {
@@ -407,7 +420,8 @@ func TestInit(t *testing.T) {
 	t.Run("initializeReadOnlyUser", testInitializeReadOnlyUser)
 	t.Run("initializeWritableUser", testInitializeWritableUser)
 	t.Run("installPlugins", testInstallPlugins)
-	t.Run("RestoreUsers", testRestoreUsers)
+	t.Run("restoreUsers", testRestoreUsers)
 	t.Run("shutdownInstance", testShutdownInstance)
-	t.Run("TouchInitOnceCompleted", testTouchInitOnceCompleted)
+	t.Run("touchInitOnceCompleted", testTouchInitOnceCompleted)
+	t.Run("retryInitialization", testRetryInitializeOnce)
 }
