@@ -25,7 +25,7 @@ var (
 	initPassword          = "init-password"
 )
 
-func TestGenerateMySQLConfiguration(t *testing.T) {
+func testGenerateMySQLConfiguration(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 
@@ -463,6 +463,7 @@ func TestInit(t *testing.T) {
 	if err != nil {
 		t.Skip("These tests should be run on docker")
 	}
+	t.Run("generateMySQLConfiguration", testGenerateMySQLConfiguration)
 	t.Run("initializeInstance", testInitializeInstance)
 	t.Run("waitInstanceBootstrap", testWaitInstanceBootstrap)
 	t.Run("initializeRootUser", testInitializeRootUser)
