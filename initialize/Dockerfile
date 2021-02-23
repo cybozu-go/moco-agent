@@ -21,6 +21,8 @@ RUN curl -s -f -o go.tar.gz https://dl.google.com/go/go${GO_VERSION}.linux-amd64
 # 999 is the user ID of `mysql` user in the docker official MySQL container.
 RUN mkdir -p /etc/mysql \
     && chown -R 999:999 /etc/mysql \
+    && mkdir -p /etc/mysql_template \
+    && chown -R 999:999 /etc/mysql_template \
     && mkdir -p /var/lib/mysql-files \
     && chown -R 999:999 /var/lib/mysql-files \
     && mkdir -p /var/log/mysql \
@@ -29,6 +31,8 @@ RUN mkdir -p /etc/mysql \
     && chown -R 999:999 /var/run/mysqld \
     && mkdir -p /home/mysql \
     && chown -R 999:999 /home/mysql
+
+COPY --chown=999:999 ./testdata/template-my.cnf /etc/mysql_template/my.cnf
 
 USER 999
 ENV HOME=/home/mysql
