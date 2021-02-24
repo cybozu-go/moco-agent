@@ -120,24 +120,31 @@ var agentCmd = &cobra.Command{
 			return err
 		}
 
-		c := cron.New()
-		if _, err := c.AddFunc(viper.GetString(logRotationScheduleFlag), agent.RotateLog); err != nil {
-			log.Error("failed to parse the cron spec", map[string]interface{}{
-				"spec":      viper.GetString(logRotationScheduleFlag),
-				log.FnError: err,
-			})
-			return err
-		}
-		c.Start()
-		defer func() {
-			ctx := c.Stop()
-
-			select {
-			case <-ctx.Done():
-			case <-time.After(5 * time.Second):
-				log.Error("log rotate job did not finish", nil)
+		if rotateSpec := viper.GetString(logRotationScheduleFlag); len(rotateSpec) > 0 {
+			c := cron.New()
+			if _, err := c.AddFunc(rotateSpec, agent.RotateLog); err != nil {
+				log.Error("failed to parse the cron spec", map[string]interface{}{
+					"spec":      rotateSpec,
+					log.FnError: err,
+				})
+				return err
 			}
-		}()
+
+			log.Info("start log rotate job", map[string]interface{}{
+				"rotate_spec": rotateSpec,
+			})
+			c.Start()
+
+			defer func() {
+				ctx := c.Stop()
+
+				select {
+				case <-ctx.Done():
+				case <-time.After(5 * time.Second):
+					log.Error("log rotate job did not finish", nil)
+				}
+			}()
+		}
 
 		lis, err := net.Listen("tcp", viper.GetString(addressFlag))
 		if err != nil {
@@ -178,7 +185,7 @@ func init() {
 	agentCmd.Flags().String(metricsAddressFlag, fmt.Sprintf(":%d", mocoagent.MetricsPort), "Listening address and port for metrics.")
 	agentCmd.Flags().Duration(connMaxLifetimeFlag, 30*time.Minute, "The maximum amount of time a connection may be reused")
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")
-	agentCmd.Flags().String(logRotationScheduleFlag, "*/5 * * * *", "Cron format schedule for MySQL log rotation")
+	agentCmd.Flags().String(logRotationScheduleFlag, "", "Cron format schedule for MySQL log rotation")
 	agentCmd.Flags().Duration(readTimeoutFlag, 30*time.Second, "I/O read timeout")
 
 	err := viper.BindPFlags(agentCmd.Flags())
