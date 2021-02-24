@@ -13,10 +13,12 @@ var (
 	binlogBackupCountMetrics           *prometheus.CounterVec
 	binlogBackupFailureCountMetrics    *prometheus.CounterVec
 	binlogBackupDurationSecondsMetrics *prometheus.SummaryVec
+	binlogBackupInProgressMetrics      *prometheus.GaugeVec
 
 	cloneCountMetrics           *prometheus.CounterVec
 	cloneFailureCountMetrics    *prometheus.CounterVec
 	cloneDurationSecondsMetrics *prometheus.SummaryVec
+	cloneInProgressMetrics      *prometheus.GaugeVec
 
 	logRotationCountMetrics           *prometheus.CounterVec
 	logRotationFailureCountMetrics    *prometheus.CounterVec
@@ -25,6 +27,7 @@ var (
 	dumpBackupCountMetrics           *prometheus.CounterVec
 	dumpBackupFailureCountMetrics    *prometheus.CounterVec
 	dumpBackupDurationSecondsMetrics *prometheus.SummaryVec
+	dumpBackupInProgressMetrics      *prometheus.GaugeVec
 )
 
 // RegisterMetrics registers MOCO's metrics to the registry
@@ -55,11 +58,18 @@ func registerBinlogBackupMetrics(registry *prometheus.Registry) {
 		Help:       "The time took to binlog backup operation",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"cluster_name"})
+	binlogBackupInProgressMetrics = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: metricsNamespace,
+		Subsystem: metricsSubsystem,
+		Name:      "binlog_backup_in_progress",
+		Help:      "Whether the binlog backup operation is in progress or not",
+	}, []string{"cluster_name"})
 
 	registry.MustRegister(
 		binlogBackupCountMetrics,
 		binlogBackupFailureCountMetrics,
 		binlogBackupDurationSecondsMetrics,
+		binlogBackupInProgressMetrics,
 	)
 }
 
@@ -83,11 +93,18 @@ func registerCloneMetrics(registry *prometheus.Registry) {
 		Help:       "The time took to clone operation",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"cluster_name"})
+	cloneInProgressMetrics = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: metricsNamespace,
+		Subsystem: metricsSubsystem,
+		Name:      "clone_in_progress",
+		Help:      "Whether the clone operation is in progress or not",
+	}, []string{"cluster_name"})
 
 	registry.MustRegister(
 		cloneCountMetrics,
 		cloneFailureCountMetrics,
 		cloneDurationSecondsMetrics,
+		cloneInProgressMetrics,
 	)
 }
 
@@ -139,10 +156,17 @@ func registerDumpBackupMetrics(registry *prometheus.Registry) {
 		Help:       "The time took to dump backup operation",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"cluster_name"})
+	dumpBackupInProgressMetrics = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: metricsNamespace,
+		Subsystem: metricsSubsystem,
+		Name:      "dump_backup_in_progress",
+		Help:      "Whether the dump backup operation is in progress or not",
+	}, []string{"cluster_name"})
 
 	registry.MustRegister(
 		dumpBackupCountMetrics,
 		dumpBackupFailureCountMetrics,
 		dumpBackupDurationSecondsMetrics,
+		dumpBackupInProgressMetrics,
 	)
 }
