@@ -155,12 +155,16 @@ func testClonegRPC() {
 		cloneCount, err := getMetric(registry, metricsPrefix+"clone_count")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*cloneCount.Counter.Value).Should(Equal(1.0))
+		Expect(*cloneCount.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*cloneCount.Label[0].Value).Should(Equal(clusterName))
 
 		_, err = getMetric(registry, metricsPrefix+"clone_failure_count")
 		Expect(err).Should(HaveOccurred())
 
 		cloneDurationSeconds, err := getMetric(registry, metricsPrefix+"clone_duration_seconds")
 		Expect(err).ShouldNot(HaveOccurred())
+		Expect(*cloneDurationSeconds.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*cloneDurationSeconds.Label[0].Value).Should(Equal(clusterName))
 		for _, quantile := range cloneDurationSeconds.Summary.Quantile {
 			Expect(math.IsNaN(*quantile.Value)).Should(BeFalse())
 		}
@@ -285,10 +289,14 @@ func testClonegRPC() {
 		cloneCount, err := getMetric(registry, metricsPrefix+"clone_count")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*cloneCount.Counter.Value).Should(Equal(float64(len(testcases))))
+		Expect(*cloneCount.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*cloneCount.Label[0].Value).Should(Equal(clusterName))
 
 		cloneFailureCount, err := getMetric(registry, metricsPrefix+"clone_failure_count")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*cloneFailureCount.Counter.Value).Should(Equal(float64(len(testcases))))
+		Expect(*cloneFailureCount.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*cloneFailureCount.Label[0].Value).Should(Equal(clusterName))
 
 		_, err = getMetric(registry, metricsPrefix+"clone_duration_seconds")
 		Expect(err).Should(HaveOccurred())

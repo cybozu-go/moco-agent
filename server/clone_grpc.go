@@ -127,6 +127,8 @@ func (s *cloneService) Clone(ctx context.Context, req *proto.CloneRequest) (*pro
 }
 
 func gatherParams(req *proto.CloneRequest, agent *Agent) (*cloneParams, error) {
+	var res *cloneParams
+
 	if !req.GetExternal() {
 		donorHostName := req.GetDonorHost()
 		if len(donorHostName) <= 0 {
@@ -138,54 +140,56 @@ func gatherParams(req *proto.CloneRequest, agent *Agent) (*cloneParams, error) {
 			return nil, errors.New("invalid donor port")
 		}
 
-		return &cloneParams{
+		res = &cloneParams{
 			donorHostName: donorHostName,
 			donorPort:     int(donorPort),
 			donorUser:     moco.CloneDonorUser,
 			donorPassword: agent.donorUserPassword,
-		}, nil
+		}
+	} else {
+		rawDonorHostName, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryHostKey)
+		if err != nil {
+			return nil, errors.New("cannot read donor host from Secret file")
+		}
+
+		rawDonorPort, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryPortKey)
+		if err != nil {
+			return nil, errors.New("cannot read donor port from Secret file")
+		}
+		donorPort, err := strconv.Atoi(string(rawDonorPort))
+		if err != nil {
+			return nil, errors.New("cannot convert donor port to int")
+		}
+
+		rawDonorUser, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceCloneUserKey)
+		if err != nil {
+			return nil, errors.New("cannot read donor user from Secret file")
+		}
+
+		rawDonorPassword, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceClonePasswordKey)
+		if err != nil {
+			return nil, errors.New("cannot read donor password from Secret file")
+		}
+
+		rawInitUser, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterCloneUserKey)
+		if err != nil {
+			return nil, errors.New("cannot read init user from Secret file")
+		}
+
+		rawInitPassword, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterClonePasswordKey)
+		if err != nil {
+			return nil, errors.New("cannot read init password from Secret file")
+		}
+
+		res = &cloneParams{
+			donorHostName: string(rawDonorHostName),
+			donorPort:     donorPort,
+			donorUser:     string(rawDonorUser),
+			donorPassword: string(rawDonorPassword),
+			initUser:      string(rawInitUser),
+			initPassword:  string(rawInitPassword),
+		}
 	}
 
-	rawDonorHostName, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryHostKey)
-	if err != nil {
-		return nil, errors.New("cannot read donor host from Secret file")
-	}
-
-	rawDonorPort, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryPortKey)
-	if err != nil {
-		return nil, errors.New("cannot read donor port from Secret file")
-	}
-	donorPort, err := strconv.Atoi(string(rawDonorPort))
-	if err != nil {
-		return nil, errors.New("cannot convert donor port to int")
-	}
-
-	rawDonorUser, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceCloneUserKey)
-	if err != nil {
-		return nil, errors.New("cannot read donor user from Secret file")
-	}
-
-	rawDonorPassword, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceClonePasswordKey)
-	if err != nil {
-		return nil, errors.New("cannot read donor password from Secret file")
-	}
-
-	rawInitUser, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterCloneUserKey)
-	if err != nil {
-		return nil, errors.New("cannot read init user from Secret file")
-	}
-
-	rawInitPassword, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterClonePasswordKey)
-	if err != nil {
-		return nil, errors.New("cannot read init password from Secret file")
-	}
-
-	return &cloneParams{
-		donorHostName: string(rawDonorHostName),
-		donorPort:     donorPort,
-		donorUser:     string(rawDonorUser),
-		donorPassword: string(rawDonorPassword),
-		initUser:      string(rawInitUser),
-		initPassword:  string(rawInitPassword),
-	}, nil
+	return res, nil
 }
