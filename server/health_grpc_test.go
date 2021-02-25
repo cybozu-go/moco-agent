@@ -7,22 +7,23 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cybozu-go/moco"
 	"github.com/cybozu-go/moco-agent/metrics"
-	"github.com/cybozu-go/moco-agent/server/proto"
 	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/cybozu-go/moco/accessor"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 func testHealthgRPC() {
 	var agent *Agent
 	var registry *prometheus.Registry
-	var gsrv proto.HealthServiceServer
+	var gsrv healthpb.HealthServer
 
 	BeforeEach(func() {
 		test_utils.StopAndRemoveMySQLD(donorHost)
@@ -70,9 +71,9 @@ func testHealthgRPC() {
 
 	It("should return OK=true if no errors and cloning is not in progress", func() {
 		By("getting health")
-		res, err := gsrv.Health(context.Background(), &proto.HealthRequest{})
+		res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res.Ok).Should(BeTrue())
+		Expect(res.Status).Should(Equal(healthpb.HealthCheckResponse_SERVING))
 	})
 
 	It("should return IsUnderCloning=true if cloning process is in progress", func() {
@@ -96,20 +97,20 @@ func testHealthgRPC() {
 
 		By("getting health expecting IsUnderCloning=true")
 		Eventually(func() error {
-			res, err := gsrv.Health(context.Background(), &proto.HealthRequest{})
-			if err == nil && !res.Ok && res.IsUnderCloning {
+			res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
+			if res.Status == healthpb.HealthCheckResponse_NOT_SERVING && strings.HasSuffix(err.Error(), "isOutOfSynced=false, isUnderCloning=true") {
 				return nil
 			}
-			return fmt.Errorf("should become IsUnderCloning=true: res=%s", res.String())
+			return fmt.Errorf("should become NOT_SERVING and IsUnderCloning=true: res=%s", res.String())
 		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 
 		By("wating cloning is completed")
 		Eventually(func() error {
-			res, err := gsrv.Health(context.Background(), &proto.HealthRequest{})
-			if err == nil && res.Ok {
+			res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
+			if err == nil {
 				return nil
 			}
-			return fmt.Errorf("should become Ok=true: res=%s", res.String())
+			return fmt.Errorf("should return without error: res=%s", res.String())
 		}, 30*time.Second, time.Second).Should(Succeed())
 	})
 
@@ -120,11 +121,11 @@ func testHealthgRPC() {
 
 		By("getting health expecting IsOutOfSync=true")
 		Eventually(func() error {
-			res, err := gsrv.Health(context.Background(), &proto.HealthRequest{})
-			if err == nil && !res.Ok && res.IsOutOfSynced {
+			res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
+			if res.Status == healthpb.HealthCheckResponse_NOT_SERVING && strings.HasSuffix(err.Error(), "isOutOfSynced=true, isUnderCloning=false") {
 				return nil
 			}
-			return fmt.Errorf("should become IsOutOfSynced=true: res=%s", res.String())
+			return fmt.Errorf("should become NOT_SERVING and IsOutOfSynced=true: res=%s", res.String())
 		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 	})
 }
