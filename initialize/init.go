@@ -32,11 +32,12 @@ type MyConfTemplateParameters struct {
 
 func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath, miscConfPath string, serverIDBase uint32) error {
 	log.Info("generate mysql configuration file", nil)
-	if err := generateMySQLConfiguration(ctx, serverIDBase, moco.MySQLConfTemplatePath, moco.MySQLConfPath, moco.MySQLConfName); err != nil {
+	err := generateMySQLConfiguration(ctx, serverIDBase, moco.MySQLConfTemplatePath, moco.MySQLConfPath, moco.MySQLConfName)
+	if err != nil {
 		return err
 	}
 
-	_, err := os.Stat(initOnceCompletedPath)
+	_, err = os.Stat(initOnceCompletedPath)
 	if err == nil {
 		log.Info("skip data initialization since "+initOnceCompletedPath+" already exists", nil)
 		return nil
