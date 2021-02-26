@@ -29,7 +29,8 @@ import (
 
 const (
 	agentTestPrefix = "moco-agent-test-"
-	backupID        = "binlog"
+	binlogPrefix    = "binlog"
+	backupID        = "test-backup-id"
 	binlogDirPrefix = agentTestPrefix + "binlog-base-"
 	bucketName      = agentTestPrefix + "bucket"
 )
@@ -61,7 +62,7 @@ func testBackupBinaryLogs() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.StopAndRemoveMySQLD(replicaHost)
-		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, backupID)
+		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, binlogPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.StopMinIO(agentTestPrefix + "minio")
@@ -162,7 +163,7 @@ func testBackupBinaryLogs() {
 
 		By("checking the uploaded binlog file is deleted")
 		Eventually(func() error {
-			binlogName := binlogDir + "/" + backupID + ".000001"
+			binlogName := binlogDir + "/" + binlogPrefix + ".000001"
 			_, err := os.Stat(binlogName)
 			if os.IsNotExist(err) {
 				return nil
@@ -281,7 +282,7 @@ func testBackupBinaryLogs() {
 
 		By("checking the uploaded binlog files are deleted")
 		Eventually(func() error {
-			binlogNames := []string{binlogDir + "/" + backupID + ".000001", binlogDir + "/" + backupID + ".000002"}
+			binlogNames := []string{binlogDir + "/" + binlogPrefix + ".000001", binlogDir + "/" + binlogPrefix + ".000002"}
 			for _, b := range binlogNames {
 				_, err := os.Stat(b)
 				if !os.IsNotExist(err) {
@@ -315,7 +316,7 @@ func testBackupBinaryLogs() {
 		Eventually(func() error {
 			binlogSeqs := []string{"000001", "000002"}
 			for _, s := range binlogSeqs {
-				binlogName := binlogDir + "/" + backupID + "." + s
+				binlogName := binlogDir + "/" + binlogPrefix + "." + s
 				_, err := os.Stat(binlogName)
 				if err != nil {
 					return fmt.Errorf("file: %s should exist, but be deleted", binlogName)
@@ -340,13 +341,13 @@ func testBackupBinaryLogs() {
 		Eventually(func() error {
 			binlogSeqs := []string{"000001", "000002"}
 			for _, s := range binlogSeqs {
-				binlogName := binlogDir + "/" + backupID + "." + s
+				binlogName := binlogDir + "/" + binlogPrefix + "." + s
 				_, err := os.Stat(binlogName)
 				if !os.IsNotExist(err) {
 					return fmt.Errorf("file: %s should be deleted, but exists", binlogName)
 				}
 			}
-			binlogName := binlogDir + "/" + backupID + ".000003"
+			binlogName := binlogDir + "/" + binlogPrefix + ".000003"
 			_, err := os.Stat(binlogName)
 			if err != nil {
 				return fmt.Errorf("file: %s should exist, but not", binlogName)

@@ -52,7 +52,7 @@ func testBackupBinloggRPC() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.StopAndRemoveMySQLD(replicaHost)
-		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, backupID)
+		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, binlogPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.StopMinIO(agentTestPrefix + "minio")
@@ -141,13 +141,13 @@ func testBackupBinloggRPC() {
 		}
 
 		By("checking the uploaded binlog file is deleted")
-		binlogName := binlogDir + "/" + backupID + ".000001"
+		binlogName := binlogDir + "/" + binlogPrefix + ".000001"
 		_, err = os.Stat(binlogName)
 		Expect(os.IsNotExist(err)).Should(BeTrue())
 
 		By("calling /flush-backup-binlog API with the same backup ID")
 		_, err = gsrv.FlushAndBackupBinlog(context.Background(), req)
-		Expect(err.Error()).Should(Equal("rpc error: code = InvalidArgument desc = the requested backup has already completed: BackupId=binlog"))
+		Expect(err.Error()).Should(Equal(fmt.Sprintf("rpc error: code = InvalidArgument desc = the requested backup has already completed: BackupId=%s", backupID)))
 
 		By("checking metrics")
 		binlogBackupCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_count")
@@ -214,7 +214,7 @@ func testBackupBinloggRPC() {
 		}
 
 		By("checking the uploaded binlog files are deleted")
-		binlogNames := []string{binlogDir + "/" + backupID + ".000001", binlogDir + "/" + backupID + ".000002"}
+		binlogNames := []string{binlogDir + "/" + binlogPrefix + ".000001", binlogDir + "/" + binlogPrefix + ".000002"}
 		for _, b := range binlogNames {
 			_, err := os.Stat(b)
 			Expect(os.IsNotExist(err)).Should(BeTrue())
@@ -231,7 +231,7 @@ func testBackupBinloggRPC() {
 
 		binlogSeqs := []string{"000001", "000002"}
 		for _, s := range binlogSeqs {
-			binlogName := binlogDir + "/" + backupID + "." + s
+			binlogName := binlogDir + "/" + binlogPrefix + "." + s
 			_, err := os.Stat(binlogName)
 			Expect(err).ShouldNot(HaveOccurred())
 		}
@@ -246,11 +246,11 @@ func testBackupBinloggRPC() {
 
 		binlogSeqs = []string{"000001", "000002"}
 		for _, s := range binlogSeqs {
-			binlogName := binlogDir + "/" + backupID + "." + s
+			binlogName := binlogDir + "/" + binlogPrefix + "." + s
 			_, err := os.Stat(binlogName)
 			Expect(os.IsNotExist(err)).Should(BeTrue())
 		}
-		binlogName := binlogDir + "/" + backupID + ".000003"
+		binlogName := binlogDir + "/" + binlogPrefix + ".000003"
 		_, err = os.Stat(binlogName)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
