@@ -52,7 +52,7 @@ func testBackupBinloggRPC() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.StopAndRemoveMySQLD(replicaHost)
-		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, binlogPrefix)
+		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, backupID)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.StopMinIO(agentTestPrefix + "minio")
@@ -100,7 +100,7 @@ func testBackupBinloggRPC() {
 		By("calling /flush-backup-binlog API")
 		req := &proto.FlushAndBackupBinlogRequest{
 			Token:           token,
-			BackupId:        binlogPrefix,
+			BackupId:        backupID,
 			BucketHost:      "localhost",
 			BucketPort:      9000,
 			BucketName:      bucketName,
@@ -122,14 +122,14 @@ func testBackupBinloggRPC() {
 		By("checking the binlog file is uploaded")
 		_, err = s3.New(sess).HeadObject(&s3.HeadObjectInput{
 			Bucket: aws.String(bucketName),
-			Key:    aws.String(binlogPrefix),
+			Key:    aws.String(backupID),
 		})
 		Expect(err).ShouldNot(HaveOccurred())
 
-		objStr, err := getObjectAsString(sess, bucketName, binlogPrefix)
+		objStr, err := getObjectAsString(sess, bucketName, backupID)
 		Expect(err).ShouldNot(HaveOccurred())
 		objNames := strings.Split(objStr, "\n")
-		expectedObjNames := []string{binlogPrefix + "-000000"}
+		expectedObjNames := []string{backupID + "-000000"}
 		Expect(objNames).Should(Equal(expectedObjNames))
 
 		for _, objName := range objNames {
@@ -141,11 +141,11 @@ func testBackupBinloggRPC() {
 		}
 
 		By("checking the uploaded binlog file is deleted")
-		binlogName := binlogDir + "/" + binlogPrefix + ".000001"
+		binlogName := binlogDir + "/" + backupID + ".000001"
 		_, err = os.Stat(binlogName)
 		Expect(os.IsNotExist(err)).Should(BeTrue())
 
-		By("calling /flush-backup-binlog API with the same prefix")
+		By("calling /flush-backup-binlog API with the same backup ID")
 		_, err = gsrv.FlushAndBackupBinlog(context.Background(), req)
 		Expect(err.Error()).Should(Equal("rpc error: code = InvalidArgument desc = the requested backup has already completed: BackupId=binlog"))
 
@@ -173,7 +173,7 @@ func testBackupBinloggRPC() {
 		By("calling /flush-backup-binlog API")
 		req := &proto.FlushAndBackupBinlogRequest{
 			Token:           token,
-			BackupId:        binlogPrefix,
+			BackupId:        backupID,
 			BucketHost:      "localhost",
 			BucketPort:      9000,
 			BucketName:      bucketName,
@@ -195,14 +195,14 @@ func testBackupBinloggRPC() {
 		By("checking the multiple binlog files are uploaded")
 		_, err = s3.New(sess).HeadObject(&s3.HeadObjectInput{
 			Bucket: aws.String(bucketName),
-			Key:    aws.String(binlogPrefix),
+			Key:    aws.String(backupID),
 		})
 		Expect(err).ShouldNot(HaveOccurred())
 
-		objStr, err := getObjectAsString(sess, bucketName, binlogPrefix)
+		objStr, err := getObjectAsString(sess, bucketName, backupID)
 		Expect(err).ShouldNot(HaveOccurred())
 		objNames := strings.Split(objStr, "\n")
-		expectedObjNames := []string{binlogPrefix + "-000000", binlogPrefix + "-000001"}
+		expectedObjNames := []string{backupID + "-000000", backupID + "-000001"}
 		Expect(objNames).Should(Equal(expectedObjNames))
 
 		for _, objName := range objNames {
@@ -214,7 +214,7 @@ func testBackupBinloggRPC() {
 		}
 
 		By("checking the uploaded binlog files are deleted")
-		binlogNames := []string{binlogDir + "/" + binlogPrefix + ".000001", binlogDir + "/" + binlogPrefix + ".000002"}
+		binlogNames := []string{binlogDir + "/" + backupID + ".000001", binlogDir + "/" + backupID + ".000002"}
 		for _, b := range binlogNames {
 			_, err := os.Stat(b)
 			Expect(os.IsNotExist(err)).Should(BeTrue())
@@ -231,7 +231,7 @@ func testBackupBinloggRPC() {
 
 		binlogSeqs := []string{"000001", "000002"}
 		for _, s := range binlogSeqs {
-			binlogName := binlogDir + "/" + binlogPrefix + "." + s
+			binlogName := binlogDir + "/" + backupID + "." + s
 			_, err := os.Stat(binlogName)
 			Expect(err).ShouldNot(HaveOccurred())
 		}
@@ -246,11 +246,11 @@ func testBackupBinloggRPC() {
 
 		binlogSeqs = []string{"000001", "000002"}
 		for _, s := range binlogSeqs {
-			binlogName := binlogDir + "/" + binlogPrefix + "." + s
+			binlogName := binlogDir + "/" + backupID + "." + s
 			_, err := os.Stat(binlogName)
 			Expect(os.IsNotExist(err)).Should(BeTrue())
 		}
-		binlogName := binlogDir + "/" + binlogPrefix + ".000003"
+		binlogName := binlogDir + "/" + backupID + ".000003"
 		_, err = os.Stat(binlogName)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
