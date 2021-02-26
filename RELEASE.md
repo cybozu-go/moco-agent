@@ -59,7 +59,6 @@ Publish GitHub release page
 There is nothing to do.
 
 After the release CI is successful, the tagged version will be automatically released at the [GitHub release page](https://github.com/cybozu-go/moco-agent/releases).
-Please check the release page. https://github.com/cybozu-go/moco-agent/releases
 
 
 [semver]: https://semver.org/spec/v2.0.0.html
