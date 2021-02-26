@@ -56,8 +56,9 @@ Now the version is bumped up and the latest container image is uploaded to [GitH
 Publish GitHub release page
 ---------------------------
 
-Go to https://github.com/cybozu-go/neco-template/releases and edit the tag.
-Finally, press `Publish release` button.
+There is nothing to do.
+
+After the release CI is successful, the tagged version will be automatically released at the [GitHub release page](https://github.com/cybozu-go/moco-agent/releases).
 
 
 [semver]: https://semver.org/spec/v2.0.0.html
