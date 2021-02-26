@@ -5,18 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
-	"path"
 	"strconv"
 	"time"
 
 	"github.com/cybozu-go/moco"
 	"github.com/cybozu-go/moco-agent/metrics"
+	"github.com/cybozu-go/moco-agent/server/proto"
 	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/cybozu-go/moco/accessor"
 	"github.com/google/go-cmp/cmp"
@@ -25,66 +21,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type testData struct {
-	primaryHost            string
-	primaryPort            int
-	primaryUser            string
-	primaryPassword        string
-	cloneUser              string
-	clonePassword          string
-	initAfterCloneUser     string
-	initAfterClonePassword string
-}
-
-func writeTestData(data *testData) {
-	writeFile := func(filename, data string) error {
-		return ioutil.WriteFile(path.Join(replicationSourceSecretPath, filename), []byte(data), 0664)
-	}
-
-	var err error
-	err = writeFile("PRIMARY_HOST", data.primaryHost)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = writeFile("PRIMARY_PORT", strconv.Itoa(data.primaryPort))
-	Expect(err).ShouldNot(HaveOccurred())
-	err = writeFile("PRIMARY_USER", data.primaryUser)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = writeFile("PRIMARY_PASSWORD", data.primaryPassword)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = writeFile("CLONE_USER", data.cloneUser)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = writeFile("CLONE_PASSWORD", data.clonePassword)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = writeFile("INIT_AFTER_CLONE_USER", data.initAfterCloneUser)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = writeFile("INIT_AFTER_CLONE_PASSWORD", data.initAfterClonePassword)
-	Expect(err).ShouldNot(HaveOccurred())
-}
-
-func initializeDonorMySQL(isExternal bool) {
-	By("initializing MySQL donor")
-	err := test_utils.StartMySQLD(donorHost, donorPort, donorServerID)
-	Expect(err).ShouldNot(HaveOccurred())
-	if isExternal {
-		err = test_utils.InitializeMySQLAsExternalDonor(donorPort)
-		Expect(err).ShouldNot(HaveOccurred())
-	} else {
-		err = test_utils.InitializeMySQL(donorPort)
-		Expect(err).ShouldNot(HaveOccurred())
-	}
-	err = test_utils.PrepareTestData(donorPort)
-	Expect(err).ShouldNot(HaveOccurred())
-	err = test_utils.ResetMaster(donorPort)
-	Expect(err).ShouldNot(HaveOccurred())
-}
-
-func testClone() {
+func testClonegRPC() {
 	var agent *Agent
 	var registry *prometheus.Registry
+	var gsrv proto.CloneServiceServer
 
 	BeforeEach(func() {
 		// The configuration of the donor MySQL is different for each test case.
 		// So the donor is not initialized here. The initialization will do at the beginning of each test case.
-		By("initializing MySQL replica")
+		test_utils.StopAndRemoveMySQLD(donorHost)
+		test_utils.StopAndRemoveMySQLD(replicaHost)
+
 		err := test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID)
 		Expect(err).ShouldNot(HaveOccurred())
 		err = test_utils.InitializeMySQL(replicaPort)
@@ -94,7 +41,9 @@ func testClone() {
 		err = test_utils.ResetMaster(replicaPort)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		By("creating agent instance")
+		registry = prometheus.NewRegistry()
+		metrics.RegisterMetrics(registry)
+
 		agent = New(test_utils.Host, clusterName, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", replicaPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
@@ -103,18 +52,7 @@ func testClone() {
 			},
 		)
 
-		By("initializing metrics registry")
-		registry = prometheus.NewRegistry()
-		metrics.RegisterMetrics(registry)
-
-		cloneCount, _ := getMetric(registry, metricsPrefix+"clone_count")
-		Expect(cloneCount).Should(BeNil())
-
-		cloneFailureCount, _ := getMetric(registry, metricsPrefix+"clone_failure_count")
-		Expect(cloneFailureCount).Should(BeNil())
-
-		cloneDurationSeconds, _ := getMetric(registry, metricsPrefix+"clone_duration_seconds")
-		Expect(cloneDurationSeconds).Should(BeNil())
+		gsrv = NewCloneService(agent)
 	})
 
 	AfterEach(func() {
@@ -122,98 +60,76 @@ func testClone() {
 		test_utils.StopAndRemoveMySQLD(replicaHost)
 	})
 
-	It("should return 400 with bad requests", func() {
+	It("should return error with bad requests", func() {
 		initializeDonorMySQL(false)
 
 		testcases := []struct {
-			title  string
-			values url.Values
+			title string
+			req   *proto.CloneRequest
 		}{
 			{
 				title: "passing invalid token",
-				values: url.Values{
-					moco.CloneParamDonorHostName: []string{donorHost},
-					moco.CloneParamDonorPort:     []string{strconv.Itoa(donorPort)},
-					moco.AgentTokenParam:         []string{"invalid-token"},
+				req: &proto.CloneRequest{
+					Token:     "invalid-token",
+					DonorHost: donorHost,
+					DonorPort: donorPort,
 				},
 			},
 			{
 				title: "passing empty token",
-				values: url.Values{
-					moco.CloneParamDonorHostName: []string{donorHost},
-					moco.CloneParamDonorPort:     []string{strconv.Itoa(donorPort)},
+				req: &proto.CloneRequest{
+					DonorHost: donorHost,
+					DonorPort: donorPort,
 				},
 			},
 			{
 				title: "passing empty donorHostName",
-				values: url.Values{
-					moco.CloneParamDonorPort: []string{strconv.Itoa(donorPort)},
-					moco.AgentTokenParam:     []string{token},
+				req: &proto.CloneRequest{
+					Token:     token,
+					DonorPort: donorPort,
 				},
 			},
 			{
 				title: "passing empty donorPort",
-				values: url.Values{
-					moco.CloneParamDonorHostName: []string{donorHost},
-					moco.AgentTokenParam:         []string{token},
-				},
-			},
-			{
-				title: "passing invalid external param",
-				values: url.Values{
-					moco.CloneParamExternal: []string{"invalid"},
-					moco.AgentTokenParam:    []string{token},
+				req: &proto.CloneRequest{
+					Token:     token,
+					DonorHost: donorHost,
 				},
 			},
 		}
 
 		for _, tt := range testcases {
 			By(tt.title)
-			req := httptest.NewRequest("GET", "http://"+replicaHost+"/clone", nil)
-			req.URL.RawQuery = tt.values.Encode()
-
-			res := httptest.NewRecorder()
-			agent.Clone(res, req)
-			Expect(res).Should(HaveHTTPStatus(http.StatusBadRequest))
+			_, err := gsrv.Clone(context.Background(), tt.req)
+			Expect(err).Should(HaveOccurred())
 		}
 
 		By("checking metrics")
 		// In these test cases, the clone will not start actually. So the metrics will not change.
-		Eventually(func() error {
-			cloneCount, _ := getMetric(registry, metricsPrefix+"clone_count")
-			if cloneCount != nil && *cloneCount.Counter.Value != 0.0 {
-				return fmt.Errorf("clone_count shouldn't be incremented: value=%f", *cloneCount.Counter.Value)
-			}
+		_, err := getMetric(registry, metricsPrefix+"clone_count")
+		Expect(err).Should(HaveOccurred())
 
-			cloneFailureCount, _ := getMetric(registry, metricsPrefix+"clone_failure_count")
-			if cloneFailureCount != nil && *cloneFailureCount.Counter.Value != 0.0 {
-				return fmt.Errorf("clone_failure_count shouldn't be incremented: value=%f", *cloneFailureCount.Counter.Value)
-			}
-
-			return nil
-		}, 30*time.Second).Should(Succeed())
+		_, err = getMetric(registry, metricsPrefix+"clone_failure_count")
+		Expect(err).Should(HaveOccurred())
 	})
 
 	It("should clone from donor successfully", func() {
 		initializeDonorMySQL(false)
 
 		By("cloning from donor")
-		req := httptest.NewRequest("GET", "http://"+replicaHost+"/clone", nil)
-		queries := url.Values{
-			moco.CloneParamDonorHostName: []string{donorHost},
-			moco.CloneParamDonorPort:     []string{strconv.Itoa(donorPort)},
-			moco.AgentTokenParam:         []string{token},
+		req := &proto.CloneRequest{
+			Token:     token,
+			DonorHost: donorHost,
+			DonorPort: donorPort,
 		}
-		req.URL.RawQuery = queries.Encode()
 
-		res := httptest.NewRecorder()
-		agent.Clone(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
+		_, err := gsrv.Clone(context.Background(), req)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		By("cloning from donor (second time)")
-		res = httptest.NewRecorder()
-		agent.Clone(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusTooManyRequests))
+		_, err = gsrv.Clone(context.Background(), req)
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).Should(Equal("rpc error: code = ResourceExhausted desc = another request is under processing"))
 
 		Eventually(func() error {
 			if agent.sem.TryAcquire(1) {
@@ -239,12 +155,16 @@ func testClone() {
 		cloneCount, err := getMetric(registry, metricsPrefix+"clone_count")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*cloneCount.Counter.Value).Should(Equal(1.0))
+		Expect(*cloneCount.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*cloneCount.Label[0].Value).Should(Equal(clusterName))
 
 		_, err = getMetric(registry, metricsPrefix+"clone_failure_count")
 		Expect(err).Should(HaveOccurred())
 
 		cloneDurationSeconds, err := getMetric(registry, metricsPrefix+"clone_duration_seconds")
 		Expect(err).ShouldNot(HaveOccurred())
+		Expect(*cloneDurationSeconds.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*cloneDurationSeconds.Label[0].Value).Should(Equal(clusterName))
 		for _, quantile := range cloneDurationSeconds.Summary.Quantile {
 			Expect(math.IsNaN(*quantile.Value)).Should(BeFalse())
 		}
@@ -258,17 +178,14 @@ func testClone() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("cloning from donor")
-		req := httptest.NewRequest("GET", "http://"+replicaHost+"/clone", nil)
-		queries := url.Values{
-			moco.CloneParamDonorHostName: []string{donorHost},
-			moco.CloneParamDonorPort:     []string{strconv.Itoa(donorPort)},
-			moco.AgentTokenParam:         []string{token},
+		req := &proto.CloneRequest{
+			Token:     token,
+			DonorHost: donorHost,
+			DonorPort: donorPort,
 		}
-		req.URL.RawQuery = queries.Encode()
 
-		res := httptest.NewRecorder()
-		agent.Clone(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusForbidden))
+		_, err = gsrv.Clone(context.Background(), req)
+		Expect(err).Should(HaveOccurred())
 	})
 
 	It("should not clone from external MySQL with invalid donor settings", func() {
@@ -328,16 +245,13 @@ func testClone() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By(fmt.Sprintf("(%s) %s", tt.title, "cloning from external MySQL"))
-			req := httptest.NewRequest("GET", "http://"+replicaHost+"/clone", nil)
-			queries := url.Values{
-				moco.CloneParamExternal: []string{"true"},
-				moco.AgentTokenParam:    []string{token},
+			req := &proto.CloneRequest{
+				Token:    token,
+				External: true,
 			}
-			req.URL.RawQuery = queries.Encode()
 
-			res := httptest.NewRecorder()
-			agent.Clone(res, req)
-			Expect(res).Should(HaveHTTPStatus(http.StatusOK))
+			_, err = gsrv.Clone(context.Background(), req)
+			Expect(err).ShouldNot(HaveOccurred())
 
 			// Just in case, wait for the clone to be started.
 			time.Sleep(3 * time.Second)
@@ -375,10 +289,14 @@ func testClone() {
 		cloneCount, err := getMetric(registry, metricsPrefix+"clone_count")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*cloneCount.Counter.Value).Should(Equal(float64(len(testcases))))
+		Expect(*cloneCount.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*cloneCount.Label[0].Value).Should(Equal(clusterName))
 
 		cloneFailureCount, err := getMetric(registry, metricsPrefix+"clone_failure_count")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*cloneFailureCount.Counter.Value).Should(Equal(float64(len(testcases))))
+		Expect(*cloneFailureCount.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*cloneFailureCount.Label[0].Value).Should(Equal(clusterName))
 
 		_, err = getMetric(registry, metricsPrefix+"clone_duration_seconds")
 		Expect(err).Should(HaveOccurred())
@@ -399,16 +317,13 @@ func testClone() {
 		writeTestData(data)
 
 		By("cloning from external MySQL")
-		req := httptest.NewRequest("GET", "http://"+replicaHost+"/clone", nil)
-		queries := url.Values{
-			moco.CloneParamExternal: []string{"true"},
-			moco.AgentTokenParam:    []string{token},
+		req := &proto.CloneRequest{
+			Token:    token,
+			External: true,
 		}
-		req.URL.RawQuery = queries.Encode()
 
-		res := httptest.NewRecorder()
-		agent.Clone(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
+		_, err := gsrv.Clone(context.Background(), req)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		By("confirming clone by init user")
 		Eventually(func() error {
@@ -428,6 +343,22 @@ func testClone() {
 			}
 			return nil
 		}, 30*time.Second).Should(Succeed())
+
+		By("getting error when secret files doesn't exist")
+		pwd, err := os.Getwd()
+		rightPath := agent.replicationSourceSecretPath
+		Expect(err).ShouldNot(HaveOccurred())
+		agent.replicationSourceSecretPath = pwd
+
+		req = &proto.CloneRequest{
+			Token:    token,
+			External: true,
+		}
+
+		_, err = gsrv.Clone(context.Background(), req)
+		Expect(err).Should(HaveOccurred())
+
+		agent.replicationSourceSecretPath = rightPath
 
 		// The initialization(*) after cloning from the external donor does not succeed in this test.
 		// In the initialization, the agent tries to connect to the MySQL server via the Unix domain socket. But the connection will not be succeeded.
@@ -453,27 +384,5 @@ func testClone() {
 			}
 			return nil
 		}, 30*time.Second).Should(Succeed())
-
-		By("getting 500 when secret files doesn't exist")
-		pwd, err := os.Getwd()
-		Expect(err).ShouldNot(HaveOccurred())
-		agent = New(test_utils.Host, clusterName, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, pwd, "", replicaPort,
-			&accessor.MySQLAccessorConfig{
-				ConnMaxLifeTime:   30 * time.Minute,
-				ConnectionTimeout: 3 * time.Second,
-				ReadTimeout:       30 * time.Second,
-			},
-		)
-
-		req = httptest.NewRequest("GET", "http://"+replicaHost+"/clone", nil)
-		queries = url.Values{
-			moco.CloneParamExternal: []string{"true"},
-			moco.AgentTokenParam:    []string{token},
-		}
-		req.URL.RawQuery = queries.Encode()
-
-		res = httptest.NewRecorder()
-		agent.Clone(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusInternalServerError))
 	})
 }

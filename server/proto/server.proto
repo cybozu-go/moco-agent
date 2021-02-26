@@ -13,3 +13,16 @@ message HealthResponse {
 service HealthService {
     rpc Health(HealthRequest) returns (HealthResponse);
 }
+
+message CloneRequest {
+    string token = 1;
+    bool external = 2;
+    string donor_host = 3;
+    int32 donor_port = 4;
+}
+
+message CloneResponse {}
+
+service CloneService {
+    rpc Clone(CloneRequest) returns (CloneResponse);
+}

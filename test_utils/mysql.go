@@ -38,7 +38,12 @@ const (
 	networkName = "moco-agent-test-net"
 )
 
-var MySQLVersion = os.Getenv("MYSQL_VERSION")
+var MySQLVersion = func() string {
+	if ver := os.Getenv("MYSQL_VERSION"); ver == "" {
+		os.Setenv("MYSQL_VERSION", "8.0.20")
+	}
+	return os.Getenv("MYSQL_VERSION")
+}()
 
 func StartMySQLD(name string, port int, serverID int, opt ...string) error {
 	ctx := context.Background()

@@ -73,9 +73,13 @@ var _ = Describe("Test Agent", func() {
 	Context("clone", testClone)
 	Context("backup_binlog", testBackupBinaryLogs)
 	Context("healthgRPC", testHealthgRPC)
+	Context("clonegRPC", testClonegRPC)
 })
 
 func getMetric(registry *prometheus.Registry, metricName string) (*promgo.Metric, error) {
+	// Vec type metrics (e.g. *prometheus.CounterVec) isn't allocated until increment/add/set
+	// a value. In this case, getMetrics() returns error "cannot find a metric: name=%s"
+
 	metricsFamily, err := registry.Gather()
 	if err != nil {
 		return nil, err
