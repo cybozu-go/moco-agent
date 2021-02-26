@@ -30,6 +30,7 @@ import (
 const (
 	agentTestPrefix = "moco-agent-test-"
 	binlogPrefix    = "binlog"
+	backupID        = "test-backup-id"
 	binlogDirPrefix = agentTestPrefix + "binlog-base-"
 	bucketName      = agentTestPrefix + "bucket"
 )
@@ -117,7 +118,7 @@ func testBackupBinaryLogs() {
 		req := httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries := url.Values{
 			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogBackupIDParam:     []string{binlogPrefix},
+			mocoagent.BackupBinaryLogBackupIDParam:     []string{backupID},
 			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
 			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
 			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
@@ -136,15 +137,15 @@ func testBackupBinaryLogs() {
 		Eventually(func() error {
 			_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
 				Bucket: aws.String(bucketName),
-				Key:    aws.String(binlogPrefix),
+				Key:    aws.String(backupID),
 			})
 			return err
 		}, 10*time.Second).Should(Succeed())
 
-		objStr, err := getObjectAsString(sess, bucketName, binlogPrefix)
+		objStr, err := getObjectAsString(sess, bucketName, backupID)
 		Expect(err).ShouldNot(HaveOccurred())
 		objNames := strings.Split(objStr, "\n")
-		expectedObjNames := []string{binlogPrefix + "-000000"}
+		expectedObjNames := []string{backupID + "-000000"}
 		Expect(objNames).Should(Equal(expectedObjNames))
 
 		Eventually(func() error {
@@ -174,7 +175,7 @@ func testBackupBinaryLogs() {
 		req = httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries = url.Values{
 			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogBackupIDParam:     []string{binlogPrefix},
+			mocoagent.BackupBinaryLogBackupIDParam:     []string{backupID},
 			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
 			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
 			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
@@ -236,7 +237,7 @@ func testBackupBinaryLogs() {
 		req = httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries = url.Values{
 			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogBackupIDParam:     []string{binlogPrefix},
+			mocoagent.BackupBinaryLogBackupIDParam:     []string{backupID},
 			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
 			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
 			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
@@ -255,15 +256,15 @@ func testBackupBinaryLogs() {
 		Eventually(func() error {
 			_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
 				Bucket: aws.String(bucketName),
-				Key:    aws.String(binlogPrefix),
+				Key:    aws.String(backupID),
 			})
 			return err
 		}, 10*time.Second).Should(Succeed())
 
-		objStr, err := getObjectAsString(sess, bucketName, binlogPrefix)
+		objStr, err := getObjectAsString(sess, bucketName, backupID)
 		Expect(err).ShouldNot(HaveOccurred())
 		objNames := strings.Split(objStr, "\n")
-		expectedObjNames := []string{binlogPrefix + "-000000", binlogPrefix + "-000001"}
+		expectedObjNames := []string{backupID + "-000000", backupID + "-000001"}
 		Expect(objNames).Should(Equal(expectedObjNames))
 
 		Eventually(func() error {
