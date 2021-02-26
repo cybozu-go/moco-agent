@@ -3,10 +3,13 @@ package initialize
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"text/template"
 	"time"
@@ -19,8 +22,22 @@ import (
 
 const timeoutDuration = 30 * time.Second
 
-func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath, miscConfPath string) error {
-	_, err := os.Stat(initOnceCompletedPath)
+// MyConfTemplateParameters define parameters for a MySQL configuration template.
+type MyConfTemplateParameters struct {
+	// ServerID is the value for server_id of MySQL configuration
+	ServerID uint32
+	// AdminAddress is the value for admin_address of MySQL configuration
+	AdminAddress string
+}
+
+func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath, miscConfPath string, serverIDBase uint32) error {
+	log.Info("generate mysql configuration file", nil)
+	err := generateMySQLConfiguration(ctx, serverIDBase, moco.MySQLConfTemplatePath, moco.MySQLConfPath, moco.MySQLConfName)
+	if err != nil {
+		return err
+	}
+
+	_, err = os.Stat(initOnceCompletedPath)
 	if err == nil {
 		log.Info("skip data initialization since "+initOnceCompletedPath+" already exists", nil)
 		return nil
@@ -80,6 +97,41 @@ func removeAllFiles(dir string) error {
 		}
 	}
 	return nil
+}
+
+// generateMySQLConfiguration generate a MySQL configuration file.
+func generateMySQLConfiguration(ctx context.Context, serverIDBase uint32,
+	mySQLConfTemplatePath, mySQLConfPath, mySQLConfName string) error {
+	if len(os.Getenv(moco.PodNameEnvName)) == 0 {
+		return fmt.Errorf("environment variable %s is required", moco.PodNameEnvName)
+	}
+
+	serverID, err := confServerID(os.Getenv(moco.PodNameEnvName), serverIDBase)
+	if err != nil {
+		return fmt.Errorf("failed to generate serverID: %w", err)
+	}
+
+	parameters := MyConfTemplateParameters{
+		ServerID:     serverID,
+		AdminAddress: os.Getenv(moco.PodNameEnvName),
+	}
+
+	tmpl, err := template.ParseFiles(filepath.Join(mySQLConfTemplatePath, mySQLConfName))
+	if err != nil {
+		return fmt.Errorf("failed to parse template MySQL configration file: %w", err)
+	}
+
+	file, err := os.Create(filepath.Join(mySQLConfPath, mySQLConfName))
+	if err != nil {
+		return fmt.Errorf("failed to create MySQL configration file: %w", err)
+	}
+	defer file.Close()
+
+	if err := tmpl.Execute(file, parameters); err != nil {
+		return fmt.Errorf("failed to generate MySQL configration file from template: %w", err)
+	}
+
+	return file.Sync()
 }
 
 // RestoreUsers creates users for MOCO and grants privileges to them.
@@ -605,4 +657,20 @@ func execSQL(ctx context.Context, passwordFilePath string, input []byte, databas
 		args = append(args, databaseName)
 	}
 	return doExec(ctx, input, "mysql", args...)
+}
+
+// confServerID returns the number obtained by adding the unique ordinal index of
+// StatefulSet Pod to the base server ID.
+func confServerID(podNameWithOrdinal string, serverIDBase uint32) (uint32, error) {
+	s := strings.Split(podNameWithOrdinal, "-")
+	if len(s) < 2 {
+		return 0, errors.New("podName should contain an ordinal with dash, like 'podname-0', at the end: " + podNameWithOrdinal)
+	}
+
+	ordinal, err := strconv.ParseUint(s[len(s)-1], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse to uint %v: %w", s[len(s)-1], err)
+	}
+
+	return uint32(ordinal) + serverIDBase, nil
 }
