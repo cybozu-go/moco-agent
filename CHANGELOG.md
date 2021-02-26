@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2021-02-26
+
+### Added
+
+- Export metrics of backup binlog API. (#9)
+- Move the config generation feature from the moco-conf-gen. (#14)
+
 ## [0.2.1] - 2021-02-22
 
 ### Changed
@@ -25,7 +32,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/cybozu-go/moco-agent/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/cybozu-go/moco-agent/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/cybozu-go/moco-agent/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/cybozu-go/moco-agent/compare/0913cef5607fd11e17ec2f5679059269fe4371fb...v0.1.0
