@@ -1,9 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
-	"net/http"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -13,14 +14,19 @@ import (
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server"
+	"github.com/cybozu-go/moco-agent/server/proto"
 	"github.com/cybozu-go/moco/accessor"
 	"github.com/cybozu-go/well"
-	"github.com/go-sql-driver/mysql"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
+	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"google.golang.org/grpc"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 const (
@@ -48,6 +54,9 @@ var agentCmd = &cobra.Command{
 	Short: "Start MySQL agent service",
 	Long:  `Start MySQL agent service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		zapLogger := zap.NewRaw()
+		defer zapLogger.Sync()
+
 		podName := os.Getenv(moco.PodNameEnvName)
 		if podName == "" {
 			return fmt.Errorf("%s is empty", moco.PodNameEnvName)
@@ -83,25 +92,30 @@ var agentCmd = &cobra.Command{
 		registry := prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		mux := http.NewServeMux()
-		mux.HandleFunc("/clone", agent.Clone)
-		mux.HandleFunc("/health", agent.Health)
-		mux.HandleFunc("/binlog-flush-backup", agent.FlushAndBackupBinaryLogs)
-		mux.HandleFunc("/binlog-flush", agent.FlushBinaryLogs)
-		mysql.SetLogger(mysqlLogger{})
-		mux.Handle("/metrics", promhttp.HandlerFor(
-			registry,
-			promhttp.HandlerOpts{
-				ErrorLog:      promhttpLogger{},
-				ErrorHandling: promhttp.ContinueOnError,
-			},
-		))
-		serv := &well.HTTPServer{
-			Server: &http.Server{
-				Addr:    viper.GetString(addressFlag),
-				Handler: mux,
-			},
-		}
+		// mux := http.NewServeMux()
+		// mux.HandleFunc("/clone", agent.Clone)
+		// mux.HandleFunc("/health", agent.Health)
+		// mux.HandleFunc("/binlog-flush-backup", agent.FlushAndBackupBinaryLogs)
+		// mux.HandleFunc("/binlog-flush", agent.FlushBinaryLogs)
+		// mysql.SetLogger(mysqlLogger{})
+		// mux.Handle("/metrics", promhttp.HandlerFor(
+		// 	registry,
+		// 	promhttp.HandlerOpts{
+		// 		ErrorLog:      promhttpLogger{},
+		// 		ErrorHandling: promhttp.ContinueOnError,
+		// 	},
+		// ))
+		// serv := &well.HTTPServer{
+		// 	Server: &http.Server{
+		// 		Addr:    viper.GetString(addressFlag),
+		// 		Handler: mux,
+		// 	},
+		// }
+
+		// err = serv.ListenAndServe()
+		// if err != nil {
+		// 	return err
+		// }
 
 		c := cron.New()
 		if _, err := c.AddFunc(viper.GetString(logRotationScheduleFlag), agent.RotateLog); err != nil {
@@ -122,26 +136,30 @@ var agentCmd = &cobra.Command{
 			}
 		}()
 
-		err = serv.ListenAndServe()
+		// TODO: switch HTTP server to gRPC server when the all APIs are implemented
+		lis, err := net.Listen("tcp", viper.GetString(addressFlag))
 		if err != nil {
 			return err
 		}
+		grpcLogger := zapLogger.Named("grpc")
+		grpcServer := grpc.NewServer(grpc.UnaryInterceptor(
+			grpc_middleware.ChainUnaryServer(
+				grpc_ctxtags.UnaryServerInterceptor(),
+				grpc_zap.UnaryServerInterceptor(grpcLogger),
+			),
+		))
+		healthpb.RegisterHealthServer(grpcServer, server.NewHealthService(agent))
+		proto.RegisterCloneServiceServer(grpcServer, server.NewCloneService(agent))
+		proto.RegisterBackupBinlogServiceServer(grpcServer, server.NewBackupBinlogService(agent))
 
-		// TODO: switch HTTP server to gRPC server when the all APIs are implemented
-		// lis, err := net.Listen("tcp", viper.GetString(addressFlag))
-		// if err != nil {
-		// 	return err
-		// }
-		// grpcServer := grpc.NewServer()
-		// proto.RegisterHealthServiceServer(grpcServer, server.NewHealthService(agent))
-		// well.Go(func(ctx context.Context) error {
-		// 	return grpcServer.Serve(lis)
-		// })
-		// well.Go(func(ctx context.Context) error {
-		// 	<-ctx.Done()
-		// 	grpcServer.GracefulStop()
-		// 	return nil
-		// })
+		well.Go(func(ctx context.Context) error {
+			return grpcServer.Serve(lis)
+		})
+		well.Go(func(ctx context.Context) error {
+			<-ctx.Done()
+			grpcServer.GracefulStop()
+			return nil
+		})
 
 		if err := well.Wait(); err != nil && !well.IsSignaled(err) {
 			return err
