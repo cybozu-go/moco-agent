@@ -29,7 +29,7 @@ import (
 
 const (
 	agentTestPrefix = "moco-agent-test-"
-	binlogPrefix    = "binlog"
+	backupID        = "binlog"
 	binlogDirPrefix = agentTestPrefix + "binlog-base-"
 	bucketName      = agentTestPrefix + "bucket"
 )
@@ -61,7 +61,7 @@ func testBackupBinaryLogs() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.StopAndRemoveMySQLD(replicaHost)
-		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, binlogPrefix)
+		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, backupID)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.StopMinIO(agentTestPrefix + "minio")
@@ -117,7 +117,7 @@ func testBackupBinaryLogs() {
 		req := httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries := url.Values{
 			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogBackupIDParam:     []string{binlogPrefix},
+			mocoagent.BackupBinaryLogBackupIDParam:     []string{backupID},
 			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
 			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
 			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
@@ -136,15 +136,15 @@ func testBackupBinaryLogs() {
 		Eventually(func() error {
 			_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
 				Bucket: aws.String(bucketName),
-				Key:    aws.String(binlogPrefix),
+				Key:    aws.String(backupID),
 			})
 			return err
 		}, 10*time.Second).Should(Succeed())
 
-		objStr, err := getObjectAsString(sess, bucketName, binlogPrefix)
+		objStr, err := getObjectAsString(sess, bucketName, backupID)
 		Expect(err).ShouldNot(HaveOccurred())
 		objNames := strings.Split(objStr, "\n")
-		expectedObjNames := []string{binlogPrefix + "-000000"}
+		expectedObjNames := []string{backupID + "-000000"}
 		Expect(objNames).Should(Equal(expectedObjNames))
 
 		Eventually(func() error {
@@ -162,7 +162,7 @@ func testBackupBinaryLogs() {
 
 		By("checking the uploaded binlog file is deleted")
 		Eventually(func() error {
-			binlogName := binlogDir + "/" + binlogPrefix + ".000001"
+			binlogName := binlogDir + "/" + backupID + ".000001"
 			_, err := os.Stat(binlogName)
 			if os.IsNotExist(err) {
 				return nil
@@ -174,7 +174,7 @@ func testBackupBinaryLogs() {
 		req = httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries = url.Values{
 			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogBackupIDParam:     []string{binlogPrefix},
+			mocoagent.BackupBinaryLogBackupIDParam:     []string{backupID},
 			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
 			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
 			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
@@ -236,7 +236,7 @@ func testBackupBinaryLogs() {
 		req = httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
 		queries = url.Values{
 			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogBackupIDParam:     []string{binlogPrefix},
+			mocoagent.BackupBinaryLogBackupIDParam:     []string{backupID},
 			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
 			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
 			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
@@ -255,15 +255,15 @@ func testBackupBinaryLogs() {
 		Eventually(func() error {
 			_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
 				Bucket: aws.String(bucketName),
-				Key:    aws.String(binlogPrefix),
+				Key:    aws.String(backupID),
 			})
 			return err
 		}, 10*time.Second).Should(Succeed())
 
-		objStr, err := getObjectAsString(sess, bucketName, binlogPrefix)
+		objStr, err := getObjectAsString(sess, bucketName, backupID)
 		Expect(err).ShouldNot(HaveOccurred())
 		objNames := strings.Split(objStr, "\n")
-		expectedObjNames := []string{binlogPrefix + "-000000", binlogPrefix + "-000001"}
+		expectedObjNames := []string{backupID + "-000000", backupID + "-000001"}
 		Expect(objNames).Should(Equal(expectedObjNames))
 
 		Eventually(func() error {
@@ -281,7 +281,7 @@ func testBackupBinaryLogs() {
 
 		By("checking the uploaded binlog files are deleted")
 		Eventually(func() error {
-			binlogNames := []string{binlogDir + "/" + binlogPrefix + ".000001", binlogDir + "/" + binlogPrefix + ".000002"}
+			binlogNames := []string{binlogDir + "/" + backupID + ".000001", binlogDir + "/" + backupID + ".000002"}
 			for _, b := range binlogNames {
 				_, err := os.Stat(b)
 				if !os.IsNotExist(err) {
@@ -315,7 +315,7 @@ func testBackupBinaryLogs() {
 		Eventually(func() error {
 			binlogSeqs := []string{"000001", "000002"}
 			for _, s := range binlogSeqs {
-				binlogName := binlogDir + "/" + binlogPrefix + "." + s
+				binlogName := binlogDir + "/" + backupID + "." + s
 				_, err := os.Stat(binlogName)
 				if err != nil {
 					return fmt.Errorf("file: %s should exist, but be deleted", binlogName)
@@ -340,13 +340,13 @@ func testBackupBinaryLogs() {
 		Eventually(func() error {
 			binlogSeqs := []string{"000001", "000002"}
 			for _, s := range binlogSeqs {
-				binlogName := binlogDir + "/" + binlogPrefix + "." + s
+				binlogName := binlogDir + "/" + backupID + "." + s
 				_, err := os.Stat(binlogName)
 				if !os.IsNotExist(err) {
 					return fmt.Errorf("file: %s should be deleted, but exists", binlogName)
 				}
 			}
-			binlogName := binlogDir + "/" + binlogPrefix + ".000003"
+			binlogName := binlogDir + "/" + backupID + ".000003"
 			_, err := os.Stat(binlogName)
 			if err != nil {
 				return fmt.Errorf("file: %s should exist, but not", binlogName)

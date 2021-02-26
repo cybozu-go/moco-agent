@@ -47,7 +47,7 @@ func registerBinlogBackupMetrics(registry *prometheus.Registry) {
 		Subsystem: metricsSubsystem,
 		Name:      "binlog_backup_failure_count",
 		Help:      "The failed binlog backup operation count",
-	}, []string{"action", "cluster_name"})
+	}, []string{"cluster_name", "action"})
 	binlogBackupDurationSecondsMetrics = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace:  metricsNamespace,
 		Subsystem:  metricsSubsystem,
@@ -131,7 +131,7 @@ func registerDumpBackupMetrics(registry *prometheus.Registry) {
 		Subsystem: metricsSubsystem,
 		Name:      "dump_backup_failure_count",
 		Help:      "The failed dump backup operation count",
-	}, []string{"action", "cluster_name"})
+	}, []string{"cluster_name", "action"})
 	dumpBackupDurationSecondsMetrics = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace:  metricsNamespace,
 		Subsystem:  metricsSubsystem,
