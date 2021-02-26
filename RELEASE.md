@@ -58,7 +58,7 @@ Publish GitHub release page
 
 There is nothing to do.
 
-If the release CI is successful, the GitHub release page will be automatically published.
+After the release CI is successful, the tagged version will be automatically released at the [GitHub release page](https://github.com/cybozu-go/moco-agent/releases).
 Please check the release page. https://github.com/cybozu-go/moco-agent/releases
 
 
