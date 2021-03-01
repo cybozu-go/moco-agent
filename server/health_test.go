@@ -2,29 +2,30 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"strconv"
+	"strings"
 	"time"
 
-	"github.com/cybozu-go/moco"
 	"github.com/cybozu-go/moco-agent/metrics"
+	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/cybozu-go/moco/accessor"
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 func testHealth() {
 	var agent *Agent
 	var registry *prometheus.Registry
+	var gsrv healthpb.HealthServer
+	var cloneSrv agentrpc.CloneServiceServer
 
 	BeforeEach(func() {
+		test_utils.StopAndRemoveMySQLD(donorHost)
+		test_utils.StopAndRemoveMySQLD(replicaHost)
+
 		err := test_utils.StartMySQLD(donorHost, donorPort, donorServerID)
 		Expect(err).ShouldNot(HaveOccurred())
 		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID)
@@ -56,6 +57,9 @@ func testHealth() {
 				ReadTimeout:       30 * time.Second,
 			},
 		)
+
+		gsrv = NewHealthService(agent)
+		cloneSrv = NewCloneService(agent)
 	})
 
 	AfterEach(func() {
@@ -63,85 +67,59 @@ func testHealth() {
 		test_utils.StopAndRemoveMySQLD(replicaHost)
 	})
 
-	It("should return 200 if no errors or cloning is not in progress", func() {
+	It("should return OK=true if no errors and cloning is not in progress", func() {
 		By("getting health")
-		res := getHealth(agent)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
+		res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res.Status).Should(Equal(healthpb.HealthCheckResponse_SERVING))
 	})
 
-	It("should return 500 if cloning process is in progress", func() {
+	It("should return IsUnderCloning=true if cloning process is in progress", func() {
 		By("executing cloning")
 		err := test_utils.ResetMaster(replicaPort)
 		Expect(err).ShouldNot(HaveOccurred())
 		err = test_utils.SetValidDonorList(replicaPort, donorHost, donorPort)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		req := httptest.NewRequest("GET", "http://"+replicaHost+"/clone", nil)
-		queries := url.Values{
-			moco.CloneParamDonorHostName: []string{donorHost},
-			moco.CloneParamDonorPort:     []string{strconv.Itoa(donorPort)},
-			moco.AgentTokenParam:         []string{token},
+		req := &agentrpc.CloneRequest{
+			Token:     token,
+			DonorHost: donorHost,
+			DonorPort: donorPort,
 		}
-		req.URL.RawQuery = queries.Encode()
+		_, err = cloneSrv.Clone(context.Background(), req)
+		Expect(err).ShouldNot(HaveOccurred())
 
-		res := httptest.NewRecorder()
-		agent.Clone(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
-
-		By("getting health")
+		By("getting health expecting IsUnderCloning=true")
 		Eventually(func() error {
-			res = getHealth(agent)
-			if res.Result().StatusCode != http.StatusInternalServerError {
-				return fmt.Errorf("doesn't occur internal server error: %+v", res.Result().Status)
+			res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
+			if res.Status == healthpb.HealthCheckResponse_NOT_SERVING && strings.HasSuffix(err.Error(), "isOutOfSynced=false, isUnderCloning=true") {
+				return nil
 			}
-			return nil
-		}, 5*time.Second).Should(Succeed())
+			return fmt.Errorf("should become NOT_SERVING and IsUnderCloning=true: res=%s", res.String())
+		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 
 		By("wating cloning is completed")
 		Eventually(func() error {
-			db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), moco.MiscUser, test_utils.MiscUserPassword)
-			if err != nil {
-				return err
+			res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
+			if err == nil {
+				return nil
 			}
-
-			cloneStatus, err := accessor.GetMySQLCloneStateStatus(context.Background(), db)
-			if err != nil {
-				return err
-			}
-
-			expected := sql.NullString{Valid: true, String: "Completed"}
-			if !cmp.Equal(cloneStatus.State, expected) {
-				return fmt.Errorf("doesn't reach completed state: %+v", cloneStatus.State)
-			}
-			return nil
-		}, 30*time.Second).Should(Succeed())
+			return fmt.Errorf("should return without error: res=%s", res.String())
+		}, 30*time.Second, time.Second).Should(Succeed())
 	})
 
-	It("should return 500 if replica status has IO error", func() {
+	It("should return IsOutOfSynced=true if replica status has IO error", func() {
 		By("executing START SLAVE with invalid parameters")
 		err := test_utils.StartSlaveWithInvalidSettings(replicaPort)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		By("getting health")
+		By("getting health expecting IsOutOfSync=true")
 		Eventually(func() error {
-			res := getHealth(agent)
-			if res.Result().StatusCode != http.StatusInternalServerError {
-				return fmt.Errorf("doesn't occur internal server error: %+v", res.Result().Status)
+			res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
+			if res.Status == healthpb.HealthCheckResponse_NOT_SERVING && strings.HasSuffix(err.Error(), "isOutOfSynced=true, isUnderCloning=false") {
+				return nil
 			}
-			return nil
-		}, 10*time.Second).Should(Succeed())
+			return fmt.Errorf("should become NOT_SERVING and IsOutOfSynced=true: res=%s", res.String())
+		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 	})
-}
-
-func getHealth(agent *Agent) *httptest.ResponseRecorder {
-	req := httptest.NewRequest("GET", "http://"+replicaHost+"/health", nil)
-	queries := url.Values{
-		moco.CloneParamDonorHostName: []string{donorHost},
-		moco.CloneParamDonorPort:     []string{strconv.Itoa(donorPort)},
-	}
-	req.URL.RawQuery = queries.Encode()
-
-	res := httptest.NewRecorder()
-	agent.Health(res, req)
-	return res
 }

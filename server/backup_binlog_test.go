@@ -1,14 +1,12 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -18,8 +16,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/cybozu-go/moco"
-	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
+	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/cybozu-go/moco/accessor"
 	. "github.com/onsi/ginkgo"
@@ -35,12 +33,13 @@ const (
 	bucketName      = agentTestPrefix + "bucket"
 )
 
-func testBackupBinaryLogs() {
+func testBackupBinlog() {
 	var tmpDir string
 	var binlogDir string
 	var agent *Agent
 	var registry *prometheus.Registry
 	var sess *session.Session
+	var gsrv agentrpc.BackupBinlogServiceServer
 
 	BeforeEach(func() {
 		var err error
@@ -92,14 +91,7 @@ func testBackupBinaryLogs() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		backupBinlogCount, _ := getMetric(registry, metricsPrefix+"backup_binlog_count")
-		Expect(backupBinlogCount).Should(BeNil())
-
-		backupBinlogFailureCount, _ := getMetric(registry, metricsPrefix+"backup_binlog_failure_count")
-		Expect(backupBinlogFailureCount).Should(BeNil())
-
-		backupBinlogDurationSeconds, _ := getMetric(registry, metricsPrefix+"backup_binlog_duration_seconds")
-		Expect(backupBinlogDurationSeconds).Should(BeNil())
+		gsrv = NewBackupBinlogService(agent)
 	})
 
 	AfterEach(func() {
@@ -115,32 +107,33 @@ func testBackupBinaryLogs() {
 
 	It("should flush and backup binlog", func() {
 		By("calling /flush-backup-binlog API")
-		req := httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
-		queries := url.Values{
-			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogBackupIDParam:     []string{backupID},
-			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
-			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
-			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
-			mocoagent.BackupBinaryLogBucketRegionParam: []string{"neco"},
-
-			mocoagent.AccessKeyIDParam:     []string{"minioadmin"},
-			mocoagent.SecretAccessKeyParam: []string{"minioadmin"},
+		req := &agentrpc.FlushAndBackupBinlogRequest{
+			Token:           token,
+			BackupId:        backupID,
+			BucketHost:      "localhost",
+			BucketPort:      9000,
+			BucketName:      bucketName,
+			BucketRegion:    "neco",
+			AccessKeyId:     "minioadmin",
+			SecretAccessKey: "minioadmin",
 		}
-		req.URL.RawQuery = queries.Encode()
+		_, err := gsrv.FlushAndBackupBinlog(context.Background(), req)
+		Expect(err).ShouldNot(HaveOccurred())
 
-		res := httptest.NewRecorder()
-		agent.FlushAndBackupBinaryLogs(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
+		Eventually(func() error {
+			if agent.sem.TryAcquire(1) {
+				agent.sem.Release(1)
+				return nil
+			}
+			return errors.New("backup process is still working")
+		}, 30*time.Second).Should(Succeed())
 
 		By("checking the binlog file is uploaded")
-		Eventually(func() error {
-			_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
-				Bucket: aws.String(bucketName),
-				Key:    aws.String(backupID),
-			})
-			return err
-		}, 10*time.Second).Should(Succeed())
+		_, err = s3.New(sess).HeadObject(&s3.HeadObjectInput{
+			Bucket: aws.String(bucketName),
+			Key:    aws.String(backupID),
+		})
+		Expect(err).ShouldNot(HaveOccurred())
 
 		objStr, err := getObjectAsString(sess, bucketName, backupID)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -148,69 +141,57 @@ func testBackupBinaryLogs() {
 		expectedObjNames := []string{backupID + "-000000"}
 		Expect(objNames).Should(Equal(expectedObjNames))
 
-		Eventually(func() error {
-			for _, objName := range objNames {
-				_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
-					Bucket: aws.String(bucketName),
-					Key:    aws.String(objName),
-				})
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		}).Should(Succeed())
+		for _, objName := range objNames {
+			_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
+				Bucket: aws.String(bucketName),
+				Key:    aws.String(objName),
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+		}
 
 		By("checking the uploaded binlog file is deleted")
-		Eventually(func() error {
-			binlogName := binlogDir + "/" + binlogPrefix + ".000001"
-			_, err := os.Stat(binlogName)
-			if os.IsNotExist(err) {
-				return nil
-			}
-			return fmt.Errorf("file: %s should be deleted, but exists", binlogName)
-		}).Should(Succeed())
+		binlogName := binlogDir + "/" + binlogPrefix + ".000001"
+		_, err = os.Stat(binlogName)
+		Expect(os.IsNotExist(err)).Should(BeTrue())
 
-		By("calling /flush-backup-binlog API with the same prefix")
-		req = httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
-		queries = url.Values{
-			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogBackupIDParam:     []string{backupID},
-			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
-			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
-			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
-			mocoagent.BackupBinaryLogBucketRegionParam: []string{"neco"},
-
-			mocoagent.AccessKeyIDParam:     []string{"minioadmin"},
-			mocoagent.SecretAccessKeyParam: []string{"minioadmin"},
-		}
-		req.URL.RawQuery = queries.Encode()
-
-		res = httptest.NewRecorder()
-		agent.FlushAndBackupBinaryLogs(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusConflict))
+		By("calling /flush-backup-binlog API with the same backup ID")
+		_, err = gsrv.FlushAndBackupBinlog(context.Background(), req)
+		Expect(err.Error()).Should(Equal(fmt.Sprintf("rpc error: code = InvalidArgument desc = the requested backup has already completed: BackupId=%s", backupID)))
 
 		By("checking metrics")
-		Eventually(func() error {
-			binlogBackupCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_count")
-			if binlogBackupCount == nil || *binlogBackupCount.Counter.Value != 1.0 {
-				return fmt.Errorf("binlog_backup_count isn't incremented yet: value=%f", *binlogBackupCount.Counter.Value)
-			}
+		binlogBackupCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_count")
+		Expect(*binlogBackupCount.Counter.Value).Should(Equal(1.0))
 
-			binlogBackupFailureCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_failure_count")
-			if binlogBackupFailureCount != nil && *binlogBackupFailureCount.Counter.Value != 0.0 {
-				return fmt.Errorf("binlog_backup_failure_count should not be incremented: value=%f", *binlogBackupFailureCount.Counter.Value)
-			}
+		binlogBackupFailureCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_failure_count")
+		Expect(binlogBackupFailureCount).Should(BeNil())
 
-			binlogBackupDurationSeconds, _ := getMetric(registry, metricsPrefix+"binlog_backup_duration_seconds")
-			for _, quantile := range binlogBackupDurationSeconds.Summary.Quantile {
-				if math.IsNaN(*quantile.Value) {
-					return fmt.Errorf("binlog_backup_duration_seconds should have values: quantile=%f, value=%f", *quantile.Quantile, *quantile.Value)
-				}
-			}
+		binlogBackupDurationSeconds, _ := getMetric(registry, metricsPrefix+"binlog_backup_duration_seconds")
+		for _, quantile := range binlogBackupDurationSeconds.Summary.Quantile {
+			Expect(math.IsNaN(*quantile.Value)).Should(BeFalse())
+		}
+	})
 
-			return nil
-		}, 30*time.Second).Should(Succeed())
+	It("should backup multiple binlog files", func() {
+		By("calling /flush-binlog API without delete flag")
+		flushReq := &agentrpc.FlushBinlogRequest{
+			Token: token,
+		}
+		_, err := gsrv.FlushBinlog(context.Background(), flushReq)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("calling /flush-backup-binlog API")
+		req := &agentrpc.FlushAndBackupBinlogRequest{
+			Token:           token,
+			BackupId:        backupID,
+			BucketHost:      "localhost",
+			BucketPort:      9000,
+			BucketName:      bucketName,
+			BucketRegion:    "neco",
+			AccessKeyId:     "minioadmin",
+			SecretAccessKey: "minioadmin",
+		}
+		_, err = gsrv.FlushAndBackupBinlog(context.Background(), req)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		Eventually(func() error {
 			if agent.sem.TryAcquire(1) {
@@ -218,48 +199,14 @@ func testBackupBinaryLogs() {
 				return nil
 			}
 			return errors.New("backup process is still working")
-		}).Should(Succeed())
-	})
-
-	It("should backup multiple binlog files", func() {
-		By("calling /flush-binlog API without delete flag")
-		req := httptest.NewRequest("POST", "http://"+replicaHost+"/flush-binlog", nil)
-		queries := url.Values{
-			moco.AgentTokenParam: []string{token},
-		}
-		req.URL.RawQuery = queries.Encode()
-
-		res := httptest.NewRecorder()
-		agent.FlushBinaryLogs(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
-
-		By("calling /flush-backup-binlog API")
-		req = httptest.NewRequest("POST", "http://"+replicaHost+"/flush-backup-binlog", nil)
-		queries = url.Values{
-			moco.AgentTokenParam:                       []string{token},
-			mocoagent.BackupBinaryLogBackupIDParam:     []string{backupID},
-			mocoagent.BackupBinaryLogBucketHostParam:   []string{"localhost"},
-			mocoagent.BackupBinaryLogBucketPortParam:   []string{"9000"},
-			mocoagent.BackupBinaryLogBucketNameParam:   []string{bucketName},
-			mocoagent.BackupBinaryLogBucketRegionParam: []string{"neco"},
-
-			mocoagent.AccessKeyIDParam:     []string{"minioadmin"},
-			mocoagent.SecretAccessKeyParam: []string{"minioadmin"},
-		}
-		req.URL.RawQuery = queries.Encode()
-
-		res = httptest.NewRecorder()
-		agent.FlushAndBackupBinaryLogs(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
+		}, 30*time.Second).Should(Succeed())
 
 		By("checking the multiple binlog files are uploaded")
-		Eventually(func() error {
-			_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
-				Bucket: aws.String(bucketName),
-				Key:    aws.String(backupID),
-			})
-			return err
-		}, 10*time.Second).Should(Succeed())
+		_, err = s3.New(sess).HeadObject(&s3.HeadObjectInput{
+			Bucket: aws.String(bucketName),
+			Key:    aws.String(backupID),
+		})
+		Expect(err).ShouldNot(HaveOccurred())
 
 		objStr, err := getObjectAsString(sess, bucketName, backupID)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -267,93 +214,54 @@ func testBackupBinaryLogs() {
 		expectedObjNames := []string{backupID + "-000000", backupID + "-000001"}
 		Expect(objNames).Should(Equal(expectedObjNames))
 
-		Eventually(func() error {
-			for _, objName := range objNames {
-				_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
-					Bucket: aws.String(bucketName),
-					Key:    aws.String(objName),
-				})
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		}).Should(Succeed())
+		for _, objName := range objNames {
+			_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
+				Bucket: aws.String(bucketName),
+				Key:    aws.String(objName),
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+		}
 
 		By("checking the uploaded binlog files are deleted")
-		Eventually(func() error {
-			binlogNames := []string{binlogDir + "/" + binlogPrefix + ".000001", binlogDir + "/" + binlogPrefix + ".000002"}
-			for _, b := range binlogNames {
-				_, err := os.Stat(b)
-				if !os.IsNotExist(err) {
-					return fmt.Errorf("file: %s should be deleted, but exists", b)
-				}
-			}
-			return nil
-		}).Should(Succeed())
-
-		Eventually(func() error {
-			if agent.sem.TryAcquire(1) {
-				agent.sem.Release(1)
-				return nil
-			}
-			return errors.New("backup process is still working")
-		}).Should(Succeed())
+		binlogNames := []string{binlogDir + "/" + binlogPrefix + ".000001", binlogDir + "/" + binlogPrefix + ".000002"}
+		for _, b := range binlogNames {
+			_, err := os.Stat(b)
+			Expect(os.IsNotExist(err)).Should(BeTrue())
+		}
 	})
 
 	It("should only flush binlog", func() {
 		By("calling /flush-binlog API without delete flag")
-		req := httptest.NewRequest("POST", "http://"+replicaHost+"/flush-binlog", nil)
-		queries := url.Values{
-			moco.AgentTokenParam: []string{token},
+		req := &agentrpc.FlushBinlogRequest{
+			Token: token,
 		}
-		req.URL.RawQuery = queries.Encode()
+		_, err := gsrv.FlushBinlog(context.Background(), req)
+		Expect(err).ShouldNot(HaveOccurred())
 
-		res := httptest.NewRecorder()
-		agent.FlushBinaryLogs(res, req)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
-
-		Eventually(func() error {
-			binlogSeqs := []string{"000001", "000002"}
-			for _, s := range binlogSeqs {
-				binlogName := binlogDir + "/" + binlogPrefix + "." + s
-				_, err := os.Stat(binlogName)
-				if err != nil {
-					return fmt.Errorf("file: %s should exist, but be deleted", binlogName)
-				}
-			}
-			return nil
-		}, 10*time.Second).Should(Succeed())
+		binlogSeqs := []string{"000001", "000002"}
+		for _, s := range binlogSeqs {
+			binlogName := binlogDir + "/" + binlogPrefix + "." + s
+			_, err := os.Stat(binlogName)
+			Expect(err).ShouldNot(HaveOccurred())
+		}
 
 		By("calling /flush-binlog API with delete flag")
-		req = httptest.NewRequest("POST", "http://"+replicaHost+"/flush-binlog", nil)
-		queries = url.Values{
-			moco.AgentTokenParam:                []string{token},
-			mocoagent.FlushBinaryLogDeleteparam: []string{"true"},
+		req = &agentrpc.FlushBinlogRequest{
+			Token:  token,
+			Delete: true,
 		}
-		req.URL.RawQuery = queries.Encode()
+		_, err = gsrv.FlushBinlog(context.Background(), req)
+		Expect(err).ShouldNot(HaveOccurred())
 
-		res = httptest.NewRecorder()
-		agent.FlushBinaryLogs(res, req)
-
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
-
-		Eventually(func() error {
-			binlogSeqs := []string{"000001", "000002"}
-			for _, s := range binlogSeqs {
-				binlogName := binlogDir + "/" + binlogPrefix + "." + s
-				_, err := os.Stat(binlogName)
-				if !os.IsNotExist(err) {
-					return fmt.Errorf("file: %s should be deleted, but exists", binlogName)
-				}
-			}
-			binlogName := binlogDir + "/" + binlogPrefix + ".000003"
+		binlogSeqs = []string{"000001", "000002"}
+		for _, s := range binlogSeqs {
+			binlogName := binlogDir + "/" + binlogPrefix + "." + s
 			_, err := os.Stat(binlogName)
-			if err != nil {
-				return fmt.Errorf("file: %s should exist, but not", binlogName)
-			}
-			return nil
-		}, 10*time.Second).Should(Succeed())
+			Expect(os.IsNotExist(err)).Should(BeTrue())
+		}
+		binlogName := binlogDir + "/" + binlogPrefix + ".000003"
+		_, err = os.Stat(binlogName)
+		Expect(err).ShouldNot(HaveOccurred())
 	})
 }
 

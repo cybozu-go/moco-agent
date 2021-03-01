@@ -7,28 +7,40 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
-	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
+	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/well"
 	"github.com/jmoiron/sqlx"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-// BackupBinaryLogsParams is the paramters for backup binary logs
+// NewBackupBinlogService creates a new BackupBinlogServiceServer
+func NewBackupBinlogService(agent *Agent) agentrpc.BackupBinlogServiceServer {
+	return &backupBinlogService{
+		agent: agent,
+	}
+}
+
+type backupBinlogService struct {
+	agentrpc.UnimplementedBackupBinlogServiceServer
+	agent *Agent
+}
+
 type BackupBinaryLogsParams struct {
 	BackupID     string
 	BucketHost   string
@@ -42,189 +54,157 @@ type BackupBinaryLogsParams struct {
 
 // FlushAndBackupBinaryLogs executes "FLUSH BINARY LOGS;"
 // and upload it to the object storage, then delete it
-func (a *Agent) FlushAndBackupBinaryLogs(w http.ResponseWriter, r *http.Request) {
-	var err error
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *agentrpc.FlushAndBackupBinlogRequest) (*agentrpc.FlushAndBackupBinlogResponse, error) {
+	if req.Token != s.agent.token {
+		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
 
-	token := r.URL.Query().Get(moco.AgentTokenParam)
-	if token != a.token {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	params, err := parseBackupBinLogParams(r.URL.Query())
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	if !a.sem.TryAcquire(1) {
-		w.WriteHeader(http.StatusTooManyRequests)
-		return
+	if !s.agent.sem.TryAcquire(1) {
+		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
 	}
 
 	sess := session.Must(session.NewSession(&aws.Config{
-		Region:           aws.String(params.BucketRegion),
-		Endpoint:         aws.String(fmt.Sprintf("%s:%d", params.BucketHost, params.BucketPort)),
+		Region:           aws.String(req.BucketRegion),
+		Endpoint:         aws.String(fmt.Sprintf("%s:%d", req.BucketHost, req.BucketPort)),
 		DisableSSL:       aws.Bool(true),
 		S3ForcePathStyle: aws.Bool(true),
-		Credentials:      credentials.NewStaticCredentials(params.AccessKeyID, params.SecretAccessKey, ""),
+		Credentials:      credentials.NewStaticCredentials(req.AccessKeyId, req.SecretAccessKey, ""),
 	}))
 
 	// prevent re-execution of the same request
-	_, err = s3.New(sess).HeadObject(&s3.HeadObjectInput{
-		Bucket: aws.String(params.BucketName),
-		Key:    aws.String(params.BackupID),
+	_, err := s3.New(sess).HeadObject(&s3.HeadObjectInput{
+		Bucket: aws.String(req.BucketName),
+		Key:    aws.String(req.BackupId),
 	})
 	if err == nil {
-		a.sem.Release(1)
-		w.WriteHeader(http.StatusConflict)
-		return
+		s.agent.sem.Release(1)
+		return nil, status.Errorf(codes.InvalidArgument, "the requested backup has already completed: BackupId=%s", req.BackupId)
 	}
-	if strings.HasPrefix(err.Error(), s3.ErrCodeNoSuchKey) {
-		a.sem.Release(1)
-		internalServerError(w, fmt.Errorf("failed to get objects: %w", err))
+	awsErr, ok := err.(awserr.RequestFailure)
+	if !ok {
+		s.agent.sem.Release(1)
+		log.Error("unknown response from object storage", map[string]interface{}{
+			log.FnError: err,
+		})
+		return nil, status.Errorf(codes.Internal, "unknown response from object storage: err=%+v", err)
+	}
+	if awsErr.StatusCode() != http.StatusNotFound {
+		s.agent.sem.Release(1)
 		log.Error("failed to get objects", map[string]interface{}{
 			log.FnError: err,
 		})
-		return
+		return nil, status.Errorf(codes.Internal, "failed to get object: err=%+v", err)
 	}
 
 	// TODO: change user
 	rootPassword := os.Getenv(moco.RootPasswordEnvName)
-	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.RootUser, rootPassword)
+	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.RootUser, rootPassword)
 	if err != nil {
-		a.sem.Release(1)
-		internalServerError(w, fmt.Errorf("failed to connect to database before flush binary logs: %w", err))
+		s.agent.sem.Release(1)
 		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
+			"hostname":  s.agent.mysqlAdminHostname,
+			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
-		return
+		return nil, status.Errorf(codes.Internal, "failed to connect to database before flush binary logs: err=%+v", err)
 	}
 
-	metrics.IncrementBinlogBackupCountMetrics(a.clusterName)
+	metrics.IncrementBinlogBackupCountMetrics(s.agent.clusterName)
 	startTime := time.Now()
 
-	err = flushBinaryLogs(r.Context(), db)
+	err = flushBinaryLogs(ctx, db)
 	if err != nil {
-		a.sem.Release(1)
-		internalServerError(w, fmt.Errorf("failed to flush binary logs: %w", err))
+		s.agent.sem.Release(1)
 		log.Error("failed to flush binary logs", map[string]interface{}{
 			log.FnError: err,
 		})
-		metrics.IncrementBinlogBackupFailureCountMetrics(a.clusterName, "flush")
-		return
+		metrics.IncrementBinlogBackupFailureCountMetrics(s.agent.clusterName, "flush")
+		return nil, status.Errorf(codes.Internal, "failed to flush binary logs: err=%+v", err)
 	}
 
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
-		defer a.sem.Release(1)
+		defer s.agent.sem.Release(1)
 
-		err = uploadBinaryLog(ctx, sess, db, params)
+		err = uploadBinaryLog(ctx, sess, db, convertProtoReqToParams(req))
 		if err != nil {
 			// Need not output error log here, because the errors are logged in the function.
-			metrics.IncrementBinlogBackupFailureCountMetrics(a.clusterName, "upload")
+			metrics.IncrementBinlogBackupFailureCountMetrics(s.agent.clusterName, "upload")
 			return err
 		}
 
 		err = deleteBinaryLog(ctx, db)
 		if err != nil {
-			internalServerError(w, fmt.Errorf("failed to delete binary logs: %w", err))
 			log.Error("failed to delete binary logs", map[string]interface{}{
 				log.FnError: err,
 			})
-			metrics.IncrementBinlogBackupFailureCountMetrics(a.clusterName, "delete")
+			metrics.IncrementBinlogBackupFailureCountMetrics(s.agent.clusterName, "delete")
 			return err
 		}
 
 		durationSeconds := time.Since(startTime).Seconds()
-		metrics.UpdateBinlogBackupDurationSecondsMetrics(a.clusterName, durationSeconds)
+		metrics.UpdateBinlogBackupDurationSecondsMetrics(s.agent.clusterName, durationSeconds)
 
 		return nil
 	})
+
+	return &agentrpc.FlushAndBackupBinlogResponse{}, nil
 }
 
-// FlushBinaryLogs executes "FLUSH BINARY LOGS;" and delete file if required
-func (a *Agent) FlushBinaryLogs(w http.ResponseWriter, r *http.Request) {
-	var err error
-
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+// FlushBinlog executes "FLUSH BINARY LOGS;" and delete file if required
+func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *agentrpc.FlushBinlogRequest) (*agentrpc.FlushBinlogResponse, error) {
+	if req.Token != s.agent.token {
+		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
 
-	token := r.URL.Query().Get(moco.AgentTokenParam)
-	if token != a.token {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	if !s.agent.sem.TryAcquire(1) {
+		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
 	}
-
-	var deleteFlag bool
-	if flag := r.URL.Query().Get(mocoagent.FlushBinaryLogDeleteparam); len(flag) > 0 {
-		deleteFlag, err = strconv.ParseBool(flag)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-	}
-
-	if !a.sem.TryAcquire(1) {
-		w.WriteHeader(http.StatusTooManyRequests)
-		return
-	}
-	defer a.sem.Release(1)
+	defer s.agent.sem.Release(1)
 
 	// TODO: change user
 	rootPassword := os.Getenv(moco.RootPasswordEnvName)
-	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.RootUser, rootPassword)
+	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.RootUser, rootPassword)
 	if err != nil {
-		internalServerError(w, fmt.Errorf("failed to connect to database before flush binary logs: %w", err))
 		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
+			"hostname":  s.agent.mysqlAdminHostname,
+			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
+		return nil, status.Errorf(codes.Internal, "failed to connect to database before flush binary logs: err=%+v", err)
 	}
 
-	err = flushBinaryLogs(r.Context(), db)
+	err = flushBinaryLogs(ctx, db)
 	if err != nil {
-		internalServerError(w, fmt.Errorf("failed to flush binary logs: %w", err))
 		log.Error("failed to flush binary logs", map[string]interface{}{
 			log.FnError: err,
 		})
+		return nil, status.Errorf(codes.Internal, "failed to flush binary logs: err=%+v", err)
 	}
 
-	if deleteFlag {
-		err = deleteBinaryLog(r.Context(), db)
+	if req.Delete {
+		err = deleteBinaryLog(ctx, db)
 		if err != nil {
-			internalServerError(w, fmt.Errorf("failed to delete binary logs: %w", err))
 			log.Error("failed to delete binary logs", map[string]interface{}{
 				log.FnError: err,
 			})
+			return nil, status.Errorf(codes.Internal, "failed to delete binary logs: err=%+v", err)
 		}
 	}
+
+	return &agentrpc.FlushBinlogResponse{}, nil
 }
 
-func parseBackupBinLogParams(v url.Values) (*BackupBinaryLogsParams, error) {
-	port, err := strconv.Atoi(v.Get(mocoagent.BackupBinaryLogBucketPortParam))
-	if err != nil {
-		return nil, err
-	}
-
+func convertProtoReqToParams(req *agentrpc.FlushAndBackupBinlogRequest) *BackupBinaryLogsParams {
 	return &BackupBinaryLogsParams{
-		BackupID:        v.Get(mocoagent.BackupBinaryLogBackupIDParam),
-		BucketHost:      v.Get(mocoagent.BackupBinaryLogBucketHostParam),
-		BucketPort:      port,
-		BucketName:      v.Get(mocoagent.BackupBinaryLogBucketNameParam),
-		BucketRegion:    v.Get(mocoagent.BackupBinaryLogBucketRegionParam),
-		AccessKeyID:     v.Get(mocoagent.AccessKeyIDParam),
-		SecretAccessKey: v.Get(mocoagent.SecretAccessKeyParam),
-	}, nil
+		BucketHost:      req.BucketHost,
+		BackupID:        req.BackupId,
+		BucketPort:      int(req.BucketPort),
+		BucketName:      req.BucketName,
+		BucketRegion:    req.BucketRegion,
+		AccessKeyID:     req.AccessKeyId,
+		SecretAccessKey: req.SecretAccessKey,
+	}
 }
 
 func flushBinaryLogs(ctx context.Context, db *sqlx.DB) error {

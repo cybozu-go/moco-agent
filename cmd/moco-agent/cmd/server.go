@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -13,18 +15,26 @@ import (
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server"
+	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco/accessor"
 	"github.com/cybozu-go/well"
 	"github.com/go-sql-driver/mysql"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
+	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
 	addressFlag             = "address"
+	metricsAddressFlag      = "metrics-address"
 	connMaxLifetimeFlag     = "conn-max-lifetime"
 	connectionTimeoutFlag   = "connection-timeout"
 	logRotationScheduleFlag = "log-rotation-schedule"
@@ -48,6 +58,12 @@ var agentCmd = &cobra.Command{
 	Short: "Start MySQL agent service",
 	Long:  `Start MySQL agent service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		zapLogger, err := zap.NewDevelopment()
+		if err != nil {
+			return err
+		}
+		defer zapLogger.Sync()
+
 		podName := os.Getenv(moco.PodNameEnvName)
 		if podName == "" {
 			return fmt.Errorf("%s is empty", moco.PodNameEnvName)
@@ -80,15 +96,12 @@ var agentCmd = &cobra.Command{
 				ReadTimeout:       viper.GetDuration(readTimeoutFlag),
 			})
 
+		mysql.SetLogger(mysqlLogger{})
+
 		registry := prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
 		mux := http.NewServeMux()
-		mux.HandleFunc("/clone", agent.Clone)
-		mux.HandleFunc("/health", agent.Health)
-		mux.HandleFunc("/binlog-flush-backup", agent.FlushAndBackupBinaryLogs)
-		mux.HandleFunc("/binlog-flush", agent.FlushBinaryLogs)
-		mysql.SetLogger(mysqlLogger{})
 		mux.Handle("/metrics", promhttp.HandlerFor(
 			registry,
 			promhttp.HandlerOpts{
@@ -98,9 +111,13 @@ var agentCmd = &cobra.Command{
 		))
 		serv := &well.HTTPServer{
 			Server: &http.Server{
-				Addr:    viper.GetString(addressFlag),
+				Addr:    viper.GetString(metricsAddressFlag),
 				Handler: mux,
 			},
+		}
+		err = serv.ListenAndServe()
+		if err != nil {
+			return err
 		}
 
 		c := cron.New()
@@ -122,26 +139,29 @@ var agentCmd = &cobra.Command{
 			}
 		}()
 
-		err = serv.ListenAndServe()
+		lis, err := net.Listen("tcp", viper.GetString(addressFlag))
 		if err != nil {
 			return err
 		}
+		grpcLogger := zapLogger.Named("grpc")
+		grpcServer := grpc.NewServer(grpc.UnaryInterceptor(
+			grpc_middleware.ChainUnaryServer(
+				grpc_ctxtags.UnaryServerInterceptor(),
+				grpc_zap.UnaryServerInterceptor(grpcLogger),
+			),
+		))
+		healthpb.RegisterHealthServer(grpcServer, server.NewHealthService(agent))
+		agentrpc.RegisterCloneServiceServer(grpcServer, server.NewCloneService(agent))
+		agentrpc.RegisterBackupBinlogServiceServer(grpcServer, server.NewBackupBinlogService(agent))
 
-		// TODO: switch HTTP server to gRPC server when the all APIs are implemented
-		// lis, err := net.Listen("tcp", viper.GetString(addressFlag))
-		// if err != nil {
-		// 	return err
-		// }
-		// grpcServer := grpc.NewServer()
-		// proto.RegisterHealthServiceServer(grpcServer, server.NewHealthService(agent))
-		// well.Go(func(ctx context.Context) error {
-		// 	return grpcServer.Serve(lis)
-		// })
-		// well.Go(func(ctx context.Context) error {
-		// 	<-ctx.Done()
-		// 	grpcServer.GracefulStop()
-		// 	return nil
-		// })
+		well.Go(func(ctx context.Context) error {
+			return grpcServer.Serve(lis)
+		})
+		well.Go(func(ctx context.Context) error {
+			<-ctx.Done()
+			grpcServer.GracefulStop()
+			return nil
+		})
 
 		if err := well.Wait(); err != nil && !well.IsSignaled(err) {
 			return err
@@ -154,7 +174,8 @@ var agentCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(agentCmd)
 
-	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", moco.AgentPort), "Listening address and port.")
+	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", moco.AgentPort), "Listening address and port for gRPC API.")
+	agentCmd.Flags().String(metricsAddressFlag, fmt.Sprintf(":%d", mocoagent.MetricsPort), "Listening address and port for metrics.")
 	agentCmd.Flags().Duration(connMaxLifetimeFlag, 30*time.Minute, "The maximum amount of time a connection may be reused")
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")
 	agentCmd.Flags().String(logRotationScheduleFlag, "*/5 * * * *", "Cron format schedule for MySQL log rotation")

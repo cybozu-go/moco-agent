@@ -39,10 +39,9 @@ build/moco-agent: $(GO_FILES)
 	mkdir -p build
 	GO111MODULE=on go build -o $@ ./cmd/moco-agent
 
-.PHONY: mod
+.PHONY: generate-agentrpc
 mod:
-	go mod tidy
-	git add go.mod
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative server/agentrpc/agentrpc.proto
 
 .PHONY: setup
 setup: custom-checker staticcheck nilerr
