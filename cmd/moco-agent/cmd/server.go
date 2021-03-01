@@ -92,31 +92,6 @@ var agentCmd = &cobra.Command{
 		registry := prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		// mux := http.NewServeMux()
-		// mux.HandleFunc("/clone", agent.Clone)
-		// mux.HandleFunc("/health", agent.Health)
-		// mux.HandleFunc("/binlog-flush-backup", agent.FlushAndBackupBinaryLogs)
-		// mux.HandleFunc("/binlog-flush", agent.FlushBinaryLogs)
-		// mysql.SetLogger(mysqlLogger{})
-		// mux.Handle("/metrics", promhttp.HandlerFor(
-		// 	registry,
-		// 	promhttp.HandlerOpts{
-		// 		ErrorLog:      promhttpLogger{},
-		// 		ErrorHandling: promhttp.ContinueOnError,
-		// 	},
-		// ))
-		// serv := &well.HTTPServer{
-		// 	Server: &http.Server{
-		// 		Addr:    viper.GetString(addressFlag),
-		// 		Handler: mux,
-		// 	},
-		// }
-
-		// err = serv.ListenAndServe()
-		// if err != nil {
-		// 	return err
-		// }
-
 		c := cron.New()
 		if _, err := c.AddFunc(viper.GetString(logRotationScheduleFlag), agent.RotateLog); err != nil {
 			log.Error("failed to parse the cron spec", map[string]interface{}{

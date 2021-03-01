@@ -2,9 +2,9 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,11 +15,26 @@ import (
 	"github.com/cybozu-go/moco"
 	"github.com/cybozu-go/moco-agent/initialize"
 	"github.com/cybozu-go/moco-agent/metrics"
+	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco/accessor"
 	"github.com/cybozu-go/well"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+// NewCloneService creates a new CloneServiceServer
+func NewCloneService(agent *Agent) agentrpc.CloneServiceServer {
+	return &cloneService{
+		agent: agent,
+	}
+}
+
+type cloneService struct {
+	agentrpc.UnimplementedCloneServiceServer
+	agent *Agent
+}
 
 const timeoutDuration = 120 * time.Second
 
@@ -28,171 +43,82 @@ var (
 	miscConfPath     = filepath.Join(moco.MySQLDataPath, "misc.cnf")
 )
 
-// Clone executes MySQL CLONE command
-func (a *Agent) Clone(w http.ResponseWriter, r *http.Request) {
-	var err error
+type cloneParams struct {
+	donorHostName string
+	donorPort     int
+	donorUser     string
+	donorPassword string
+	initUser      string
+	initPassword  string
+}
 
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*agentrpc.CloneResponse, error) {
+	if req.GetToken() != s.agent.token {
+		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
 
-	token := r.URL.Query().Get(moco.AgentTokenParam)
-	if token != a.token {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	var externalMode bool
-	external := r.URL.Query().Get(moco.CloneParamExternal)
-	switch external {
-	case "true":
-		externalMode = true
-	case "":
-		externalMode = false
-	default:
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	var donorHostName string
-	var donorPort int
-	var donorUser string
-	var donorPassword string
-	var initUser string
-	var initPassword string
-	if !externalMode {
-		donorHostName = r.URL.Query().Get(moco.CloneParamDonorHostName)
-		if len(donorHostName) <= 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		rawDonorPort := r.URL.Query().Get(moco.CloneParamDonorPort)
-		if rawDonorPort == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		donorPort, err = strconv.Atoi(rawDonorPort)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		donorUser = moco.CloneDonorUser
-		donorPassword = a.donorUserPassword
-	} else {
-		rawDonorHostName, err := ioutil.ReadFile(a.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryHostKey)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		donorHostName = string(rawDonorHostName)
-
-		rawDonorPort, err := ioutil.ReadFile(a.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryPortKey)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		donorPort, err = strconv.Atoi(string(rawDonorPort))
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		rawDonorUser, err := ioutil.ReadFile(a.replicationSourceSecretPath + "/" + moco.ReplicationSourceCloneUserKey)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		donorUser = string(rawDonorUser)
-
-		rawDonorPassword, err := ioutil.ReadFile(a.replicationSourceSecretPath + "/" + moco.ReplicationSourceClonePasswordKey)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		donorPassword = string(rawDonorPassword)
-
-		rawInitUser, err := ioutil.ReadFile(a.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterCloneUserKey)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		initUser = string(rawInitUser)
-
-		rawInitPassword, err := ioutil.ReadFile(a.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterClonePasswordKey)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		initPassword = string(rawInitPassword)
-	}
-
-	if !a.sem.TryAcquire(1) {
-		w.WriteHeader(http.StatusTooManyRequests)
-		return
-	}
-
-	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.MiscUser, a.miscUserPassword)
+	params, err := gatherParams(req, s.agent)
 	if err != nil {
-		a.sem.Release(1)
-		internalServerError(w, fmt.Errorf("failed to connect to database before getting MySQL primary status: %w", err))
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	if !s.agent.sem.TryAcquire(1) {
+		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
+	}
+
+	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.MiscUser, s.agent.miscUserPassword)
+	if err != nil {
 		log.Error("failed to connect to database before getting MySQL primary status", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
+			"hostname":  s.agent.mysqlAdminHostname,
+			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
-		return
+		return nil, status.Errorf(codes.Internal, "failed to connect to database before getting MySQL primary status: hostname=%s, port=%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort)
 	}
 
-	primaryStatus, err := accessor.GetMySQLPrimaryStatus(r.Context(), db)
+	primaryStatus, err := accessor.GetMySQLPrimaryStatus(ctx, db)
 	if err != nil {
-		a.sem.Release(1)
-		internalServerError(w, fmt.Errorf("failed to get MySQL primary status: %w", err))
+		s.agent.sem.Release(1)
 		log.Error("failed to get MySQL primary status", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
+			"hostname":  s.agent.mysqlAdminHostname,
+			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
-		return
+		return nil, status.Errorf(codes.Internal, "failed to get MySQL primary status: %+v", err)
 	}
 
 	gtid := primaryStatus.ExecutedGtidSet
 	if gtid != "" {
-		a.sem.Release(1)
-		w.WriteHeader(http.StatusForbidden)
+		s.agent.sem.Release(1)
 		log.Error("recipient is not empty", map[string]interface{}{
 			"gtid": gtid,
 		})
-		return
+		return nil, status.Errorf(codes.FailedPrecondition, "recipient is not empty: gtid=%s", gtid)
 	}
 
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
-		defer a.sem.Release(1)
-		err := a.clone(ctx, donorUser, donorPassword, donorHostName, donorPort)
+		defer s.agent.sem.Release(1)
+		err := clone(ctx, params.donorUser, params.donorPassword, params.donorHostName, params.donorPort, s.agent)
 		if err != nil {
 			return err
 		}
 
-		if externalMode {
-			err := waitBootstrap(ctx, initUser, initPassword)
+		if req.GetExternal() {
+			err := waitBootstrap(ctx, params.initUser, params.initPassword)
 			if err != nil {
 				log.Error("mysqld didn't boot up after cloning from external", map[string]interface{}{
-					"hostname":  a.mysqlAdminHostname,
-					"port":      a.mysqlAdminPort,
+					"hostname":  s.agent.mysqlAdminHostname,
+					"port":      s.agent.mysqlAdminPort,
 					log.FnError: err,
 				})
 				return err
 			}
-			err = initialize.RestoreUsers(ctx, passwordFilePath, miscConfPath, initUser, &initPassword, os.Getenv(moco.PodIPEnvName))
+			err = initialize.RestoreUsers(ctx, passwordFilePath, miscConfPath, params.initUser, &params.initPassword, os.Getenv(moco.PodIPEnvName))
 			if err != nil {
 				log.Error("failed to initialize after clone", map[string]interface{}{
-					"hostname":  a.mysqlAdminHostname,
-					"port":      a.mysqlAdminPort,
+					"hostname":  s.agent.mysqlAdminHostname,
+					"port":      s.agent.mysqlAdminPort,
 					log.FnError: err,
 				})
 				return err
@@ -200,8 +126,8 @@ func (a *Agent) Clone(w http.ResponseWriter, r *http.Request) {
 			err = initialize.ShutdownInstance(ctx, passwordFilePath)
 			if err != nil {
 				log.Error("failed to shutdown mysqld after clone", map[string]interface{}{
-					"hostname":  a.mysqlAdminHostname,
-					"port":      a.mysqlAdminPort,
+					"hostname":  s.agent.mysqlAdminHostname,
+					"port":      s.agent.mysqlAdminPort,
 					log.FnError: err,
 				})
 				return err
@@ -209,9 +135,79 @@ func (a *Agent) Clone(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
+
+	return &agentrpc.CloneResponse{}, nil
 }
 
-func (a *Agent) clone(ctx context.Context, donorUser, donorPassword, donorHostName string, donorPort int) error {
+func gatherParams(req *agentrpc.CloneRequest, agent *Agent) (*cloneParams, error) {
+	var res *cloneParams
+
+	if !req.GetExternal() {
+		donorHostName := req.GetDonorHost()
+		if len(donorHostName) <= 0 {
+			return nil, errors.New("invalid donor host name")
+		}
+
+		donorPort := req.GetDonorPort()
+		if donorPort <= 0 {
+			return nil, errors.New("invalid donor port")
+		}
+
+		res = &cloneParams{
+			donorHostName: donorHostName,
+			donorPort:     int(donorPort),
+			donorUser:     moco.CloneDonorUser,
+			donorPassword: agent.donorUserPassword,
+		}
+	} else {
+		rawDonorHostName, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryHostKey)
+		if err != nil {
+			return nil, errors.New("cannot read donor host from Secret file")
+		}
+
+		rawDonorPort, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryPortKey)
+		if err != nil {
+			return nil, errors.New("cannot read donor port from Secret file")
+		}
+		donorPort, err := strconv.Atoi(string(rawDonorPort))
+		if err != nil {
+			return nil, errors.New("cannot convert donor port to int")
+		}
+
+		rawDonorUser, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceCloneUserKey)
+		if err != nil {
+			return nil, errors.New("cannot read donor user from Secret file")
+		}
+
+		rawDonorPassword, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceClonePasswordKey)
+		if err != nil {
+			return nil, errors.New("cannot read donor password from Secret file")
+		}
+
+		rawInitUser, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterCloneUserKey)
+		if err != nil {
+			return nil, errors.New("cannot read init user from Secret file")
+		}
+
+		rawInitPassword, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterClonePasswordKey)
+		if err != nil {
+			return nil, errors.New("cannot read init password from Secret file")
+		}
+
+		res = &cloneParams{
+			donorHostName: string(rawDonorHostName),
+			donorPort:     donorPort,
+			donorUser:     string(rawDonorUser),
+			donorPassword: string(rawDonorPassword),
+			initUser:      string(rawInitUser),
+			initPassword:  string(rawInitPassword),
+		}
+	}
+
+	return res, nil
+}
+
+func clone(ctx context.Context, donorUser, donorPassword, donorHostName string, donorPort int, a *Agent) error {
 	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.MiscUser, a.miscUserPassword)
 	if err != nil {
 		log.Error("failed to connect to database before clone", map[string]interface{}{

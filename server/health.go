@@ -1,63 +1,71 @@
 package server
 
 import (
+	"context"
 	"fmt"
-	"net/http"
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
 	"github.com/cybozu-go/moco/accessor"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
 )
 
-// Health returns the health check result of own MySQL
-func (a *Agent) Health(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+// NewHealthService creates a new HealthServiceServer
+func NewHealthService(agent *Agent) healthpb.HealthServer {
+	return &healthService{
+		agent: agent,
 	}
+}
 
-	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.MiscUser, a.miscUserPassword)
+type healthService struct {
+	health.Server
+	agent *Agent
+}
+
+func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
+	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.MiscUser, s.agent.miscUserPassword)
 	if err != nil {
-		internalServerError(w, fmt.Errorf("failed to connect to database before health check: %w", err))
 		log.Error("failed to connect to database before health check", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
+			"hostname":  s.agent.mysqlAdminHostname,
+			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
-		return
+		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to connect to database before health check: err=%v", err)
 	}
 
-	replicaStatus, err := accessor.GetMySQLReplicaStatus(r.Context(), db)
+	replicaStatus, err := accessor.GetMySQLReplicaStatus(ctx, db)
 	if err != nil {
-		internalServerError(w, fmt.Errorf("failed to get replica status: %w", err))
 		log.Error("failed to get replica status", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
+			"hostname":  s.agent.mysqlAdminHostname,
+			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
-		return
+		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to get replica status: err=%v", err)
 	}
 
-	if replicaStatus != nil && replicaStatus.LastIoErrno != 0 {
-		internalServerError(w, fmt.Errorf("replica is out of sync: %d", replicaStatus.LastIoErrno))
-		return
-	}
-
-	cloneStatus, err := accessor.GetMySQLCloneStateStatus(r.Context(), db)
+	cloneStatus, err := accessor.GetMySQLCloneStateStatus(ctx, db)
 	if err != nil {
-		internalServerError(w, fmt.Errorf("failed to get clone status: %w", err))
 		log.Error("failed to get clone status", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
+			"hostname":  s.agent.mysqlAdminHostname,
+			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
-		return
+		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to get clone status: err=%v", err)
 	}
 
+	var isOutOfSynced, isUnderCloning bool
+	if replicaStatus != nil && replicaStatus.LastIoErrno != 0 {
+		isOutOfSynced = true
+	}
 	if cloneStatus.State.Valid && cloneStatus.State.String != moco.CloneStatusCompleted {
-		internalServerError(w, fmt.Errorf("clone is processing: %s", cloneStatus.State.String))
-		return
+		isUnderCloning = true
+	}
+	if isOutOfSynced || isUnderCloning {
+		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_NOT_SERVING}, status.Errorf(codes.Unavailable, "isOutOfSynced=%t, isUnderCloning=%t", isOutOfSynced, isUnderCloning)
 	}
 
-	w.WriteHeader(http.StatusOK)
+	return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVING}, nil
 }
