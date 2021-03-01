@@ -57,7 +57,7 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 	}
 
 	var isOutOfSynced, isUnderCloning bool
-	if replicaStatus != nil && replicaStatus.LastIoErrno != 0 {
+	if replicaStatus != nil && (replicaStatus.LastIoErrno != 0 || replicaStatus.LastSQLErrno != 0) {
 		isOutOfSynced = true
 	}
 	if cloneStatus.State.Valid && cloneStatus.State.String != moco.CloneStatusCompleted {
