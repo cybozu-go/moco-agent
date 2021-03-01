@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -17,10 +18,12 @@ import (
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco/accessor"
 	"github.com/cybozu-go/well"
+	"github.com/go-sql-driver/mysql"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -31,11 +34,24 @@ import (
 
 const (
 	addressFlag             = "address"
+	metricsAddressFlag      = "metrics-address"
 	connMaxLifetimeFlag     = "conn-max-lifetime"
 	connectionTimeoutFlag   = "connection-timeout"
 	logRotationScheduleFlag = "log-rotation-schedule"
 	readTimeoutFlag         = "read-timeout"
 )
+
+type mysqlLogger struct{}
+
+func (l mysqlLogger) Print(v ...interface{}) {
+	log.Error("[mysql] "+fmt.Sprint(v...), nil)
+}
+
+type promhttpLogger struct{}
+
+func (l promhttpLogger) Println(v ...interface{}) {
+	log.Error("[promhttp] "+fmt.Sprint(v...), nil)
+}
 
 var agentCmd = &cobra.Command{
 	Use:   "server",
@@ -77,8 +93,29 @@ var agentCmd = &cobra.Command{
 				ReadTimeout:       viper.GetDuration(readTimeoutFlag),
 			})
 
+		mysql.SetLogger(mysqlLogger{})
+
 		registry := prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
+
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.HandlerFor(
+			registry,
+			promhttp.HandlerOpts{
+				ErrorLog:      promhttpLogger{},
+				ErrorHandling: promhttp.ContinueOnError,
+			},
+		))
+		serv := &well.HTTPServer{
+			Server: &http.Server{
+				Addr:    viper.GetString(metricsAddressFlag),
+				Handler: mux,
+			},
+		}
+		err = serv.ListenAndServe()
+		if err != nil {
+			return err
+		}
 
 		c := cron.New()
 		if _, err := c.AddFunc(viper.GetString(logRotationScheduleFlag), agent.RotateLog); err != nil {
@@ -134,7 +171,8 @@ var agentCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(agentCmd)
 
-	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", moco.AgentPort), "Listening address and port.")
+	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", moco.AgentPort), "Listening address and port for gRPC API.")
+	agentCmd.Flags().String(metricsAddressFlag, fmt.Sprintf(":%d", mocoagent.MetricsPort), "Listening address and port for metrics.")
 	agentCmd.Flags().Duration(connMaxLifetimeFlag, 30*time.Minute, "The maximum amount of time a connection may be reused")
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")
 	agentCmd.Flags().String(logRotationScheduleFlag, "*/5 * * * *", "Cron format schedule for MySQL log rotation")
