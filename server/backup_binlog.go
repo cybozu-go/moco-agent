@@ -7,11 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -23,7 +21,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
-	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/well"
@@ -208,23 +205,6 @@ func convertProtoReqToParams(req *agentrpc.FlushAndBackupBinlogRequest) *BackupB
 		AccessKeyID:     req.AccessKeyId,
 		SecretAccessKey: req.SecretAccessKey,
 	}
-}
-
-func parseBackupBinLogParams(v url.Values) (*BackupBinaryLogsParams, error) {
-	port, err := strconv.Atoi(v.Get(mocoagent.BackupBinaryLogBucketPortParam))
-	if err != nil {
-		return nil, err
-	}
-
-	return &BackupBinaryLogsParams{
-		BackupID:        v.Get(mocoagent.BackupBinaryLogBackupIDParam),
-		BucketHost:      v.Get(mocoagent.BackupBinaryLogBucketHostParam),
-		BucketPort:      port,
-		BucketName:      v.Get(mocoagent.BackupBinaryLogBucketNameParam),
-		BucketRegion:    v.Get(mocoagent.BackupBinaryLogBucketRegionParam),
-		AccessKeyID:     v.Get(mocoagent.AccessKeyIDParam),
-		SecretAccessKey: v.Get(mocoagent.SecretAccessKeyParam),
-	}, nil
 }
 
 func flushBinaryLogs(ctx context.Context, db *sqlx.DB) error {

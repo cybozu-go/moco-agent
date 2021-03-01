@@ -37,18 +37,6 @@ const (
 	readTimeoutFlag         = "read-timeout"
 )
 
-type mysqlLogger struct{}
-
-func (l mysqlLogger) Print(v ...interface{}) {
-	log.Error("[mysql] "+fmt.Sprint(v...), nil)
-}
-
-type promhttpLogger struct{}
-
-func (l promhttpLogger) Println(v ...interface{}) {
-	log.Error("[promhttp] "+fmt.Sprint(v...), nil)
-}
-
 var agentCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Start MySQL agent service",
@@ -111,7 +99,6 @@ var agentCmd = &cobra.Command{
 			}
 		}()
 
-		// TODO: switch HTTP server to gRPC server when the all APIs are implemented
 		lis, err := net.Listen("tcp", viper.GetString(addressFlag))
 		if err != nil {
 			return err
