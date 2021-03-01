@@ -33,7 +33,7 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
-		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVICE_UNKNOWN}, status.Errorf(codes.Internal, "failed to connect to database before health check: err=%v", err)
+		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to connect to database before health check: err=%v", err)
 	}
 
 	replicaStatus, err := accessor.GetMySQLReplicaStatus(ctx, db)
@@ -43,7 +43,7 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
-		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVICE_UNKNOWN}, status.Errorf(codes.Internal, "failed to get replica status: err=%v", err)
+		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to get replica status: err=%v", err)
 	}
 
 	cloneStatus, err := accessor.GetMySQLCloneStateStatus(ctx, db)
@@ -53,7 +53,7 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
-		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVICE_UNKNOWN}, status.Errorf(codes.Internal, "failed to get clone status: err=%v", err)
+		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to get clone status: err=%v", err)
 	}
 
 	var isOutOfSynced, isUnderCloning bool
