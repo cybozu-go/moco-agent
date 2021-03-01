@@ -27,9 +27,9 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 const (
@@ -58,7 +58,10 @@ var agentCmd = &cobra.Command{
 	Short: "Start MySQL agent service",
 	Long:  `Start MySQL agent service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		zapLogger := zap.NewRaw()
+		zapLogger, err := zap.NewDevelopment()
+		if err != nil {
+			return err
+		}
 		defer zapLogger.Sync()
 
 		podName := os.Getenv(moco.PodNameEnvName)

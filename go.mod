@@ -19,8 +19,8 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.1
+	go.uber.org/zap v1.15.0
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 	google.golang.org/grpc v1.35.0
 	google.golang.org/protobuf v1.25.0
-	sigs.k8s.io/controller-runtime v0.8.1
 )
