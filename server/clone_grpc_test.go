@@ -12,7 +12,7 @@ import (
 
 	"github.com/cybozu-go/moco"
 	"github.com/cybozu-go/moco-agent/metrics"
-	"github.com/cybozu-go/moco-agent/server/proto"
+	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/cybozu-go/moco/accessor"
 	"github.com/google/go-cmp/cmp"
@@ -24,7 +24,7 @@ import (
 func testClonegRPC() {
 	var agent *Agent
 	var registry *prometheus.Registry
-	var gsrv proto.CloneServiceServer
+	var gsrv agentrpc.CloneServiceServer
 
 	BeforeEach(func() {
 		// The configuration of the donor MySQL is different for each test case.
@@ -65,11 +65,11 @@ func testClonegRPC() {
 
 		testcases := []struct {
 			title string
-			req   *proto.CloneRequest
+			req   *agentrpc.CloneRequest
 		}{
 			{
 				title: "passing invalid token",
-				req: &proto.CloneRequest{
+				req: &agentrpc.CloneRequest{
 					Token:     "invalid-token",
 					DonorHost: donorHost,
 					DonorPort: donorPort,
@@ -77,21 +77,21 @@ func testClonegRPC() {
 			},
 			{
 				title: "passing empty token",
-				req: &proto.CloneRequest{
+				req: &agentrpc.CloneRequest{
 					DonorHost: donorHost,
 					DonorPort: donorPort,
 				},
 			},
 			{
 				title: "passing empty donorHostName",
-				req: &proto.CloneRequest{
+				req: &agentrpc.CloneRequest{
 					Token:     token,
 					DonorPort: donorPort,
 				},
 			},
 			{
 				title: "passing empty donorPort",
-				req: &proto.CloneRequest{
+				req: &agentrpc.CloneRequest{
 					Token:     token,
 					DonorHost: donorHost,
 				},
@@ -117,7 +117,7 @@ func testClonegRPC() {
 		initializeDonorMySQL(false)
 
 		By("cloning from donor")
-		req := &proto.CloneRequest{
+		req := &agentrpc.CloneRequest{
 			Token:     token,
 			DonorHost: donorHost,
 			DonorPort: donorPort,
@@ -178,7 +178,7 @@ func testClonegRPC() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("cloning from donor")
-		req := &proto.CloneRequest{
+		req := &agentrpc.CloneRequest{
 			Token:     token,
 			DonorHost: donorHost,
 			DonorPort: donorPort,
@@ -245,7 +245,7 @@ func testClonegRPC() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By(fmt.Sprintf("(%s) %s", tt.title, "cloning from external MySQL"))
-			req := &proto.CloneRequest{
+			req := &agentrpc.CloneRequest{
 				Token:    token,
 				External: true,
 			}
@@ -317,7 +317,7 @@ func testClonegRPC() {
 		writeTestData(data)
 
 		By("cloning from external MySQL")
-		req := &proto.CloneRequest{
+		req := &agentrpc.CloneRequest{
 			Token:    token,
 			External: true,
 		}
@@ -350,7 +350,7 @@ func testClonegRPC() {
 		Expect(err).ShouldNot(HaveOccurred())
 		agent.replicationSourceSecretPath = pwd
 
-		req = &proto.CloneRequest{
+		req = &agentrpc.CloneRequest{
 			Token:    token,
 			External: true,
 		}

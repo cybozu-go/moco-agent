@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/cybozu-go/moco"
 	"github.com/cybozu-go/moco-agent/metrics"
-	"github.com/cybozu-go/moco-agent/server/proto"
+	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco-agent/test_utils"
 	"github.com/cybozu-go/moco/accessor"
 	. "github.com/onsi/ginkgo"
@@ -30,7 +30,7 @@ func testBackupBinloggRPC() {
 	var agent *Agent
 	var registry *prometheus.Registry
 	var sess *session.Session
-	var gsrv proto.BackupBinlogServiceServer
+	var gsrv agentrpc.BackupBinlogServiceServer
 
 	BeforeEach(func() {
 		var err error
@@ -98,7 +98,7 @@ func testBackupBinloggRPC() {
 
 	It("should flush and backup binlog", func() {
 		By("calling /flush-backup-binlog API")
-		req := &proto.FlushAndBackupBinlogRequest{
+		req := &agentrpc.FlushAndBackupBinlogRequest{
 			Token:           token,
 			BackupId:        backupID,
 			BucketHost:      "localhost",
@@ -164,14 +164,14 @@ func testBackupBinloggRPC() {
 
 	It("should backup multiple binlog files", func() {
 		By("calling /flush-binlog API without delete flag")
-		flushReq := &proto.FlushBinlogRequest{
+		flushReq := &agentrpc.FlushBinlogRequest{
 			Token: token,
 		}
 		_, err := gsrv.FlushBinlog(context.Background(), flushReq)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("calling /flush-backup-binlog API")
-		req := &proto.FlushAndBackupBinlogRequest{
+		req := &agentrpc.FlushAndBackupBinlogRequest{
 			Token:           token,
 			BackupId:        backupID,
 			BucketHost:      "localhost",
@@ -223,7 +223,7 @@ func testBackupBinloggRPC() {
 
 	It("should only flush binlog", func() {
 		By("calling /flush-binlog API without delete flag")
-		req := &proto.FlushBinlogRequest{
+		req := &agentrpc.FlushBinlogRequest{
 			Token: token,
 		}
 		_, err := gsrv.FlushBinlog(context.Background(), req)
@@ -237,7 +237,7 @@ func testBackupBinloggRPC() {
 		}
 
 		By("calling /flush-binlog API with delete flag")
-		req = &proto.FlushBinlogRequest{
+		req = &agentrpc.FlushBinlogRequest{
 			Token:  token,
 			Delete: true,
 		}

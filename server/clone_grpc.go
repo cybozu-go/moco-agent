@@ -11,7 +11,7 @@ import (
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
 	"github.com/cybozu-go/moco-agent/initialize"
-	"github.com/cybozu-go/moco-agent/server/proto"
+	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco/accessor"
 	"github.com/cybozu-go/well"
 	"google.golang.org/grpc/codes"
@@ -19,14 +19,14 @@ import (
 )
 
 // NewCloneService creates a new CloneServiceServer
-func NewCloneService(agent *Agent) proto.CloneServiceServer {
+func NewCloneService(agent *Agent) agentrpc.CloneServiceServer {
 	return &cloneService{
 		agent: agent,
 	}
 }
 
 type cloneService struct {
-	proto.UnimplementedCloneServiceServer
+	agentrpc.UnimplementedCloneServiceServer
 	agent *Agent
 }
 
@@ -39,7 +39,7 @@ type cloneParams struct {
 	initPassword  string
 }
 
-func (s *cloneService) Clone(ctx context.Context, req *proto.CloneRequest) (*proto.CloneResponse, error) {
+func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*agentrpc.CloneResponse, error) {
 	if req.GetToken() != s.agent.token {
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
@@ -123,10 +123,10 @@ func (s *cloneService) Clone(ctx context.Context, req *proto.CloneRequest) (*pro
 		return nil
 	})
 
-	return &proto.CloneResponse{}, nil
+	return &agentrpc.CloneResponse{}, nil
 }
 
-func gatherParams(req *proto.CloneRequest, agent *Agent) (*cloneParams, error) {
+func gatherParams(req *agentrpc.CloneRequest, agent *Agent) (*cloneParams, error) {
 	var res *cloneParams
 
 	if !req.GetExternal() {

@@ -15,27 +15,27 @@ import (
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
 	"github.com/cybozu-go/moco-agent/metrics"
-	"github.com/cybozu-go/moco-agent/server/proto"
+	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/well"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 // NewBackupBinlogService creates a new BackupBinlogServiceServer
-func NewBackupBinlogService(agent *Agent) proto.BackupBinlogServiceServer {
+func NewBackupBinlogService(agent *Agent) agentrpc.BackupBinlogServiceServer {
 	return &backupBinlogService{
 		agent: agent,
 	}
 }
 
 type backupBinlogService struct {
-	proto.UnimplementedBackupBinlogServiceServer
+	agentrpc.UnimplementedBackupBinlogServiceServer
 	agent *Agent
 }
 
 // FlushAndBackupBinaryLogs executes "FLUSH BINARY LOGS;"
 // and upload it to the object storage, then delete it
-func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *proto.FlushAndBackupBinlogRequest) (*proto.FlushAndBackupBinlogResponse, error) {
+func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *agentrpc.FlushAndBackupBinlogRequest) (*agentrpc.FlushAndBackupBinlogResponse, error) {
 	if req.Token != s.agent.token {
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
@@ -129,11 +129,11 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *pro
 		return nil
 	})
 
-	return &proto.FlushAndBackupBinlogResponse{}, nil
+	return &agentrpc.FlushAndBackupBinlogResponse{}, nil
 }
 
 // FlushBinlog executes "FLUSH BINARY LOGS;" and delete file if required
-func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *proto.FlushBinlogRequest) (*proto.FlushBinlogResponse, error) {
+func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *agentrpc.FlushBinlogRequest) (*agentrpc.FlushBinlogResponse, error) {
 	if req.Token != s.agent.token {
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
@@ -173,10 +173,10 @@ func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *proto.FlushB
 		}
 	}
 
-	return &proto.FlushBinlogResponse{}, nil
+	return &agentrpc.FlushBinlogResponse{}, nil
 }
 
-func convertProtoReqToParams(req *proto.FlushAndBackupBinlogRequest) *BackupBinaryLogsParams {
+func convertProtoReqToParams(req *agentrpc.FlushAndBackupBinlogRequest) *BackupBinaryLogsParams {
 	return &BackupBinaryLogsParams{
 		BucketHost:      req.BucketHost,
 		BackupID:        req.BackupId,

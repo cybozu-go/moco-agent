@@ -14,7 +14,7 @@ import (
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server"
-	"github.com/cybozu-go/moco-agent/server/proto"
+	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco/accessor"
 	"github.com/cybozu-go/well"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -149,8 +149,8 @@ var agentCmd = &cobra.Command{
 			),
 		))
 		healthpb.RegisterHealthServer(grpcServer, server.NewHealthService(agent))
-		proto.RegisterCloneServiceServer(grpcServer, server.NewCloneService(agent))
-		proto.RegisterBackupBinlogServiceServer(grpcServer, server.NewBackupBinlogService(agent))
+		agentrpc.RegisterCloneServiceServer(grpcServer, server.NewCloneService(agent))
+		agentrpc.RegisterBackupBinlogServiceServer(grpcServer, server.NewBackupBinlogService(agent))
 
 		well.Go(func(ctx context.Context) error {
 			return grpcServer.Serve(lis)
