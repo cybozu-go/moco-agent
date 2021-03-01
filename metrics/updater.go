@@ -26,6 +26,13 @@ func IncrementCloneFailureCountMetrics(clusterName string) {
 func UpdateCloneDurationSecondsMetrics(clusterName string, durationSeconds float64) {
 	cloneDurationSecondsMetrics.WithLabelValues(clusterName).Observe(durationSeconds)
 }
+func SetCloneInProgressMetrics(clusterName string, inProgress bool) {
+	if inProgress {
+		cloneInProgressMetrics.WithLabelValues(clusterName).Set(1.0)
+		return
+	}
+	cloneInProgressMetrics.WithLabelValues(clusterName).Set(0.0)
+}
 
 func IncrementLogRotationCountMetrics(clusterName string) {
 	logRotationCountMetrics.WithLabelValues(clusterName).Inc()

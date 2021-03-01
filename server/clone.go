@@ -65,9 +65,13 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 	if !s.agent.sem.TryAcquire(1) {
 		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
 	}
+	metrics.SetCloneInProgressMetrics(s.agent.clusterName, true)
 
 	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.MiscUser, s.agent.miscUserPassword)
 	if err != nil {
+		s.agent.sem.Release(1)
+		metrics.SetCloneInProgressMetrics(s.agent.clusterName, false)
+
 		log.Error("failed to connect to database before getting MySQL primary status", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,
 			"port":      s.agent.mysqlAdminPort,
@@ -79,6 +83,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 	primaryStatus, err := accessor.GetMySQLPrimaryStatus(ctx, db)
 	if err != nil {
 		s.agent.sem.Release(1)
+		metrics.SetCloneInProgressMetrics(s.agent.clusterName, false)
 		log.Error("failed to get MySQL primary status", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,
 			"port":      s.agent.mysqlAdminPort,
@@ -90,6 +95,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 	gtid := primaryStatus.ExecutedGtidSet
 	if gtid != "" {
 		s.agent.sem.Release(1)
+		metrics.SetCloneInProgressMetrics(s.agent.clusterName, false)
 		log.Error("recipient is not empty", map[string]interface{}{
 			"gtid": gtid,
 		})
@@ -98,7 +104,10 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
-		defer s.agent.sem.Release(1)
+		defer func() {
+			s.agent.sem.Release(1)
+			metrics.SetCloneInProgressMetrics(s.agent.clusterName, false)
+		}()
 		err := clone(ctx, params.donorUser, params.donorPassword, params.donorHostName, params.donorPort, s.agent)
 		if err != nil {
 			return err
