@@ -37,6 +37,15 @@ jobs:
           asset_path: ./build/moco-agent
           asset_name: moco-agent
           asset_content_type: application/octet-stream
+      - name: Upload Agent RPC definition
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./server/agentrpc/agentrpc.proto
+          asset_name: agentrpc.proto
+          asset_content_type: application/octet-stream
   image:
     name: Push Container Image
     runs-on: ubuntu-20.04
