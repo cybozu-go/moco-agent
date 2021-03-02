@@ -53,3 +53,10 @@ func IncrementDumpBackupFailureCountMetrics(clusterName string, action string) {
 func UpdateDumpBackupDurationSecondsMetrics(clusterName string, durationSeconds float64) {
 	dumpBackupDurationSecondsMetrics.WithLabelValues(clusterName).Observe(durationSeconds)
 }
+func SetDumpBackupInProgressMetrics(clusterName string, inProgress bool) {
+	if inProgress {
+		dumpBackupInProgressMetrics.WithLabelValues(clusterName).Set(1.0)
+		return
+	}
+	dumpBackupInProgressMetrics.WithLabelValues(clusterName).Set(0.0)
+}
