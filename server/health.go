@@ -56,15 +56,20 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to get clone status: err=%v", err)
 	}
 
-	var isOutOfSynced, isUnderCloning bool
-	if replicaStatus != nil && (replicaStatus.LastIoErrno != 0 || replicaStatus.LastSQLErrno != 0) {
+	var isOutOfSynced, hasSQLThreadError, isUnderCloning bool
+	if replicaStatus != nil && (replicaStatus.LastIoErrno != 0 || replicaStatus.SlaveIORunning != moco.ReplicaRunConnect) {
 		isOutOfSynced = true
 	}
+
+	if replicaStatus != nil && (replicaStatus.LastSQLErrno != 0 || replicaStatus.SlaveSQLRunning != moco.ReplicaRunConnect) {
+		hasSQLThreadError = true
+	}
+
 	if cloneStatus.State.Valid && cloneStatus.State.String != moco.CloneStatusCompleted {
 		isUnderCloning = true
 	}
-	if isOutOfSynced || isUnderCloning {
-		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_NOT_SERVING}, status.Errorf(codes.Unavailable, "isOutOfSynced=%t, isUnderCloning=%t", isOutOfSynced, isUnderCloning)
+	if isOutOfSynced || hasSQLThreadError || isUnderCloning {
+		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_NOT_SERVING}, status.Errorf(codes.Unavailable, "isOutOfSynced=%t, hasSQLThreadError=%t isUnderCloning=%t", isOutOfSynced, hasSQLThreadError, isUnderCloning)
 	}
 
 	return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVING}, nil
