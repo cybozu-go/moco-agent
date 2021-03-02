@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2021-03-02
+
+### Changed
+
+- Switch APIs from HTTP to gRPC server. (#24)
+
+### Added
+
+- Publish API proto file at GitHub release page (#23)
+
 ## [0.3.0] - 2021-02-26
 
 ### Added
