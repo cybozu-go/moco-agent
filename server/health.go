@@ -69,7 +69,7 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 		isUnderCloning = true
 	}
 	if isOutOfSynced || hasSQLThreadError || isUnderCloning {
-		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_NOT_SERVING}, status.Errorf(codes.Unavailable, "isOutOfSynced=%t, hasSQLThreadError=%t isUnderCloning=%t", isOutOfSynced, hasSQLThreadError, isUnderCloning)
+		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_NOT_SERVING}, status.Errorf(codes.Unavailable, "isOutOfSynced=%t, hasSQLThreadError=%t, isUnderCloning=%t", isOutOfSynced, hasSQLThreadError, isUnderCloning)
 	}
 
 	return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVING}, nil
