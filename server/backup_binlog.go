@@ -81,12 +81,10 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 		s.agent.sem.Release(1)
 		return nil, status.Errorf(codes.InvalidArgument, "the requested backup has already completed: BackupId=%s", req.BackupId)
 	}
-	metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, true)
 
 	awsErr, ok := err.(awserr.RequestFailure)
 	if !ok {
 		s.agent.sem.Release(1)
-		metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, false)
 		log.Error("unknown response from object storage", map[string]interface{}{
 			log.FnError: err,
 		})
@@ -94,7 +92,6 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 	}
 	if awsErr.StatusCode() != http.StatusNotFound {
 		s.agent.sem.Release(1)
-		metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, false)
 		log.Error("failed to get objects", map[string]interface{}{
 			log.FnError: err,
 		})
@@ -106,7 +103,6 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.RootUser, rootPassword)
 	if err != nil {
 		s.agent.sem.Release(1)
-		metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, false)
 		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,
 			"port":      s.agent.mysqlAdminPort,
@@ -116,12 +112,10 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 	}
 
 	metrics.IncrementBinlogBackupCountMetrics(s.agent.clusterName)
-	startTime := time.Now()
 
 	err = flushBinaryLogs(ctx, db)
 	if err != nil {
 		s.agent.sem.Release(1)
-		metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, false)
 		log.Error("failed to flush binary logs", map[string]interface{}{
 			log.FnError: err,
 		})
@@ -131,6 +125,8 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
+		startTime := time.Now()
+		metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, true)
 		defer func() {
 			s.agent.sem.Release(1)
 			metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, false)
@@ -170,11 +166,6 @@ func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *agentrpc.Flu
 	if !s.agent.sem.TryAcquire(1) {
 		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
 	}
-	metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, true)
-	defer func() {
-		s.agent.sem.Release(1)
-		metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, false)
-	}()
 
 	// TODO: change user
 	rootPassword := os.Getenv(moco.RootPasswordEnvName)
