@@ -166,6 +166,7 @@ func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *agentrpc.Flu
 	if !s.agent.sem.TryAcquire(1) {
 		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
 	}
+	defer s.agent.sem.Release(1)
 
 	// TODO: change user
 	rootPassword := os.Getenv(moco.RootPasswordEnvName)

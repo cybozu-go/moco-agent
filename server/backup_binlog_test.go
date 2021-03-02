@@ -135,7 +135,7 @@ func testBackupBinlog() {
 			return errors.New("process is still working")
 		}, 30*time.Second).Should(Succeed())
 
-		By("checking in-progress metric is set")
+		By("checking in-progress metric is cleared")
 		binlogBackupGauge, _ = getMetric(registry, metricsPrefix+"binlog_backup_in_progress")
 		Expect(*binlogBackupGauge.Gauge.Value).Should(Equal(0.0))
 
