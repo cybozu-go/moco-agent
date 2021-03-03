@@ -329,3 +329,17 @@ func StartSlaveWithInvalidSettings(port int) error {
 	_, err = db.Exec("START SLAVE")
 	return err
 }
+
+func StopAndResetSlave(port int) error {
+	db, err := Connect(port, 0)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec("STOP SLAVE")
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec("RESET SLAVE")
+	return err
+}

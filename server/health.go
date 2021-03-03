@@ -57,11 +57,15 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 	}
 
 	var isOutOfSynced, hasSQLThreadError, isUnderCloning bool
-	if replicaStatus != nil && (replicaStatus.LastIoErrno != 0 || replicaStatus.SlaveIORunning != moco.ReplicaRunConnect) {
+	if replicaStatus != nil &&
+		replicaStatus.SlaveIOState != "" &&
+		(replicaStatus.LastIoErrno != 0 || replicaStatus.SlaveIORunning != moco.ReplicaRunConnect) {
 		isOutOfSynced = true
 	}
 
-	if replicaStatus != nil && (replicaStatus.LastSQLErrno != 0 || replicaStatus.SlaveSQLRunning != moco.ReplicaRunConnect) {
+	if replicaStatus != nil &&
+		replicaStatus.SlaveIOState != "" &&
+		(replicaStatus.LastSQLErrno != 0 || replicaStatus.SlaveSQLRunning != moco.ReplicaRunConnect) {
 		hasSQLThreadError = true
 	}
 

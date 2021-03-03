@@ -121,5 +121,19 @@ func testHealth() {
 			}
 			return fmt.Errorf("should become NOT_SERVING and IsOutOfSynced=true: res=%s, err=%s", res.Status, err.Error())
 		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
+
+	})
+
+	It("should return healthy in primary mode", func() {
+		By("executing START, STOP, and RESET SLAVE (simulating switching to primary")
+		err := test_utils.StartSlaveWithInvalidSettings(replicaPort)
+		Expect(err).ShouldNot(HaveOccurred())
+		err = test_utils.StopAndResetSlave(replicaPort)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("getting health")
+		res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res.Status).Should(Equal(healthpb.HealthCheckResponse_SERVING))
 	})
 }
