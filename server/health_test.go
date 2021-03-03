@@ -95,7 +95,7 @@ func testHealth() {
 			if res.Status == healthpb.HealthCheckResponse_NOT_SERVING && strings.HasSuffix(err.Error(), "isOutOfSynced=false, hasSQLThreadError=false, isUnderCloning=true") {
 				return nil
 			}
-			return fmt.Errorf("should become NOT_SERVING and IsUnderCloning=true: res=%s, err=%s", res.Status, err.Error())
+			return fmt.Errorf("should become NOT_SERVING and IsUnderCloning=true: res=%s, err=%+v", res.Status, err)
 		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 
 		By("wating cloning is completed")
@@ -119,7 +119,7 @@ func testHealth() {
 			if res.Status == healthpb.HealthCheckResponse_NOT_SERVING && strings.HasSuffix(err.Error(), "isOutOfSynced=true, hasSQLThreadError=false, isUnderCloning=false") {
 				return nil
 			}
-			return fmt.Errorf("should become NOT_SERVING and IsOutOfSynced=true: res=%s, err=%s", res.Status, err.Error())
+			return fmt.Errorf("should become NOT_SERVING and IsOutOfSynced=true: res=%s, err=%+v", res.Status, err)
 		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 
 	})
