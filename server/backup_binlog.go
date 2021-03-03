@@ -76,10 +76,12 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 		Bucket: aws.String(req.BucketName),
 		Key:    aws.String(req.BackupId),
 	})
+
 	if err == nil {
 		s.agent.sem.Release(1)
 		return nil, status.Errorf(codes.InvalidArgument, "the requested backup has already completed: BackupId=%s", req.BackupId)
 	}
+
 	awsErr, ok := err.(awserr.RequestFailure)
 	if !ok {
 		s.agent.sem.Release(1)
@@ -110,7 +112,6 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 	}
 
 	metrics.IncrementBinlogBackupCountMetrics(s.agent.clusterName)
-	startTime := time.Now()
 
 	err = flushBinaryLogs(ctx, db)
 	if err != nil {
@@ -124,7 +125,12 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
-		defer s.agent.sem.Release(1)
+		startTime := time.Now()
+		metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, true)
+		defer func() {
+			s.agent.sem.Release(1)
+			metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, false)
+		}()
 
 		err = uploadBinaryLog(ctx, sess, db, convertProtoReqToParams(req))
 		if err != nil {

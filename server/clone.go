@@ -68,6 +68,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 
 	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.MiscUser, s.agent.miscUserPassword)
 	if err != nil {
+		s.agent.sem.Release(1)
 		log.Error("failed to connect to database before getting MySQL primary status", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,
 			"port":      s.agent.mysqlAdminPort,
@@ -96,10 +97,18 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 		return nil, status.Errorf(codes.FailedPrecondition, "recipient is not empty: gtid=%s", gtid)
 	}
 
+	metrics.IncrementCloneCountMetrics(s.agent.clusterName)
+
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
-		defer s.agent.sem.Release(1)
-		err := clone(ctx, params.donorUser, params.donorPassword, params.donorHostName, params.donorPort, s.agent)
+		startTime := time.Now()
+		metrics.SetCloneInProgressMetrics(s.agent.clusterName, true)
+		defer func() {
+			s.agent.sem.Release(1)
+			metrics.SetCloneInProgressMetrics(s.agent.clusterName, false)
+		}()
+
+		err := clone(ctx, db, params.donorUser, params.donorPassword, params.donorHostName, params.donorPort, s.agent)
 		if err != nil {
 			return err
 		}
@@ -133,6 +142,9 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 				return err
 			}
 		}
+
+		durationSeconds := time.Since(startTime).Seconds()
+		metrics.UpdateCloneDurationSecondsMetrics(s.agent.clusterName, durationSeconds)
 		return nil
 	})
 
@@ -207,22 +219,8 @@ func gatherParams(req *agentrpc.CloneRequest, agent *Agent) (*cloneParams, error
 	return res, nil
 }
 
-func clone(ctx context.Context, donorUser, donorPassword, donorHostName string, donorPort int, a *Agent) error {
-	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.MiscUser, a.miscUserPassword)
-	if err != nil {
-		log.Error("failed to connect to database before clone", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
-			log.FnError: err,
-		})
-		return err
-	}
-
-	metrics.IncrementCloneCountMetrics(a.clusterName)
-
-	startTime := time.Now()
-	_, err = db.ExecContext(ctx, `CLONE INSTANCE FROM ?@?:? IDENTIFIED BY ?`, donorUser, donorHostName, donorPort, donorPassword)
-	durationSeconds := time.Since(startTime).Seconds()
+func clone(ctx context.Context, db *sqlx.DB, donorUser, donorPassword, donorHostName string, donorPort int, a *Agent) error {
+	_, err := db.ExecContext(ctx, `CLONE INSTANCE FROM ?@?:? IDENTIFIED BY ?`, donorUser, donorHostName, donorPort, donorPassword)
 
 	// After cloning, the recipient MySQL server instance is restarted (stopped and started) automatically.
 	// And then the "ERROR 3707" (Restart server failed) occurs. This error does not indicate a cloning failure.
@@ -239,8 +237,6 @@ func clone(ctx context.Context, donorUser, donorPassword, donorHostName string, 
 		})
 		return err
 	}
-
-	metrics.UpdateCloneDurationSecondsMetrics(a.clusterName, durationSeconds)
 
 	log.Info("success to exec mysql CLONE", map[string]interface{}{
 		"donor_hostname": donorHostName,

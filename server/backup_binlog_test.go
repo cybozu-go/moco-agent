@@ -120,13 +120,24 @@ func testBackupBinlog() {
 		_, err := gsrv.FlushAndBackupBinlog(context.Background(), req)
 		Expect(err).ShouldNot(HaveOccurred())
 
+		By("checking in-progress metric is set")
+		binlogBackupGauge, _ := getMetric(registry, metricsPrefix+"binlog_backup_in_progress")
+		Expect(*binlogBackupGauge.Gauge.Value).Should(Equal(1.0))
+		Expect(*binlogBackupGauge.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*binlogBackupGauge.Label[0].Value).Should(Equal(clusterName))
+
+		By("wating binlog backup process is finished")
 		Eventually(func() error {
 			if agent.sem.TryAcquire(1) {
 				agent.sem.Release(1)
 				return nil
 			}
-			return errors.New("backup process is still working")
+			return errors.New("process is still working")
 		}, 30*time.Second).Should(Succeed())
+
+		By("checking in-progress metric is cleared")
+		binlogBackupGauge, _ = getMetric(registry, metricsPrefix+"binlog_backup_in_progress")
+		Expect(*binlogBackupGauge.Gauge.Value).Should(Equal(0.0))
 
 		By("checking the binlog file is uploaded")
 		_, err = s3.New(sess).HeadObject(&s3.HeadObjectInput{
@@ -161,11 +172,15 @@ func testBackupBinlog() {
 		By("checking metrics")
 		binlogBackupCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_count")
 		Expect(*binlogBackupCount.Counter.Value).Should(Equal(1.0))
+		Expect(*binlogBackupCount.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*binlogBackupCount.Label[0].Value).Should(Equal(clusterName))
 
 		binlogBackupFailureCount, _ := getMetric(registry, metricsPrefix+"binlog_backup_failure_count")
 		Expect(binlogBackupFailureCount).Should(BeNil())
 
 		binlogBackupDurationSeconds, _ := getMetric(registry, metricsPrefix+"binlog_backup_duration_seconds")
+		Expect(*binlogBackupDurationSeconds.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*binlogBackupDurationSeconds.Label[0].Value).Should(Equal(clusterName))
 		for _, quantile := range binlogBackupDurationSeconds.Summary.Quantile {
 			Expect(math.IsNaN(*quantile.Value)).Should(BeFalse())
 		}

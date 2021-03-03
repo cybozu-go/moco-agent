@@ -139,11 +139,18 @@ func testClone() {
 		_, err := gsrv.Clone(context.Background(), req)
 		Expect(err).ShouldNot(HaveOccurred())
 
+		By("checking in-progress metric is set")
+		cloneGauge, _ := getMetric(registry, metricsPrefix+"clone_in_progress")
+		Expect(*cloneGauge.Gauge.Value).Should(Equal(1.0))
+		Expect(*cloneGauge.Label[0].Name).Should(Equal("cluster_name"))
+		Expect(*cloneGauge.Label[0].Value).Should(Equal(clusterName))
+
 		By("cloning from donor (second time)")
 		_, err = gsrv.Clone(context.Background(), req)
 		Expect(err).Should(HaveOccurred())
 		Expect(err.Error()).Should(Equal("rpc error: code = ResourceExhausted desc = another request is under processing"))
 
+		By("wating clone process is finished")
 		Eventually(func() error {
 			if agent.sem.TryAcquire(1) {
 				agent.sem.Release(1)
@@ -151,6 +158,10 @@ func testClone() {
 			}
 			return errors.New("clone process is still working")
 		}, 30*time.Second).Should(Succeed())
+
+		By("checking in-progress metric is cleared")
+		cloneGauge, _ = getMetric(registry, metricsPrefix+"clone_in_progress")
+		Expect(*cloneGauge.Gauge.Value).Should(Equal(0.0))
 
 		By("checking clone status")
 		db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), moco.MiscUser, test_utils.MiscUserPassword)
