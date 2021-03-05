@@ -56,15 +56,27 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to get clone status: err=%v", err)
 	}
 
-	var isOutOfSynced, isUnderCloning bool
-	if replicaStatus != nil && replicaStatus.LastIoErrno != 0 {
-		isOutOfSynced = true
+	// When the instance has been switched from replica to primary, replicaStatus can be not nil.
+	// In this case, Replica_{IO|SQL}_Running becomes "No" without any errors,
+	// but replicaStatus.SlaveIOState will be the empty string "".
+	// The below conditions utilize this to know the own instance works as primary or replica.
+	var hasIOThreadError, hasSQLThreadError bool
+	if replicaStatus != nil && replicaStatus.SlaveIOState != "" {
+		if replicaStatus.LastIoErrno != 0 || replicaStatus.SlaveIORunning != moco.ReplicaRunConnect {
+			hasIOThreadError = true
+		}
+		if replicaStatus.LastSQLErrno != 0 || replicaStatus.SlaveSQLRunning != moco.ReplicaRunConnect {
+			hasSQLThreadError = true
+		}
 	}
+
+	var isUnderCloning bool
 	if cloneStatus.State.Valid && cloneStatus.State.String != moco.CloneStatusCompleted {
 		isUnderCloning = true
 	}
-	if isOutOfSynced || isUnderCloning {
-		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_NOT_SERVING}, status.Errorf(codes.Unavailable, "isOutOfSynced=%t, isUnderCloning=%t", isOutOfSynced, isUnderCloning)
+
+	if hasIOThreadError || hasSQLThreadError || isUnderCloning {
+		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_NOT_SERVING}, status.Errorf(codes.Unavailable, "hasIOThreadError=%t, hasSQLThreadError=%t, isUnderCloning=%t", hasIOThreadError, hasSQLThreadError, isUnderCloning)
 	}
 
 	return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVING}, nil
