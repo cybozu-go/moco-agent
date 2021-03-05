@@ -92,7 +92,7 @@ func testHealth() {
 		By("getting health expecting IsUnderCloning=true")
 		Eventually(func() error {
 			res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
-			if res.Status == healthpb.HealthCheckResponse_NOT_SERVING && strings.HasSuffix(err.Error(), "isOutOfSynced=false, hasSQLThreadError=false, isUnderCloning=true") {
+			if res.Status == healthpb.HealthCheckResponse_NOT_SERVING && strings.HasSuffix(err.Error(), "hasIOThreadError=false, hasSQLThreadError=false, isUnderCloning=true") {
 				return nil
 			}
 			return fmt.Errorf("should become NOT_SERVING and IsUnderCloning=true: res=%s, err=%+v", res.Status, err)
@@ -108,7 +108,7 @@ func testHealth() {
 		}, 30*time.Second, time.Second).Should(Succeed())
 	})
 
-	It("should return IsOutOfSynced=true if replica status has IO error", func() {
+	It("should return hasIOThreadError=true if replica status has IO error", func() {
 		By("executing START SLAVE with invalid parameters")
 		err := test_utils.StartSlaveWithInvalidSettings(replicaPort)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -116,10 +116,10 @@ func testHealth() {
 		By("getting health expecting IsOutOfSync=true")
 		Eventually(func() error {
 			res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
-			if res.Status == healthpb.HealthCheckResponse_NOT_SERVING && strings.HasSuffix(err.Error(), "isOutOfSynced=true, hasSQLThreadError=false, isUnderCloning=false") {
+			if res.Status == healthpb.HealthCheckResponse_NOT_SERVING && strings.HasSuffix(err.Error(), "hasIOThreadError=true, hasSQLThreadError=false, isUnderCloning=false") {
 				return nil
 			}
-			return fmt.Errorf("should become NOT_SERVING and IsOutOfSynced=true: res=%s, err=%+v", res.Status, err)
+			return fmt.Errorf("should become NOT_SERVING and hasIOThreadError=true: res=%s, err=%+v", res.Status, err)
 		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 
 	})
