@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/go-cmp/cmp"
 	"github.com/jmoiron/sqlx"
@@ -20,7 +21,7 @@ var (
 	initOnceCompletedPath = filepath.Join(moco.MySQLDataPath, "init-once-completed")
 	passwordFilePath      = filepath.Join("/tmp", "moco-root-password")
 	rootPassword          = "testpassword"
-	miscConfPath          = filepath.Join(moco.MySQLDataPath, "misc.cnf")
+	agentConfPath         = filepath.Join(moco.MySQLDataPath, "agent.cnf")
 	initUser              = "init-user"
 	initPassword          = "init-password"
 )
@@ -231,22 +232,22 @@ func testInitializeReplicationUser(t *testing.T) {
 	}
 }
 
-func testInitializeMiscUser(t *testing.T) {
+func testInitializeAgentUser(t *testing.T) {
 	ctx := context.Background()
-	miscPassword := "misc-password"
-	err := initializeMiscUser(ctx, passwordFilePath, miscConfPath, miscPassword)
+	agentPassword := "agent-password"
+	err := initializeAgentUser(ctx, passwordFilePath, agentConfPath, agentPassword)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := execSQL(ctx, passwordFilePath, []byte("SELECT count(*) FROM mysql.user WHERE user='moco-misc';"), "")
+	out, err := execSQL(ctx, passwordFilePath, []byte("SELECT count(*) FROM mysql.user WHERE user='moco-agent';"), "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(out), "1") {
-		t.Fatalf("cannot find user: moco-misc")
+		t.Fatalf("cannot find user: moco-agent")
 	}
-	_, err = os.Stat(miscConfPath)
+	_, err = os.Stat(agentConfPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,7 +373,7 @@ func testRestoreUsers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = RestoreUsers(ctx, passwordFilePath, miscConfPath, initUser, &initPassword, ip.String())
+	err = RestoreUsers(ctx, passwordFilePath, agentConfPath, initUser, &initPassword, ip.String())
 	if err != nil {
 		t.Error(err)
 	}
@@ -404,7 +405,7 @@ func testRestoreUsers(t *testing.T) {
 		moco.OperatorAdminUser,
 		moco.CloneDonorUser,
 		moco.ReplicationUser,
-		moco.MiscUser,
+		mocoagent.AgentUser,
 	} {
 		sqlRows, err := db.Query("SELECT user FROM mysql.user WHERE (user = ? AND host = '%')", k)
 		if err != nil {
@@ -452,7 +453,7 @@ func testRetryInitializeOnce(t *testing.T) {
 	}
 	defer os.Unsetenv(moco.PodNameEnvName)
 
-	err = InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, miscConfPath, 1000)
+	err = InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, agentConfPath, 1000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -471,7 +472,7 @@ func TestInit(t *testing.T) {
 	t.Run("initializeOperatorAdminUser", testInitializeOperatorAdminUser)
 	t.Run("initializeDonorUser", testInitializeDonorUser)
 	t.Run("initializeReplicationUser", testInitializeReplicationUser)
-	t.Run("initializeMiscUser", testInitializeMiscUser)
+	t.Run("initializeAgentUser", testInitializeAgentUser)
 	t.Run("initializeReadOnlyUser", testInitializeReadOnlyUser)
 	t.Run("initializeWritableUser", testInitializeWritableUser)
 	t.Run("installPlugins", testInstallPlugins)

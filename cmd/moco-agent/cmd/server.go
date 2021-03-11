@@ -69,11 +69,11 @@ var agentCmd = &cobra.Command{
 			return fmt.Errorf("%s is empty", moco.PodNameEnvName)
 		}
 
-		buf, err := ioutil.ReadFile(moco.MiscPasswordPath)
+		buf, err := ioutil.ReadFile(mocoagent.AgentPasswordPath)
 		if err != nil {
-			return fmt.Errorf("cannot read misc password file at %s", moco.MiscPasswordPath)
+			return fmt.Errorf("cannot read agent password file at %s", mocoagent.AgentPasswordPath)
 		}
-		miscPassword := strings.TrimSpace(string(buf))
+		agentPassword := strings.TrimSpace(string(buf))
 
 		buf, err = ioutil.ReadFile(moco.DonorPasswordPath)
 		if err != nil {
@@ -89,7 +89,7 @@ var agentCmd = &cobra.Command{
 		}
 
 		agent := server.New(podName, clusterName, token,
-			miscPassword, donorPassword, moco.ReplicationSourceSecretPath, moco.VarLogPath, moco.MySQLAdminPort,
+			agentPassword, donorPassword, moco.ReplicationSourceSecretPath, moco.VarLogPath, moco.MySQLAdminPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   viper.GetDuration(connMaxLifetimeFlag),
 				ConnectionTimeout: viper.GetDuration(connectionTimeoutFlag),

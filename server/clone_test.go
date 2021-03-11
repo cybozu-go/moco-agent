@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco-agent/test_utils"
@@ -57,7 +57,7 @@ func testClone() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		agent = New(test_utils.Host, clusterName, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", replicaPort,
+		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", replicaPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -164,7 +164,7 @@ func testClone() {
 		Expect(*cloneGauge.Gauge.Value).Should(Equal(0.0))
 
 		By("checking clone status")
-		db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), moco.MiscUser, test_utils.MiscUserPassword)
+		db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), mocoagent.AgentUser, test_utils.AgentUserPassword)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		Eventually(func() error {
@@ -282,7 +282,7 @@ func testClone() {
 
 			By(fmt.Sprintf("(%s) %s", tt.title, "checking after clone status"))
 			Eventually(func() error {
-				db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), moco.MiscUser, test_utils.MiscUserPassword)
+				db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), mocoagent.AgentUser, test_utils.AgentUserPassword)
 				if err != nil {
 					return err
 				}
@@ -389,10 +389,10 @@ func testClone() {
 		// *) htps://github.com/cybozu-go/moco/blob/v0.3.1/agent/clone.go#L169-L197
 		Skip("MySQL users for MOCO don't be created")
 
-		By("confirming clone by restored misc user")
-		restoredMiscUserPassword := "dummy"
+		By("confirming clone by restored agent user")
+		restoredAgentUserPassword := "dummy"
 		Eventually(func() error {
-			db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), moco.MiscUser, restoredMiscUserPassword)
+			db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), mocoagent.AgentUser, restoredAgentUserPassword)
 			if err != nil {
 				return err
 			}

@@ -16,8 +16,8 @@ import (
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/well"
-	"github.com/spf13/viper"
 )
 
 const timeoutDuration = 30 * time.Second
@@ -30,7 +30,7 @@ type MyConfTemplateParameters struct {
 	AdminAddress string
 }
 
-func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath, miscConfPath string, serverIDBase uint32) error {
+func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath, agentConfPath string, serverIDBase uint32) error {
 	log.Info("generate mysql configuration file", nil)
 	err := generateMySQLConfiguration(ctx, serverIDBase, moco.MySQLConfTemplatePath, moco.MySQLConfPath, moco.MySQLConfName)
 	if err != nil {
@@ -64,7 +64,7 @@ func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath
 		return err
 	}
 
-	err = RestoreUsers(ctx, passwordFilePath, miscConfPath, "root", nil, viper.GetString(moco.PodIPFlag))
+	err = RestoreUsers(ctx, passwordFilePath, agentConfPath, "root", nil)
 	if err != nil {
 		return err
 	}
@@ -135,52 +135,38 @@ func generateMySQLConfiguration(ctx context.Context, serverIDBase uint32,
 }
 
 // RestoreUsers creates users for MOCO and grants privileges to them.
-func RestoreUsers(ctx context.Context, passwordFilePath, miscConfPath, initUser string, initPassword *string, rootHost string) error {
-
-	log.Info("setup root user", nil)
-	err := initializeRootUser(ctx, passwordFilePath, initUser, initPassword, os.Getenv(moco.RootPasswordEnvName), rootHost)
+func RestoreUsers(ctx context.Context, passwordFilePath, agentConfPath, initUser string, initPassword *string) error {
+	log.Info("setup moco-admin user", nil)
+	err := initializeAdminUser(ctx, passwordFilePath, initUser, initPassword, os.Getenv(moco.OperatorPasswordEnvName))
 	if err != nil {
 		return err
 	}
 
-	log.Info("setup operator user", nil)
-	err = initializeOperatorUser(ctx, passwordFilePath, os.Getenv(moco.OperatorPasswordEnvName))
+	log.Info("setup moco-agent user", nil)
+	err = initializeAgentUser(ctx, passwordFilePath, agentConfPath, os.Getenv(mocoagent.AgentPasswordEnvName))
 	if err != nil {
 		return err
 	}
 
-	log.Info("setup operator-admin users", nil)
-	// use the password for an operator-admin user which is the same with the one for operator user
-	err = initializeOperatorAdminUser(ctx, passwordFilePath, os.Getenv(moco.OperatorPasswordEnvName))
-	if err != nil {
-		return err
-	}
-
-	log.Info("setup donor user", nil)
+	log.Info("setup moco-clone-donor user", nil)
 	err = initializeDonorUser(ctx, passwordFilePath, os.Getenv(moco.ClonePasswordEnvName))
 	if err != nil {
 		return err
 	}
 
-	log.Info("setup replication user", nil)
+	log.Info("setup moco-replication user", nil)
 	err = initializeReplicationUser(ctx, passwordFilePath, os.Getenv(moco.ReplicationPasswordEnvName))
 	if err != nil {
 		return err
 	}
 
-	log.Info("setup misc user", nil)
-	err = initializeMiscUser(ctx, passwordFilePath, miscConfPath, os.Getenv(moco.MiscPasswordEnvName))
-	if err != nil {
-		return err
-	}
-
-	log.Info("setup readonly user", nil)
+	log.Info("setup moco-readonly user", nil)
 	err = initializeReadOnlyUser(ctx, passwordFilePath, os.Getenv(moco.ReadOnlyPasswordEnvName))
 	if err != nil {
 		return err
 	}
 
-	log.Info("setup writable user", nil)
+	log.Info("setup moco-writable user", nil)
 	err = initializeWritableUser(ctx, passwordFilePath, os.Getenv(moco.WritablePasswordEnvName))
 	if err != nil {
 		return err
@@ -246,131 +232,28 @@ func importTimeZoneFromHost(ctx context.Context, passwordFilePath string) error 
 	return nil
 }
 
-func initializeRootUser(ctx context.Context, passwordFilePath, initUser string, initPassword *string, rootPassword, rootHost string) error {
-	if rootPassword == "" {
-		return fmt.Errorf("root password is not set")
-	}
-
-	// execSQL requires the password file.
+func initializeAdminUser(ctx context.Context, passwordFilePath, initUser string, initPassword *string, password string) error {
 	conf := fmt.Sprintf(`[client]
-user="%s"
-`, initUser)
+	user="%s"
+	`, initUser)
 	if initPassword != nil {
 		conf += fmt.Sprintf(`password="%s"
-`, *initPassword)
+	`, *initPassword)
 	}
-
 	err := ioutil.WriteFile(passwordFilePath, []byte(conf), 0600)
 	if err != nil {
 		return err
 	}
 
-	t := template.Must(template.New("init").Parse(`
-CREATE USER IF NOT EXISTS 'root'@'localhost';
-GRANT ALL ON *.* TO 'root'@'localhost' WITH GRANT OPTION ;
-GRANT PROXY ON ''@'' TO 'root'@'localhost' WITH GRANT OPTION ;
-ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ .Password }}';
-`))
-	init := new(bytes.Buffer)
-	err = t.Execute(init, struct {
-		Password string
-	}{rootPassword})
-	if err != nil {
-		return err
-	}
-
-	out, err := execSQL(ctx, passwordFilePath, init.Bytes(), "")
-	if err != nil {
-		return fmt.Errorf("stdout=%s, err=%v", out, err)
-	}
-
-	passwordConf := `[client]
-	user=root
-	password="%s"
-	`
-	err = ioutil.WriteFile(passwordFilePath, []byte(fmt.Sprintf(passwordConf, rootPassword)), 0600)
-	if err != nil {
-		return err
-	}
-
-	t = template.Must(template.New("sql").Parse(`
-DROP USER IF EXISTS 'root'@'{{ .Host }}' ;
-CREATE USER 'root'@'{{ .Host }}' IDENTIFIED BY '{{ .Password }}';
-GRANT ALL ON *.* TO 'root'@'{{ .Host }}' WITH GRANT OPTION ;
-GRANT PROXY ON ''@'' TO 'root'@'{{ .Host }}' WITH GRANT OPTION ;
-FLUSH PRIVILEGES ;
+	t := template.Must(template.New("sql").Parse(`
+DROP USER IF EXISTS '{{ .User }}'@'%' ;
+CREATE USER '{{ .User }}'@'%' IDENTIFIED BY '{{ .Password }}' ;
+GRANT ALL ON *.* TO '{{ .User }}'@'%' WITH GRANT OPTION ;
+FLUSH PRIVILEGES;
 `))
 
 	sql := new(bytes.Buffer)
 	err = t.Execute(sql, struct {
-		Password string
-		Host     string
-	}{rootPassword, rootHost})
-	if err != nil {
-		return err
-	}
-
-	out, err = execSQL(ctx, passwordFilePath, sql.Bytes(), "")
-	if err != nil {
-		return fmt.Errorf("stdout=%s, err=%v", out, err)
-	}
-
-	return nil
-}
-
-func initializeOperatorUser(ctx context.Context, passwordFilePath string, password string) error {
-	t := template.Must(template.New("sql").Parse(`
-DROP USER IF EXISTS '{{ .User }}'@'%' ;
-CREATE USER '{{ .User }}'@'%' IDENTIFIED BY '{{ .Password }}' ;
-GRANT
-    SELECT,
-    SHOW VIEW,
-    TRIGGER,
-    LOCK TABLES,
-    REPLICATION CLIENT,
-    BACKUP_ADMIN,
-    CLONE_ADMIN,
-    BINLOG_ADMIN,
-    SYSTEM_VARIABLES_ADMIN,
-    REPLICATION_SLAVE_ADMIN,
-    SERVICE_CONNECTION_ADMIN
-  ON *.* TO '{{ .User }}'@'%' ;
-SET GLOBAL partial_revokes=on ;
-REVOKE
-    SHOW VIEW,
-    TRIGGER,
-    LOCK TABLES,
-    REPLICATION CLIENT
-  ON mysql.* FROM '{{ .User }}'@'%' ;
-`))
-
-	sql := new(bytes.Buffer)
-	err := t.Execute(sql, struct {
-		User     string
-		Password string
-	}{moco.OperatorUser, password})
-	if err != nil {
-		return err
-	}
-
-	out, err := execSQL(ctx, passwordFilePath, sql.Bytes(), "")
-	if err != nil {
-		return fmt.Errorf("stdout=%s, err=%v", out, err)
-	}
-	return nil
-}
-
-func initializeOperatorAdminUser(ctx context.Context, passwordFilePath string, password string) error {
-	t := template.Must(template.New("sql").Parse(`
-DROP USER IF EXISTS '{{ .User }}'@'%' ;
-CREATE USER '{{ .User }}'@'%' IDENTIFIED BY '{{ .Password }}' ;
-GRANT
-    ALL
-  ON *.* TO '{{ .User }}'@'%' WITH GRANT OPTION ;
-`))
-
-	sql := new(bytes.Buffer)
-	err := t.Execute(sql, struct {
 		User     string
 		Password string
 	}{moco.OperatorAdminUser, password})
@@ -382,6 +265,21 @@ GRANT
 	if err != nil {
 		return fmt.Errorf("stdout=%s, err=%v", out, err)
 	}
+
+	passwordConf := `[client]
+	user="%s"
+	password="%s"
+	`
+	err = ioutil.WriteFile(passwordFilePath, []byte(fmt.Sprintf(passwordConf, moco.OperatorAdminUser, password)), 0600)
+	if err != nil {
+		return err
+	}
+
+	out, err = execSQL(ctx, passwordFilePath, []byte("DROP USER IF EXISTS 'root'@'localhost' ; FLUSH PRIVILEGES;"), "")
+	if err != nil {
+		return fmt.Errorf("stdout=%s, err=%v", out, err)
+	}
+
 	return nil
 }
 
@@ -445,7 +343,7 @@ GRANT
 	return nil
 }
 
-func initializeMiscUser(ctx context.Context, passwordFilePath string, miscConfPath string, password string) error {
+func initializeAgentUser(ctx context.Context, passwordFilePath string, agentConfPath string, password string) error {
 	t := template.Must(template.New("sql").Parse(`
 DROP USER IF EXISTS '{{ .User }}'@'%' ;
 CREATE USER '{{ .User }}'@'%' IDENTIFIED BY '{{ .Password }}' ;
@@ -462,7 +360,7 @@ GRANT
 	err := t.Execute(sql, struct {
 		User     string
 		Password string
-	}{moco.MiscUser, password})
+	}{mocoagent.AgentUser, password})
 	if err != nil {
 		return err
 	}
@@ -477,19 +375,19 @@ GRANT
 user=%s
 password=%s
 `
-	err = os.Remove(miscConfPath)
+	err = os.Remove(agentConfPath)
 	if err != nil && err.(*os.PathError).Unwrap() != syscall.ENOENT {
 		return err
 	}
-	if err := ioutil.WriteFile(miscConfPath, []byte(fmt.Sprintf(conf, moco.MiscUser, password)), 0400); err != nil {
+	if err := ioutil.WriteFile(agentConfPath, []byte(fmt.Sprintf(conf, mocoagent.AgentUser, password)), 0400); err != nil {
 		return err
 	}
 
-	err = os.Remove(moco.MiscPasswordPath)
+	err = os.Remove(mocoagent.AgentPasswordPath)
 	if err != nil && err.(*os.PathError).Unwrap() != syscall.ENOENT {
 		return err
 	}
-	return ioutil.WriteFile(moco.MiscPasswordPath, []byte(password), 0400)
+	return ioutil.WriteFile(mocoagent.AgentPasswordPath, []byte(password), 0400)
 }
 
 func initializeReadOnlyUser(ctx context.Context, passwordFilePath string, password string) error {
