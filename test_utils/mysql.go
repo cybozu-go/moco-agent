@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/well"
 	"github.com/go-sql-driver/mysql"
@@ -144,24 +143,20 @@ func InitializeMySQL(port int) error {
 		password string
 	}{
 		{
-			name:     moco.OperatorUser,
+			name:     mocoagent.AdminUser,
 			password: OperatorUserPassword,
-		},
-		{
-			name:     moco.OperatorAdminUser,
-			password: OperatorAdminUserPassword,
-		},
-		{
-			name:     moco.ReplicationUser,
-			password: ReplicationUserPassword,
-		},
-		{
-			name:     moco.CloneDonorUser,
-			password: CloneDonorUserPassword,
 		},
 		{
 			name:     mocoagent.AgentUser,
 			password: AgentUserPassword,
+		},
+		{
+			name:     mocoagent.ReplicationUser,
+			password: ReplicationUserPassword,
+		},
+		{
+			name:     mocoagent.CloneDonorUser,
+			password: CloneDonorUserPassword,
 		},
 	}
 	for _, user := range users {

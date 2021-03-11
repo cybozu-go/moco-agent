@@ -137,7 +137,7 @@ func generateMySQLConfiguration(ctx context.Context, serverIDBase uint32,
 // RestoreUsers creates users for MOCO and grants privileges to them.
 func RestoreUsers(ctx context.Context, passwordFilePath, agentConfPath, initUser string, initPassword *string) error {
 	log.Info("setup moco-admin user", nil)
-	err := initializeAdminUser(ctx, passwordFilePath, initUser, initPassword, os.Getenv(moco.OperatorPasswordEnvName))
+	err := initializeAdminUser(ctx, passwordFilePath, initUser, initPassword, os.Getenv(mocoagent.AdminPasswordEnvName))
 	if err != nil {
 		return err
 	}
@@ -149,25 +149,25 @@ func RestoreUsers(ctx context.Context, passwordFilePath, agentConfPath, initUser
 	}
 
 	log.Info("setup moco-clone-donor user", nil)
-	err = initializeDonorUser(ctx, passwordFilePath, os.Getenv(moco.ClonePasswordEnvName))
+	err = initializeDonorUser(ctx, passwordFilePath, os.Getenv(mocoagent.ClonePasswordEnvName))
 	if err != nil {
 		return err
 	}
 
 	log.Info("setup moco-replication user", nil)
-	err = initializeReplicationUser(ctx, passwordFilePath, os.Getenv(moco.ReplicationPasswordEnvName))
+	err = initializeReplicationUser(ctx, passwordFilePath, os.Getenv(mocoagent.ReplicationPasswordEnvName))
 	if err != nil {
 		return err
 	}
 
 	log.Info("setup moco-readonly user", nil)
-	err = initializeReadOnlyUser(ctx, passwordFilePath, os.Getenv(moco.ReadOnlyPasswordEnvName))
+	err = initializeReadOnlyUser(ctx, passwordFilePath, os.Getenv(mocoagent.ReadOnlyPasswordEnvName))
 	if err != nil {
 		return err
 	}
 
 	log.Info("setup moco-writable user", nil)
-	err = initializeWritableUser(ctx, passwordFilePath, os.Getenv(moco.WritablePasswordEnvName))
+	err = initializeWritableUser(ctx, passwordFilePath, os.Getenv(mocoagent.WritablePasswordEnvName))
 	if err != nil {
 		return err
 	}
