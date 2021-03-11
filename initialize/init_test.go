@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,10 +20,7 @@ import (
 var (
 	initOnceCompletedPath = filepath.Join(moco.MySQLDataPath, "init-once-completed")
 	passwordFilePath      = filepath.Join("/tmp", "moco-root-password")
-	rootPassword          = "testpassword"
 	agentConfPath         = filepath.Join(moco.MySQLDataPath, "agent.cnf")
-	initUser              = "init-user"
-	initPassword          = "init-password"
 	adminPassword         = "admin-password"
 )
 
@@ -110,17 +106,6 @@ gtid_mode = ON
 		t.Fatal(err)
 	}
 
-}
-
-func myAddress() net.IP {
-	netInterfaceAddresses, _ := net.InterfaceAddrs()
-	for _, netInterfaceAddress := range netInterfaceAddresses {
-		networkIP, ok := netInterfaceAddress.(*net.IPNet)
-		if ok && !networkIP.IP.IsLoopback() && networkIP.IP.To4() != nil {
-			return networkIP.IP
-		}
-	}
-	return net.IPv4zero
 }
 
 func testWaitInstanceBootstrap(t *testing.T) {
