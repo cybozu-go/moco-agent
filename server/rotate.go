@@ -9,6 +9,7 @@ import (
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 )
 
@@ -39,7 +40,7 @@ func (a *Agent) RotateLog() {
 		return
 	}
 
-	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), moco.MiscUser, a.miscUserPassword)
+	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), mocoagent.AgentUser, a.agentUserPassword)
 	if err != nil {
 		log.Error("failed to connect to database before log flush", map[string]interface{}{
 			"hostname":  a.mysqlAdminHostname,

@@ -50,7 +50,7 @@ func testHealth() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		agent = New(test_utils.Host, clusterName, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", replicaPort,
+		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", replicaPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,

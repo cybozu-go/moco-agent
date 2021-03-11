@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/well"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -28,11 +28,10 @@ const (
 	ExternalInitUserPassword  = "externalinitpassword"
 
 	// Dummy password for MySQL users which are managed by MOCO.
-	OperatorUserPassword      = "userpassword"
-	OperatorAdminUserPassword = "adminpassword"
-	ReplicationUserPassword   = "replpassword"
-	CloneDonorUserPassword    = "clonepassword"
-	MiscUserPassword          = "miscpassword"
+	AdminUserPassword       = "adminpassword"
+	ReplicationUserPassword = "replpassword"
+	CloneDonorUserPassword  = "clonepassword"
+	AgentUserPassword       = "agentpassword"
 
 	// Docker network name for test.
 	networkName = "moco-agent-test-net"
@@ -143,24 +142,20 @@ func InitializeMySQL(port int) error {
 		password string
 	}{
 		{
-			name:     moco.OperatorUser,
-			password: OperatorUserPassword,
+			name:     mocoagent.AdminUser,
+			password: AdminUserPassword,
 		},
 		{
-			name:     moco.OperatorAdminUser,
-			password: OperatorAdminUserPassword,
+			name:     mocoagent.AgentUser,
+			password: AgentUserPassword,
 		},
 		{
-			name:     moco.ReplicationUser,
+			name:     mocoagent.ReplicationUser,
 			password: ReplicationUserPassword,
 		},
 		{
-			name:     moco.CloneDonorUser,
+			name:     mocoagent.CloneDonorUser,
 			password: CloneDonorUserPassword,
-		},
-		{
-			name:     moco.MiscUser,
-			password: MiscUserPassword,
 		},
 	}
 	for _, user := range users {

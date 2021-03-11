@@ -8,6 +8,7 @@ import (
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/initialize"
 	"github.com/cybozu-go/well"
 	"github.com/spf13/cobra"
@@ -20,7 +21,7 @@ const (
 
 var (
 	passwordFilePath = filepath.Join(moco.TmpPath, "moco-root-password")
-	miscConfPath     = filepath.Join(moco.MySQLDataPath, "misc.cnf")
+	agentConfPath    = filepath.Join(mocoagent.MySQLDataPath, "agent.cnf")
 )
 
 var initCmd = &cobra.Command{
@@ -34,7 +35,7 @@ var initCmd = &cobra.Command{
 			log.Info("start initialization", nil)
 			serverIDBase := viper.GetUint32(serverIDBaseFlag)
 
-			err := initialize.InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, miscConfPath, serverIDBase)
+			err := initialize.InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, agentConfPath, serverIDBase)
 			if err != nil {
 				f, err2 := ioutil.ReadFile("/var/log/mysql/mysql.err")
 				if err2 != nil {
@@ -70,7 +71,6 @@ func init() {
 	// ordinal should be increased by 1000 as default because the case server-id is 0 is not suitable for the replication purpose
 	initCmd.Flags().Uint32(serverIDBaseFlag, 1000, "Base value of server-id.")
 	initCmd.Flags().String(moco.PodNameFlag, "", "Pod Name created by StatefulSet")
-	initCmd.Flags().String(moco.PodIPFlag, "", "Pod IP address")
 	err := viper.BindPFlags(initCmd.Flags())
 	if err != nil {
 		panic(err)
