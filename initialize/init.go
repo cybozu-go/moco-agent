@@ -47,7 +47,7 @@ func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath
 	}
 
 	log.Info("remove all files in MySQL data dir", nil)
-	err = removeAllFiles(moco.MySQLDataPath)
+	err = removeAllFiles(mocoagent.MySQLDataPath)
 	if err != nil {
 		return err
 	}
@@ -256,7 +256,7 @@ FLUSH PRIVILEGES;
 	err = t.Execute(sql, struct {
 		User     string
 		Password string
-	}{moco.OperatorAdminUser, password})
+	}{mocoagent.AdminUser, password})
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ FLUSH PRIVILEGES;
 	user="%s"
 	password="%s"
 	`
-	err = ioutil.WriteFile(passwordFilePath, []byte(fmt.Sprintf(passwordConf, moco.OperatorAdminUser, password)), 0600)
+	err = ioutil.WriteFile(passwordFilePath, []byte(fmt.Sprintf(passwordConf, mocoagent.AdminUser, password)), 0600)
 	if err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ GRANT
 	err := t.Execute(sql, struct {
 		User     string
 		Password string
-	}{moco.CloneDonorUser, password})
+	}{mocoagent.CloneDonorUser, password})
 	if err != nil {
 		return err
 	}
@@ -528,7 +528,7 @@ func touchInitOnceCompleted(ctx context.Context, initOnceCompletedPath string) e
 		return err
 	}
 
-	dataDir, err := os.Open(moco.MySQLDataPath)
+	dataDir, err := os.Open(mocoagent.MySQLDataPath)
 	if err != nil {
 		return err
 	}

@@ -4,13 +4,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/well"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var initOnceCompletedPath = filepath.Join(moco.MySQLDataPath, "init-once-completed")
+var initOnceCompletedPath = filepath.Join(mocoagent.MySQLDataPath, "init-once-completed")
 
 var (
 	rootCmd = &cobra.Command{

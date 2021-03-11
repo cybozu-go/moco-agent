@@ -40,7 +40,7 @@ const timeoutDuration = 120 * time.Second
 
 var (
 	passwordFilePath = filepath.Join(moco.TmpPath, "moco-root-password")
-	agentConfPath    = filepath.Join(moco.MySQLDataPath, "agent.cnf")
+	agentConfPath    = filepath.Join(mocoagent.MySQLDataPath, "agent.cnf")
 )
 
 type cloneParams struct {
@@ -168,7 +168,7 @@ func gatherParams(req *agentrpc.CloneRequest, agent *Agent) (*cloneParams, error
 		res = &cloneParams{
 			donorHostName: donorHostName,
 			donorPort:     int(donorPort),
-			donorUser:     moco.CloneDonorUser,
+			donorUser:     mocoagent.CloneDonorUser,
 			donorPassword: agent.donorUserPassword,
 		}
 	} else {

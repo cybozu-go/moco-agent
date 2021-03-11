@@ -88,7 +88,7 @@ func testBackupBinlog() {
 		}, 10*time.Second).Should(Succeed())
 
 		By("setting environment variables for password")
-		os.Setenv(mocoagent.AdminUser, test_utils.OperatorAdminUserPassword)
+		os.Setenv(mocoagent.AdminUser, test_utils.AdminUserPassword)
 
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)

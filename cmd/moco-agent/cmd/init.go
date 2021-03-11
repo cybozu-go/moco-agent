@@ -8,6 +8,7 @@ import (
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/initialize"
 	"github.com/cybozu-go/well"
 	"github.com/spf13/cobra"
@@ -20,7 +21,7 @@ const (
 
 var (
 	passwordFilePath = filepath.Join(moco.TmpPath, "moco-root-password")
-	agentConfPath    = filepath.Join(moco.MySQLDataPath, "agent.cnf")
+	agentConfPath    = filepath.Join(mocoagent.MySQLDataPath, "agent.cnf")
 )
 
 var initCmd = &cobra.Command{

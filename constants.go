@@ -32,14 +32,14 @@ const (
 	// AdminPasswordEnvName is a name of the environment variable of a password for both operator and operator-admin.
 	AdminPasswordEnvName = "ADMIN_PASSWORD"
 
+	// AgentPasswordEnvName is a name of the environment variable of a password for the misc user.
+	AgentPasswordEnvName = "AGENT_PASSWORD"
+
 	// ReplicationPasswordEnvName is a name of the environment variable of a password for replication user.
 	ReplicationPasswordEnvName = "REPLICATION_PASSWORD"
 
 	// ClonePasswordEnvName is a name of the environment variable of a password for donor user.
 	ClonePasswordEnvName = "CLONE_DONOR_PASSWORD"
-
-	// MiscPasswordEnvName is a name of the environment variable of a password for the misc user.
-	AgentPasswordEnvName = "AGENT_PASSWORD"
 
 	// ReadOnlyPasswordEnvName is a name of the environment variable of a password for moco-readonly.
 	ReadOnlyPasswordEnvName = "READONLY_PASSWORD"

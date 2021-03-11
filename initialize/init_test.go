@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	initOnceCompletedPath = filepath.Join(moco.MySQLDataPath, "init-once-completed")
+	initOnceCompletedPath = filepath.Join(mocoagent.MySQLDataPath, "init-once-completed")
 	passwordFilePath      = filepath.Join("/tmp", "moco-root-password")
-	agentConfPath         = filepath.Join(moco.MySQLDataPath, "agent.cnf")
+	agentConfPath         = filepath.Join(mocoagent.MySQLDataPath, "agent.cnf")
 	adminPassword         = "admin-password"
 )
 
@@ -281,8 +281,8 @@ func testInstallPlugins(t *testing.T) {
 func testRestoreUsers(t *testing.T) {
 	ctx := context.Background()
 
-	if err := os.Setenv(moco.OperatorPasswordEnvName, adminPassword); err != nil {
-		t.Fatalf("failed to set env %s: %v", moco.OperatorPasswordEnvName, err)
+	if err := os.Setenv(mocoagent.AdminPasswordEnvName, adminPassword); err != nil {
+		t.Fatalf("failed to set env %s: %v", mocoagent.AdminPasswordEnvName, err)
 	}
 	defer os.Unsetenv(moco.PodNameEnvName)
 	err := RestoreUsers(ctx, passwordFilePath, agentConfPath, "moco-admin", &adminPassword)
@@ -309,9 +309,9 @@ func testRestoreUsers(t *testing.T) {
 	defer db.Close()
 
 	for _, k := range []string{
-		moco.OperatorAdminUser,
-		moco.CloneDonorUser,
-		moco.ReplicationUser,
+		mocoagent.AdminUser,
+		mocoagent.CloneDonorUser,
+		mocoagent.ReplicationUser,
 		mocoagent.AgentUser,
 	} {
 		sqlRows, err := db.Query("SELECT user FROM mysql.user WHERE (user = ? AND host = '%')", k)
