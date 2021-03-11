@@ -123,10 +123,11 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 		return nil, status.Errorf(codes.Internal, "failed to flush binary logs: err=%+v", err)
 	}
 
+	startTime := time.Now()
+	metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, true)
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
-		startTime := time.Now()
-		metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, true)
+
 		defer func() {
 			s.agent.sem.Release(1)
 			metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, false)

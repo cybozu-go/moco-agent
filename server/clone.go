@@ -99,10 +99,11 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 
 	metrics.IncrementCloneCountMetrics(s.agent.clusterName)
 
+	startTime := time.Now()
+	metrics.SetCloneInProgressMetrics(s.agent.clusterName, true)
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
-		startTime := time.Now()
-		metrics.SetCloneInProgressMetrics(s.agent.clusterName, true)
+
 		defer func() {
 			s.agent.sem.Release(1)
 			metrics.SetCloneInProgressMetrics(s.agent.clusterName, false)
