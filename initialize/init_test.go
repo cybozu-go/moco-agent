@@ -2,6 +2,7 @@ package initialize
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -24,6 +25,7 @@ var (
 	agentConfPath         = filepath.Join(moco.MySQLDataPath, "agent.cnf")
 	initUser              = "init-user"
 	initPassword          = "init-password"
+	adminPassword         = "admin-password"
 )
 
 func testGenerateMySQLConfiguration(t *testing.T) {
@@ -129,67 +131,34 @@ func testWaitInstanceBootstrap(t *testing.T) {
 	}
 }
 
-func testInitializeRootUser(t *testing.T) {
-	ctx := context.Background()
-	ip := myAddress()
-	if ip.IsUnspecified() {
-		t.Fatal("cannot get my IP address")
-	}
-
-	// Without password
-	err := initializeRootUser(ctx, passwordFilePath, "root", nil, rootPassword, ip.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Use password set by the previous initializeRootUser
-	err = initializeRootUser(ctx, passwordFilePath, "root", &rootPassword, rootPassword, ip.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := execSQL(ctx, passwordFilePath, []byte("SELECT host FROM mysql.user WHERE user='root';"), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	found := false
-	for _, user := range strings.Split(string(out), "\n") {
-		if strings.Contains(user, ip.String()) {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("cannot find user: root@" + ip.String())
-	}
-}
-
-func testInitializeOperatorUser(t *testing.T) {
-	ctx := context.Background()
-	operatorPassword := "operator-password"
-	err := initializeOperatorUser(ctx, passwordFilePath, operatorPassword)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := execSQL(ctx, passwordFilePath, []byte("SELECT count(*) FROM mysql.user WHERE user='moco';"), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(out), "1") {
-		t.Fatal("cannot find user: moco")
-	}
-}
-
-func testInitializeOperatorAdminUser(t *testing.T) {
+func testInitializeAdminUser(t *testing.T) {
 	ctx := context.Background()
 	adminPassword := "admin-password"
-	err := initializeOperatorAdminUser(ctx, passwordFilePath, adminPassword)
+	err := initializeAdminUser(ctx, passwordFilePath, "root", nil, adminPassword)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	out, err := execSQL(ctx, passwordFilePath, []byte("SELECT count(*) FROM mysql.user WHERE user='moco-admin';"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "1") {
+		t.Fatal("cannot find user: moco-admin")
+	}
+	out, err = execSQL(ctx, passwordFilePath, []byte("SELECT count(*) FROM mysql.user WHERE user='root';"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "0") {
+		t.Fatal("root user isn't dropped")
+	}
+
+	err = initializeAdminUser(ctx, passwordFilePath, "moco-admin", &adminPassword, adminPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err = execSQL(ctx, passwordFilePath, []byte("SELECT count(*) FROM mysql.user WHERE user='moco-admin';"), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,81 +296,34 @@ func testInstallPlugins(t *testing.T) {
 func testRestoreUsers(t *testing.T) {
 	ctx := context.Background()
 
+	if err := os.Setenv(moco.OperatorPasswordEnvName, adminPassword); err != nil {
+		t.Fatalf("failed to set env %s: %v", moco.OperatorPasswordEnvName, err)
+	}
+	defer os.Unsetenv(moco.PodNameEnvName)
+	err := RestoreUsers(ctx, passwordFilePath, agentConfPath, "moco-admin", &adminPassword)
+	if err != nil {
+		t.Error(err)
+	}
+
 	conf := mysql.NewConfig()
-	conf.User = "root"
-	conf.Passwd = rootPassword
+	conf.User = "moco-admin"
+	conf.Passwd = adminPassword
 	conf.Net = "unix"
 	conf.Addr = "/var/run/mysqld/mysqld.sock"
 	conf.InterpolateParams = true
 
 	var db *sqlx.DB
-	var err error
 	for i := 0; i < 20; i++ {
 		db, err = sqlx.Connect("mysql", conf.FormatDSN())
 		if err == nil {
 			break
 		}
+		fmt.Printf("%+v", err)
 		time.Sleep(time.Second * 3)
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = db.Exec("CREATE USER IF NOT EXISTS ?@'localhost' IDENTIFIED BY ?", initUser, initPassword)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = db.Exec("GRANT ALL ON *.* TO ?@'localhost' WITH GRANT OPTION", initUser)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = db.Exec("GRANT PROXY ON ''@'' TO ?@'localhost' WITH GRANT OPTION", initUser)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = db.Exec("CREATE USER IF NOT EXISTS 'hoge'@'%' IDENTIFIED BY 'password'")
-	if err != nil {
-		t.Fatal(err)
-	}
-	db.Close()
-
-	ip := myAddress()
-	if ip.IsUnspecified() {
-		t.Fatal("cannot get my IP address")
-	}
-	err = os.Setenv(moco.RootPasswordEnvName, rootPassword)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = RestoreUsers(ctx, passwordFilePath, agentConfPath, initUser, &initPassword, ip.String())
-	if err != nil {
-		t.Error(err)
-	}
-
-	for i := 0; i < 20; i++ {
-		db, err = sqlx.Connect("mysql", conf.FormatDSN())
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Second * 3)
-	}
-	if err != nil {
-		t.Fatal(err)
 	}
 	defer db.Close()
 
-	for _, k := range []string{"localhost", ip.String()} {
-		sqlRows, err := db.Query("SELECT user FROM mysql.user WHERE (user = 'root' AND host = ?)", k)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !sqlRows.Next() {
-			t.Errorf("user 'root'@'%s' should be created, but not exist", k)
-		}
-	}
-
 	for _, k := range []string{
-		moco.OperatorUser,
 		moco.OperatorAdminUser,
 		moco.CloneDonorUser,
 		moco.ReplicationUser,
@@ -467,9 +389,7 @@ func TestInit(t *testing.T) {
 	t.Run("generateMySQLConfiguration", testGenerateMySQLConfiguration)
 	t.Run("initializeInstance", testInitializeInstance)
 	t.Run("waitInstanceBootstrap", testWaitInstanceBootstrap)
-	t.Run("initializeRootUser", testInitializeRootUser)
-	t.Run("initializeOperatorUser", testInitializeOperatorUser)
-	t.Run("initializeOperatorAdminUser", testInitializeOperatorAdminUser)
+	t.Run("initializeAdminUser", testInitializeAdminUser)
 	t.Run("initializeDonorUser", testInitializeDonorUser)
 	t.Run("initializeReplicationUser", testInitializeReplicationUser)
 	t.Run("initializeAgentUser", testInitializeAgentUser)
