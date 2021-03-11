@@ -28,11 +28,10 @@ const (
 	ExternalInitUserPassword  = "externalinitpassword"
 
 	// Dummy password for MySQL users which are managed by MOCO.
-	OperatorUserPassword      = "userpassword"
-	OperatorAdminUserPassword = "adminpassword"
-	ReplicationUserPassword   = "replpassword"
-	CloneDonorUserPassword    = "clonepassword"
-	AgentUserPassword         = "agentpassword"
+	AdminUserPassword       = "adminpassword"
+	ReplicationUserPassword = "replpassword"
+	CloneDonorUserPassword  = "clonepassword"
+	AgentUserPassword       = "agentpassword"
 
 	// Docker network name for test.
 	networkName = "moco-agent-test-net"
@@ -144,7 +143,7 @@ func InitializeMySQL(port int) error {
 	}{
 		{
 			name:     mocoagent.AdminUser,
-			password: OperatorUserPassword,
+			password: AdminUserPassword,
 		},
 		{
 			name:     mocoagent.AgentUser,

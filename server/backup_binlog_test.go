@@ -15,7 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco-agent/test_utils"
@@ -63,6 +63,8 @@ func testBackupBinlog() {
 		test_utils.StopAndRemoveMySQLD(replicaHost)
 		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, binlogPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
+		err = test_utils.InitializeMySQL(replicaPort)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.StopMinIO(agentTestPrefix + "minio")
 		err = test_utils.StartMinIO(agentTestPrefix+"minio", 9000)
@@ -86,7 +88,7 @@ func testBackupBinlog() {
 		}, 10*time.Second).Should(Succeed())
 
 		By("setting environment variables for password")
-		os.Setenv(moco.RootPasswordEnvName, test_utils.RootUserPassword)
+		os.Setenv(mocoagent.AdminUser, test_utils.OperatorAdminUserPassword)
 
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
