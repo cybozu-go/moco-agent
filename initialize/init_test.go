@@ -3,7 +3,6 @@ package initialize
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,14 +35,14 @@ func testGenerateMySQLConfiguration(t *testing.T) {
 		t.Fatalf("failed to craete temp dir: %v", err)
 	}
 
-	template, err := ioutil.ReadFile("testdata/template-my.cnf")
+	template, err := os.ReadFile("testdata/template-my.cnf")
 	if err != nil {
 		t.Fatalf("failed to load testdata: %v", err)
 	}
 
 	templateConfPath := filepath.Join(tempDir, moco.MySQLConfTemplatePath, moco.MySQLConfName)
 
-	if err := ioutil.WriteFile(templateConfPath, template, 0644); err != nil {
+	if err := os.WriteFile(templateConfPath, template, 0644); err != nil {
 		t.Fatalf("failed to create mysql configuration file template: %v", err)
 	}
 
@@ -57,12 +56,12 @@ func testGenerateMySQLConfiguration(t *testing.T) {
 		t.Fatalf("failed to generate mysql configuration file: %v", err)
 	}
 
-	want, err := ioutil.ReadFile("testdata/my.cnf")
+	want, err := os.ReadFile("testdata/my.cnf")
 	if err != nil {
 		t.Fatalf("failed to load testdata: %v", err)
 	}
 
-	got, err := ioutil.ReadFile(filepath.Join(tempDir, moco.MySQLConfPath, moco.MySQLConfName))
+	got, err := os.ReadFile(filepath.Join(tempDir, moco.MySQLConfPath, moco.MySQLConfName))
 	if err != nil {
 		t.Fatalf("failed to load generated mysql configration file: %v", err)
 	}
@@ -81,7 +80,7 @@ func testInitializeInstance(t *testing.T) {
 	}
 
 	confPath := filepath.Join(moco.MySQLConfPath, moco.MySQLConfName)
-	err = ioutil.WriteFile(confPath, []byte(`[client]
+	err = os.WriteFile(confPath, []byte(`[client]
 socket = /var/run/mysqld/mysqld.sock
 loose_default_character_set = utf8mb4
 [mysqld]

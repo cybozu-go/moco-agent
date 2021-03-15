@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/cybozu-go/log"
@@ -37,7 +37,7 @@ var initCmd = &cobra.Command{
 
 			err := initialize.InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, agentConfPath, serverIDBase)
 			if err != nil {
-				f, err2 := ioutil.ReadFile("/var/log/mysql/mysql.err")
+				f, err2 := os.ReadFile("/var/log/mysql/mysql.err")
 				if err2 != nil {
 					log.Error("failed to read mysql.err", map[string]interface{}{
 						log.FnError: err2,

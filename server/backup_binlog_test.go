@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"strings"
@@ -43,7 +42,7 @@ func testBackupBinlog() {
 
 	BeforeEach(func() {
 		var err error
-		tmpDir, err = ioutil.TempDir("", agentTestPrefix)
+		tmpDir, err = os.MkdirTemp("", agentTestPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
 		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, tmpDir, replicaPort,
 			&accessor.MySQLAccessorConfig{
@@ -54,7 +53,7 @@ func testBackupBinlog() {
 		)
 
 		By("creating MySQL and MinIO containers")
-		binlogDir, err = ioutil.TempDir("", binlogDirPrefix)
+		binlogDir, err = os.MkdirTemp("", binlogDirPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
 		fmt.Println(binlogDir)
 		err = os.Chmod(binlogDir, 0777|os.ModeSetgid)

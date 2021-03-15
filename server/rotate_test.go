@@ -1,7 +1,6 @@
 package server
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -22,7 +21,7 @@ func testRotate() {
 
 	BeforeEach(func() {
 		var err error
-		tmpDir, err = ioutil.TempDir("", "moco-test-agent-")
+		tmpDir, err = os.MkdirTemp("", "moco-test-agent-")
 		Expect(err).ShouldNot(HaveOccurred())
 		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, tmpDir, replicaPort,
 			&accessor.MySQLAccessorConfig{
