@@ -348,6 +348,15 @@ func testClone() {
 		_, err := gsrv.Clone(context.Background(), req)
 		Expect(err).ShouldNot(HaveOccurred())
 
+		By("wating clone process is finished")
+		Eventually(func() error {
+			if agent.sem.TryAcquire(1) {
+				agent.sem.Release(1)
+				return nil
+			}
+			return errors.New("clone process is still working")
+		}, 30*time.Second).Should(Succeed())
+
 		By("confirming clone by init user")
 		Eventually(func() error {
 			db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), test_utils.ExternalInitUser, test_utils.ExternalInitUserPassword)

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -97,6 +98,15 @@ func testHealth() {
 			}
 			return fmt.Errorf("should become NOT_SERVING and IsUnderCloning=true: res=%s, err=%+v", res.Status, err)
 		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
+
+		By("wating clone process is finished")
+		Eventually(func() error {
+			if agent.sem.TryAcquire(1) {
+				agent.sem.Release(1)
+				return nil
+			}
+			return errors.New("clone process is still working")
+		}, 30*time.Second).Should(Succeed())
 
 		By("wating cloning is completed")
 		Eventually(func() error {

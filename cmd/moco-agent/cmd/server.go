@@ -46,12 +46,6 @@ func (l mysqlLogger) Print(v ...interface{}) {
 	log.Error("[mysql] "+fmt.Sprint(v...), nil)
 }
 
-type promhttpLogger struct{}
-
-func (l promhttpLogger) Println(v ...interface{}) {
-	log.Error("[promhttp] "+fmt.Sprint(v...), nil)
-}
-
 var agentCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Start MySQL agent service",
@@ -97,17 +91,11 @@ var agentCmd = &cobra.Command{
 
 		mysql.SetLogger(mysqlLogger{})
 
-		registry := prometheus.NewRegistry()
+		registry := prometheus.DefaultRegisterer
 		metrics.RegisterMetrics(registry)
 
 		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.HandlerFor(
-			registry,
-			promhttp.HandlerOpts{
-				ErrorLog:      promhttpLogger{},
-				ErrorHandling: promhttp.ContinueOnError,
-			},
-		))
+		mux.Handle("/metrics", promhttp.Handler())
 		serv := &well.HTTPServer{
 			Server: &http.Server{
 				Addr:    viper.GetString(metricsAddressFlag),

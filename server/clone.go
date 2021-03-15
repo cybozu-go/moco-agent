@@ -105,8 +105,8 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 	env.Go(func(ctx context.Context) error {
 
 		defer func() {
-			s.agent.sem.Release(1)
 			metrics.SetCloneInProgressMetrics(s.agent.clusterName, false)
+			s.agent.sem.Release(1)
 		}()
 
 		err := clone(ctx, db, params.donorUser, params.donorPassword, params.donorHostName, params.donorPort, s.agent)
