@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -173,12 +173,12 @@ func gatherParams(req *agentrpc.CloneRequest, agent *Agent) (*cloneParams, error
 			donorPassword: agent.donorUserPassword,
 		}
 	} else {
-		rawDonorHostName, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryHostKey)
+		rawDonorHostName, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryHostKey)
 		if err != nil {
 			return nil, errors.New("cannot read donor host from Secret file")
 		}
 
-		rawDonorPort, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryPortKey)
+		rawDonorPort, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryPortKey)
 		if err != nil {
 			return nil, errors.New("cannot read donor port from Secret file")
 		}
@@ -187,22 +187,22 @@ func gatherParams(req *agentrpc.CloneRequest, agent *Agent) (*cloneParams, error
 			return nil, errors.New("cannot convert donor port to int")
 		}
 
-		rawDonorUser, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceCloneUserKey)
+		rawDonorUser, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceCloneUserKey)
 		if err != nil {
 			return nil, errors.New("cannot read donor user from Secret file")
 		}
 
-		rawDonorPassword, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceClonePasswordKey)
+		rawDonorPassword, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceClonePasswordKey)
 		if err != nil {
 			return nil, errors.New("cannot read donor password from Secret file")
 		}
 
-		rawInitUser, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterCloneUserKey)
+		rawInitUser, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterCloneUserKey)
 		if err != nil {
 			return nil, errors.New("cannot read init user from Secret file")
 		}
 
-		rawInitPassword, err := ioutil.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterClonePasswordKey)
+		rawInitPassword, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterClonePasswordKey)
 		if err != nil {
 			return nil, errors.New("cannot read init password from Secret file")
 		}

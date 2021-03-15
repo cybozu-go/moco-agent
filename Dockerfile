@@ -1,5 +1,5 @@
 # Build the moco-agent binary
-FROM quay.io/cybozu/golang:1.15-focal as builder
+FROM quay.io/cybozu/golang:1.16-focal as builder
 
 ARG GRPC_HEALTH_PROBE_VERSION=0.3.6
 
@@ -12,7 +12,7 @@ RUN chmod +x grpc-health-probe
 COPY ./ .
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o moco-agent ./cmd/moco-agent/main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o moco-agent ./cmd/moco-agent/main.go
 
 FROM quay.io/cybozu/ubuntu:20.04
 LABEL org.opencontainers.image.source https://github.com/cybozu-go/moco-agent

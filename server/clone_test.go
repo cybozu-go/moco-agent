@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"path"
@@ -413,7 +412,7 @@ func testClone() {
 
 func writeTestData(data *testData) {
 	writeFile := func(filename, data string) error {
-		return ioutil.WriteFile(path.Join(replicationSourceSecretPath, filename), []byte(data), 0664)
+		return os.WriteFile(path.Join(replicationSourceSecretPath, filename), []byte(data), 0664)
 	}
 
 	var err error

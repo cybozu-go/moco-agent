@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -240,7 +239,7 @@ func initializeAdminUser(ctx context.Context, passwordFilePath, initUser string,
 		conf += fmt.Sprintf(`password="%s"
 	`, *initPassword)
 	}
-	err := ioutil.WriteFile(passwordFilePath, []byte(conf), 0600)
+	err := os.WriteFile(passwordFilePath, []byte(conf), 0600)
 	if err != nil {
 		return err
 	}
@@ -270,7 +269,7 @@ FLUSH PRIVILEGES;
 	user="%s"
 	password="%s"
 	`
-	err = ioutil.WriteFile(passwordFilePath, []byte(fmt.Sprintf(passwordConf, mocoagent.AdminUser, password)), 0600)
+	err = os.WriteFile(passwordFilePath, []byte(fmt.Sprintf(passwordConf, mocoagent.AdminUser, password)), 0600)
 	if err != nil {
 		return err
 	}
@@ -311,7 +310,7 @@ GRANT
 	if err != nil && err.(*os.PathError).Unwrap() != syscall.ENOENT {
 		return err
 	}
-	return ioutil.WriteFile(moco.DonorPasswordPath, []byte(password), 0400)
+	return os.WriteFile(moco.DonorPasswordPath, []byte(password), 0400)
 }
 
 func initializeReplicationUser(ctx context.Context, passwordFilePath string, password string) error {
@@ -379,7 +378,7 @@ password=%s
 	if err != nil && err.(*os.PathError).Unwrap() != syscall.ENOENT {
 		return err
 	}
-	if err := ioutil.WriteFile(agentConfPath, []byte(fmt.Sprintf(conf, mocoagent.AgentUser, password)), 0400); err != nil {
+	if err := os.WriteFile(agentConfPath, []byte(fmt.Sprintf(conf, mocoagent.AgentUser, password)), 0400); err != nil {
 		return err
 	}
 
@@ -387,7 +386,7 @@ password=%s
 	if err != nil && err.(*os.PathError).Unwrap() != syscall.ENOENT {
 		return err
 	}
-	return ioutil.WriteFile(mocoagent.AgentPasswordPath, []byte(password), 0400)
+	return os.WriteFile(mocoagent.AgentPasswordPath, []byte(password), 0400)
 }
 
 func initializeReadOnlyUser(ctx context.Context, passwordFilePath string, password string) error {

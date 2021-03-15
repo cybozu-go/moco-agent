@@ -12,7 +12,7 @@ RUN apt-get update \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
-ARG GO_VERSION=1.15.7
+ARG GO_VERSION=1.16.2
 RUN curl -s -f -o go.tar.gz https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz \
     && tar -x -z -C /usr/local -f go.tar.gz \
     && rm go.tar.gz \

@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -69,13 +68,13 @@ var agentCmd = &cobra.Command{
 			return fmt.Errorf("%s is empty", moco.PodNameEnvName)
 		}
 
-		buf, err := ioutil.ReadFile(mocoagent.AgentPasswordPath)
+		buf, err := os.ReadFile(mocoagent.AgentPasswordPath)
 		if err != nil {
 			return fmt.Errorf("cannot read agent password file at %s", mocoagent.AgentPasswordPath)
 		}
 		agentPassword := strings.TrimSpace(string(buf))
 
-		buf, err = ioutil.ReadFile(moco.DonorPasswordPath)
+		buf, err = os.ReadFile(moco.DonorPasswordPath)
 		if err != nil {
 			return fmt.Errorf("cannot read donor password file at %s", moco.DonorPasswordPath)
 		}
