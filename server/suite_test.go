@@ -32,6 +32,7 @@ var replicationSourceSecretPath string
 
 func TestAgent(t *testing.T) {
 	RegisterFailHandler(Fail)
+	SetDefaultEventuallyTimeout(2 * time.Minute)
 	RunSpecs(t, "Agent Suite")
 }
 

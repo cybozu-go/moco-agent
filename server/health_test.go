@@ -106,7 +106,7 @@ func testHealth() {
 				return nil
 			}
 			return errors.New("clone process is still working")
-		}, 30*time.Second).Should(Succeed())
+		}).Should(Succeed())
 
 		By("wating cloning is completed")
 		Eventually(func() error {
@@ -115,7 +115,7 @@ func testHealth() {
 				return nil
 			}
 			return fmt.Errorf("should return without error: res=%s", res.String())
-		}, 30*time.Second, time.Second).Should(Succeed())
+		}).Should(Succeed())
 	})
 
 	It("should return hasIOThreadError=true if replica status has IO error", func() {

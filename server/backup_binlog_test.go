@@ -84,7 +84,7 @@ func testBackupBinlog() {
 
 		Eventually(func() error {
 			return createBucket(sess, bucketName)
-		}, 10*time.Second).Should(Succeed())
+		}).Should(Succeed())
 
 		By("setting environment variables for password")
 		os.Setenv(mocoagent.AdminPasswordEnvName, test_utils.AdminUserPassword)
@@ -134,7 +134,7 @@ func testBackupBinlog() {
 				return nil
 			}
 			return errors.New("process is still working")
-		}, 30*time.Second).Should(Succeed())
+		}).Should(Succeed())
 
 		By("checking in-progress metric is cleared")
 		binlogBackupGauge, _ = getMetric(registry, metricsPrefix+"binlog_backup_in_progress")
@@ -215,7 +215,7 @@ func testBackupBinlog() {
 				return nil
 			}
 			return errors.New("backup process is still working")
-		}, 30*time.Second).Should(Succeed())
+		}).Should(Succeed())
 
 		By("checking the multiple binlog files are uploaded")
 		_, err = s3.New(sess).HeadObject(&s3.HeadObjectInput{
