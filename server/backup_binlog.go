@@ -20,7 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/cybozu-go/log"
-	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/well"
@@ -98,9 +98,9 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 		return nil, status.Errorf(codes.Internal, "failed to get object: err=%+v", err)
 	}
 
-	// TODO: change user
-	rootPassword := os.Getenv(moco.RootPasswordEnvName)
-	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.RootUser, rootPassword)
+	// TODO: change user to AgentUser (need to add appropriate privileges to AgentUser)
+	adminPassword := os.Getenv(mocoagent.AdminPasswordEnvName)
+	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), mocoagent.AdminUser, adminPassword)
 	if err != nil {
 		s.agent.sem.Release(1)
 		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
@@ -123,10 +123,11 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 		return nil, status.Errorf(codes.Internal, "failed to flush binary logs: err=%+v", err)
 	}
 
+	startTime := time.Now()
+	metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, true)
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
-		startTime := time.Now()
-		metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, true)
+
 		defer func() {
 			s.agent.sem.Release(1)
 			metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, false)
@@ -168,9 +169,9 @@ func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *agentrpc.Flu
 	}
 	defer s.agent.sem.Release(1)
 
-	// TODO: change user
-	rootPassword := os.Getenv(moco.RootPasswordEnvName)
-	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.RootUser, rootPassword)
+	// TODO: change user to AgentUser (need to add appropriate privileges to AgentUser)
+	adminPassword := os.Getenv(mocoagent.AdminPasswordEnvName)
+	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), mocoagent.AdminUser, adminPassword)
 	if err != nil {
 		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,

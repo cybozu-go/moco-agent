@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/initialize"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
@@ -40,7 +40,7 @@ const timeoutDuration = 120 * time.Second
 
 var (
 	passwordFilePath = filepath.Join(moco.TmpPath, "moco-root-password")
-	miscConfPath     = filepath.Join(moco.MySQLDataPath, "misc.cnf")
+	agentConfPath    = filepath.Join(mocoagent.MySQLDataPath, "agent.cnf")
 )
 
 type cloneParams struct {
@@ -66,7 +66,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
 	}
 
-	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.MiscUser, s.agent.miscUserPassword)
+	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), mocoagent.AgentUser, s.agent.agentUserPassword)
 	if err != nil {
 		s.agent.sem.Release(1)
 		log.Error("failed to connect to database before getting MySQL primary status", map[string]interface{}{
@@ -99,10 +99,11 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 
 	metrics.IncrementCloneCountMetrics(s.agent.clusterName)
 
+	startTime := time.Now()
+	metrics.SetCloneInProgressMetrics(s.agent.clusterName, true)
 	env := well.NewEnvironment(context.Background())
 	env.Go(func(ctx context.Context) error {
-		startTime := time.Now()
-		metrics.SetCloneInProgressMetrics(s.agent.clusterName, true)
+
 		defer func() {
 			s.agent.sem.Release(1)
 			metrics.SetCloneInProgressMetrics(s.agent.clusterName, false)
@@ -123,7 +124,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 				})
 				return err
 			}
-			err = initialize.RestoreUsers(ctx, passwordFilePath, miscConfPath, params.initUser, &params.initPassword, os.Getenv(moco.PodIPEnvName))
+			err = initialize.RestoreUsers(ctx, passwordFilePath, agentConfPath, params.initUser, &params.initPassword)
 			if err != nil {
 				log.Error("failed to initialize after clone", map[string]interface{}{
 					"hostname":  s.agent.mysqlAdminHostname,
@@ -168,7 +169,7 @@ func gatherParams(req *agentrpc.CloneRequest, agent *Agent) (*cloneParams, error
 		res = &cloneParams{
 			donorHostName: donorHostName,
 			donorPort:     int(donorPort),
-			donorUser:     moco.CloneDonorUser,
+			donorUser:     mocoagent.CloneDonorUser,
 			donorPassword: agent.donorUserPassword,
 		}
 	} else {

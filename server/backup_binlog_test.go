@@ -15,7 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco-agent/test_utils"
@@ -45,7 +45,7 @@ func testBackupBinlog() {
 		var err error
 		tmpDir, err = ioutil.TempDir("", agentTestPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
-		agent = New(test_utils.Host, clusterName, token, test_utils.MiscUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, tmpDir, replicaPort,
+		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, tmpDir, replicaPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -62,6 +62,8 @@ func testBackupBinlog() {
 
 		test_utils.StopAndRemoveMySQLD(replicaHost)
 		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID, binlogDir, binlogPrefix)
+		Expect(err).ShouldNot(HaveOccurred())
+		err = test_utils.InitializeMySQL(replicaPort)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		test_utils.StopMinIO(agentTestPrefix + "minio")
@@ -86,7 +88,7 @@ func testBackupBinlog() {
 		}, 10*time.Second).Should(Succeed())
 
 		By("setting environment variables for password")
-		os.Setenv(moco.RootPasswordEnvName, test_utils.RootUserPassword)
+		os.Setenv(mocoagent.AdminPasswordEnvName, test_utils.AdminUserPassword)
 
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)

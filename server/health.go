@@ -6,6 +6,7 @@ import (
 
 	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco/accessor"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
@@ -26,7 +27,7 @@ type healthService struct {
 }
 
 func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
-	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), moco.MiscUser, s.agent.miscUserPassword)
+	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), mocoagent.AgentUser, s.agent.agentUserPassword)
 	if err != nil {
 		log.Error("failed to connect to database before health check", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,
