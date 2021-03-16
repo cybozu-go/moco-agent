@@ -37,6 +37,8 @@ const (
 	networkName = "moco-agent-test-net"
 )
 
+var MysqlSocketDir = filepath.Join(os.TempDir(), "moco-agent-test-mysql-socket-dir")
+
 var MySQLVersion = func() string {
 	if ver := os.Getenv("MYSQL_VERSION"); ver == "" {
 		os.Setenv("MYSQL_VERSION", "8.0.20")
@@ -45,6 +47,10 @@ var MySQLVersion = func() string {
 }()
 
 func StartMySQLD(name string, port int, serverID int, opt ...string) error {
+	return StartMySQLDWithSockeDir(name, port, serverID, false, opt...)
+}
+
+func StartMySQLDWithSockeDir(name string, port int, serverID int, mountSocketDir bool, opt ...string) error {
 	ctx := context.Background()
 
 	var binlogBaseDir string
@@ -66,6 +72,9 @@ func StartMySQLD(name string, port int, serverID int, opt ...string) error {
 		"-p", fmt.Sprintf("%d:%d", port, port),
 		"-e", "MYSQL_ROOT_PASSWORD=" + RootUserPassword,
 		"-v", filepath.Join(wd, "..", "my.cnf") + ":/etc/mysql/conf.d/my.cnf",
+	}
+	if mountSocketDir {
+		args = append(args, "-v", MysqlSocketDir+":/var/run/mysqld")
 	}
 	if binlogBaseDir != "" {
 		args = append(args, "-v", binlogBaseDir+":"+binlogBaseDir)
@@ -107,6 +116,18 @@ func RemoveNetwork() error {
 	ctx := context.Background()
 	cmd := well.CommandContext(ctx, "docker", "network", "rm", networkName)
 	return run(cmd)
+}
+
+func CreateSocketDir() error {
+	os.RemoveAll(MysqlSocketDir)
+	if err := os.Mkdir(MysqlSocketDir, os.ModePerm); err != nil {
+		return err
+	}
+	return os.Chmod(MysqlSocketDir, 0777)
+}
+
+func RemoveSocketDir() error {
+	return os.RemoveAll(MysqlSocketDir)
 }
 
 func Connect(port, retryCount int) (*sqlx.DB, error) {

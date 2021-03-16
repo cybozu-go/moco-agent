@@ -115,7 +115,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 		}
 
 		if req.GetExternal() {
-			err := waitBootstrap(ctx, params.initUser, params.initPassword)
+			err := waitBootstrap(ctx, params.initUser, params.initPassword, s.agent.mysqlSocketPath)
 			if err != nil {
 				log.Error("mysqld didn't boot up after cloning from external", map[string]interface{}{
 					"hostname":  s.agent.mysqlAdminHostname,
@@ -249,12 +249,12 @@ func clone(ctx context.Context, db *sqlx.DB, donorUser, donorPassword, donorHost
 	return nil
 }
 
-func waitBootstrap(ctx context.Context, user, password string) error {
+func waitBootstrap(ctx context.Context, user, password, socket string) error {
 	conf := mysql.NewConfig()
 	conf.User = user
 	conf.Passwd = password
 	conf.Net = "unix"
-	conf.Addr = "/var/run/mysqld/mysqld.sock"
+	conf.Addr = socket
 	conf.InterpolateParams = true
 	uri := conf.FormatDSN()
 

@@ -81,8 +81,13 @@ var agentCmd = &cobra.Command{
 			return fmt.Errorf("%s is empty", moco.AgentTokenEnvName)
 		}
 
+		socketPath := os.Getenv(mocoagent.MySQLSocketPathEnvName)
+		if socketPath == "" {
+			socketPath = mocoagent.MySQLSocketDefaultPath
+		}
+
 		agent := server.New(podName, clusterName, token,
-			agentPassword, donorPassword, moco.ReplicationSourceSecretPath, moco.VarLogPath, moco.MySQLAdminPort,
+			agentPassword, donorPassword, moco.ReplicationSourceSecretPath, socketPath, moco.VarLogPath, moco.MySQLAdminPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   viper.GetDuration(connMaxLifetimeFlag),
 				ConnectionTimeout: viper.GetDuration(connectionTimeoutFlag),

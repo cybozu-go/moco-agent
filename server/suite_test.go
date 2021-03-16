@@ -28,7 +28,9 @@ const (
 	replicaServerID = 2
 )
 
-var replicationSourceSecretPath string
+var (
+	replicationSourceSecretPath string
+)
 
 func TestAgent(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -56,6 +58,8 @@ var _ = BeforeSuite(func(done Done) {
 		return test_utils.CreateNetwork()
 	}, 10*time.Second).Should(Succeed())
 
+	test_utils.CreateSocketDir()
+
 	close(done)
 }, 60)
 
@@ -63,6 +67,7 @@ var _ = AfterSuite(func() {
 	test_utils.StopAndRemoveMySQLD(donorHost)
 	test_utils.StopAndRemoveMySQLD(replicaHost)
 	test_utils.RemoveNetwork()
+	test_utils.RemoveSocketDir()
 
 	err := os.RemoveAll(replicationSourceSecretPath)
 	Expect(err).ShouldNot(HaveOccurred())

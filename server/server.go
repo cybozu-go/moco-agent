@@ -8,7 +8,7 @@ import (
 const maxCloneWorkers = 1
 
 // New returns a Agent
-func New(podName, clusterName, token, agentUserPassword, donorUserPassword, replicationSourceSecretPath, logDir string, mysqlAdminPort int, config *accessor.MySQLAccessorConfig) *Agent {
+func New(podName, clusterName, token, agentUserPassword, donorUserPassword, replicationSourceSecretPath, mysqlSocketPath, logDir string, mysqlAdminPort int, config *accessor.MySQLAccessorConfig) *Agent {
 	return &Agent{
 		sem:                         semaphore.NewWeighted(int64(maxCloneWorkers)),
 		acc:                         accessor.NewMySQLAccessor(config),
@@ -17,6 +17,7 @@ func New(podName, clusterName, token, agentUserPassword, donorUserPassword, repl
 		agentUserPassword:           agentUserPassword,
 		donorUserPassword:           donorUserPassword,
 		replicationSourceSecretPath: replicationSourceSecretPath,
+		mysqlSocketPath:             mysqlSocketPath,
 		clusterName:                 clusterName,
 		token:                       token,
 		logDir:                      logDir,
@@ -32,6 +33,7 @@ type Agent struct {
 	agentUserPassword           string
 	donorUserPassword           string
 	replicationSourceSecretPath string
+	mysqlSocketPath             string
 	clusterName                 string
 	token                       string
 	logDir                      string
