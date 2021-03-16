@@ -6,6 +6,7 @@ ARG GRPC_HEALTH_PROBE_VERSION=0.3.6
 WORKDIR /workspace
 
 RUN curl -sSLf -o grpc-health-probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64
+RUN curl -sSLf -O https://raw.githubusercontent.com/grpc-ecosystem/grpc-health-probe/v${GRPC_HEALTH_PROBE_VERSION}/LICENSE
 RUN chmod +x grpc-health-probe
 
 # Copy the go source
@@ -19,6 +20,7 @@ LABEL org.opencontainers.image.source https://github.com/cybozu-go/moco-agent
 
 WORKDIR /
 COPY --from=builder /workspace/grpc-health-probe /
+COPY --from=builder /workspace/LICENSE /usr/local/grpc-health-probe/LICENCE
 COPY --from=builder /workspace/moco-agent /
 USER 10000:10000
 
