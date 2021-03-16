@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -50,7 +51,7 @@ func testHealth() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", replicaPort,
+		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", "", replicaPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -98,6 +99,15 @@ func testHealth() {
 			return fmt.Errorf("should become NOT_SERVING and IsUnderCloning=true: res=%s, err=%+v", res.Status, err)
 		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 
+		By("wating clone process is finished")
+		Eventually(func() error {
+			if agent.sem.TryAcquire(1) {
+				agent.sem.Release(1)
+				return nil
+			}
+			return errors.New("clone process is still working")
+		}).Should(Succeed())
+
 		By("wating cloning is completed")
 		Eventually(func() error {
 			res, err := gsrv.Check(context.Background(), &healthpb.HealthCheckRequest{})
@@ -105,7 +115,7 @@ func testHealth() {
 				return nil
 			}
 			return fmt.Errorf("should return without error: res=%s", res.String())
-		}, 30*time.Second, time.Second).Should(Succeed())
+		}).Should(Succeed())
 	})
 
 	It("should return hasIOThreadError=true if replica status has IO error", func() {

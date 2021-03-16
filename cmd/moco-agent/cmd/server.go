@@ -46,12 +46,6 @@ func (l mysqlLogger) Print(v ...interface{}) {
 	log.Error("[mysql] "+fmt.Sprint(v...), nil)
 }
 
-type promhttpLogger struct{}
-
-func (l promhttpLogger) Println(v ...interface{}) {
-	log.Error("[promhttp] "+fmt.Sprint(v...), nil)
-}
-
 var agentCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Start MySQL agent service",
@@ -87,8 +81,13 @@ var agentCmd = &cobra.Command{
 			return fmt.Errorf("%s is empty", moco.AgentTokenEnvName)
 		}
 
+		socketPath := os.Getenv(mocoagent.MySQLSocketPathEnvName)
+		if socketPath == "" {
+			socketPath = mocoagent.MySQLSocketDefaultPath
+		}
+
 		agent := server.New(podName, clusterName, token,
-			agentPassword, donorPassword, moco.ReplicationSourceSecretPath, moco.VarLogPath, moco.MySQLAdminPort,
+			agentPassword, donorPassword, moco.ReplicationSourceSecretPath, socketPath, moco.VarLogPath, moco.MySQLAdminPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   viper.GetDuration(connMaxLifetimeFlag),
 				ConnectionTimeout: viper.GetDuration(connectionTimeoutFlag),
@@ -97,17 +96,11 @@ var agentCmd = &cobra.Command{
 
 		mysql.SetLogger(mysqlLogger{})
 
-		registry := prometheus.NewRegistry()
+		registry := prometheus.DefaultRegisterer
 		metrics.RegisterMetrics(registry)
 
 		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.HandlerFor(
-			registry,
-			promhttp.HandlerOpts{
-				ErrorLog:      promhttpLogger{},
-				ErrorHandling: promhttp.ContinueOnError,
-			},
-		))
+		mux.Handle("/metrics", promhttp.Handler())
 		serv := &well.HTTPServer{
 			Server: &http.Server{
 				Addr:    viper.GetString(metricsAddressFlag),

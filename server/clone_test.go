@@ -56,7 +56,7 @@ func testClone() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", replicaPort,
+		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, test_utils.MysqlSocketDir+"/mysqld.sock", "", replicaPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -156,7 +156,7 @@ func testClone() {
 				return nil
 			}
 			return errors.New("clone process is still working")
-		}, 30*time.Second).Should(Succeed())
+		}).Should(Succeed())
 
 		By("checking in-progress metric is cleared")
 		cloneGauge, _ = getMetric(registry, metricsPrefix+"clone_in_progress")
@@ -172,7 +172,7 @@ func testClone() {
 				return nil
 			}
 			return fmt.Errorf("CLONE should be completed: state=%+v, err=%+v", cloneStatus, err)
-		}, 30*time.Second).Should(Succeed())
+		}).Should(Succeed())
 
 		By("checking metrics")
 		cloneCount, err := getMetric(registry, metricsPrefix+"clone_count")
@@ -296,7 +296,7 @@ func testClone() {
 					return fmt.Errorf("doesn't reach failed state: %+v", cloneStatus.State)
 				}
 				return nil
-			}, 30*time.Second).Should(Succeed())
+			}).Should(Succeed())
 		}
 
 		Eventually(func() error {
@@ -305,7 +305,7 @@ func testClone() {
 				return nil
 			}
 			return errors.New("clone process is still working")
-		}, 30*time.Second).Should(Succeed())
+		}).Should(Succeed())
 
 		By("checking metrics")
 		// In these test cases, the clone will start and fail. So the metrics will change.
@@ -348,6 +348,15 @@ func testClone() {
 		_, err := gsrv.Clone(context.Background(), req)
 		Expect(err).ShouldNot(HaveOccurred())
 
+		By("wating clone process is finished")
+		Eventually(func() error {
+			if agent.sem.TryAcquire(1) {
+				agent.sem.Release(1)
+				return nil
+			}
+			return errors.New("clone process is still working")
+		}).Should(Succeed())
+
 		By("confirming clone by init user")
 		Eventually(func() error {
 			db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), test_utils.ExternalInitUser, test_utils.ExternalInitUserPassword)
@@ -365,7 +374,7 @@ func testClone() {
 				return fmt.Errorf("doesn't reach completed state: %+v", cloneStatus.State)
 			}
 			return nil
-		}, 30*time.Second).Should(Succeed())
+		}).Should(Succeed())
 
 		By("getting error when secret files doesn't exist")
 		pwd, err := os.Getwd()
@@ -406,7 +415,7 @@ func testClone() {
 				return fmt.Errorf("doesn't reach completed state: %+v", cloneStatus.State)
 			}
 			return nil
-		}, 30*time.Second).Should(Succeed())
+		}).Should(Succeed())
 	})
 }
 
@@ -436,7 +445,7 @@ func writeTestData(data *testData) {
 
 func initializeDonorMySQL(isExternal bool) {
 	By("initializing MySQL donor")
-	err := test_utils.StartMySQLD(donorHost, donorPort, donorServerID)
+	err := test_utils.StartMySQLDWithSockeDir(donorHost, donorPort, donorServerID, isExternal)
 	Expect(err).ShouldNot(HaveOccurred())
 	if isExternal {
 		err = test_utils.InitializeMySQLAsExternalDonor(donorPort)
