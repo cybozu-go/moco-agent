@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/cybozu-go/log"
-	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco/accessor"
 	"google.golang.org/grpc/codes"
@@ -63,16 +62,16 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 	// The below conditions utilize this to know the own instance works as primary or replica.
 	var hasIOThreadError, hasSQLThreadError bool
 	if replicaStatus != nil && replicaStatus.SlaveIOState != "" {
-		if replicaStatus.LastIoErrno != 0 || replicaStatus.SlaveIORunning != moco.ReplicaRunConnect {
+		if replicaStatus.LastIoErrno != 0 || replicaStatus.SlaveIORunning != mocoagent.ReplicaRunConnect {
 			hasIOThreadError = true
 		}
-		if replicaStatus.LastSQLErrno != 0 || replicaStatus.SlaveSQLRunning != moco.ReplicaRunConnect {
+		if replicaStatus.LastSQLErrno != 0 || replicaStatus.SlaveSQLRunning != mocoagent.ReplicaRunConnect {
 			hasSQLThreadError = true
 		}
 	}
 
 	var isUnderCloning bool
-	if cloneStatus.State.Valid && cloneStatus.State.String != moco.CloneStatusCompleted {
+	if cloneStatus.State.Valid && cloneStatus.State.String != mocoagent.CloneStatusCompleted {
 		isUnderCloning = true
 	}
 

@@ -5,13 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cybozu-go/log"
-	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/initialize"
 	"github.com/cybozu-go/moco-agent/metrics"
@@ -37,11 +35,6 @@ type cloneService struct {
 }
 
 const timeoutDuration = 120 * time.Second
-
-var (
-	passwordFilePath = filepath.Join(moco.TmpPath, "moco-root-password")
-	agentConfPath    = filepath.Join(mocoagent.MySQLDataPath, "agent.cnf")
-)
 
 type cloneParams struct {
 	donorHostName string
@@ -124,7 +117,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 				})
 				return err
 			}
-			err = initialize.RestoreUsers(ctx, passwordFilePath, agentConfPath, params.initUser, &params.initPassword)
+			err = initialize.RestoreUsers(ctx, mocoagent.MySQLPasswordFilePath, params.initUser, &params.initPassword)
 			if err != nil {
 				log.Error("failed to initialize after clone", map[string]interface{}{
 					"hostname":  s.agent.mysqlAdminHostname,
@@ -133,7 +126,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 				})
 				return err
 			}
-			err = initialize.ShutdownInstance(ctx, passwordFilePath)
+			err = initialize.ShutdownInstance(ctx, mocoagent.MySQLPasswordFilePath)
 			if err != nil {
 				log.Error("failed to shutdown mysqld after clone", map[string]interface{}{
 					"hostname":  s.agent.mysqlAdminHostname,
@@ -173,12 +166,12 @@ func gatherParams(req *agentrpc.CloneRequest, agent *Agent) (*cloneParams, error
 			donorPassword: agent.donorUserPassword,
 		}
 	} else {
-		rawDonorHostName, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryHostKey)
+		rawDonorHostName, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourcePrimaryHostKey)
 		if err != nil {
 			return nil, errors.New("cannot read donor host from Secret file")
 		}
 
-		rawDonorPort, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourcePrimaryPortKey)
+		rawDonorPort, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourcePrimaryPortKey)
 		if err != nil {
 			return nil, errors.New("cannot read donor port from Secret file")
 		}
@@ -187,22 +180,22 @@ func gatherParams(req *agentrpc.CloneRequest, agent *Agent) (*cloneParams, error
 			return nil, errors.New("cannot convert donor port to int")
 		}
 
-		rawDonorUser, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceCloneUserKey)
+		rawDonorUser, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourceCloneUserKey)
 		if err != nil {
 			return nil, errors.New("cannot read donor user from Secret file")
 		}
 
-		rawDonorPassword, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceClonePasswordKey)
+		rawDonorPassword, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourceClonePasswordKey)
 		if err != nil {
 			return nil, errors.New("cannot read donor password from Secret file")
 		}
 
-		rawInitUser, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterCloneUserKey)
+		rawInitUser, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourceInitAfterCloneUserKey)
 		if err != nil {
 			return nil, errors.New("cannot read init user from Secret file")
 		}
 
-		rawInitPassword, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + moco.ReplicationSourceInitAfterClonePasswordKey)
+		rawInitPassword, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourceInitAfterClonePasswordKey)
 		if err != nil {
 			return nil, errors.New("cannot read init password from Secret file")
 		}

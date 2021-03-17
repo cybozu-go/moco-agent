@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/cybozu-go/log"
-	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/well"
 )
@@ -29,9 +28,9 @@ type MyConfTemplateParameters struct {
 	AdminAddress string
 }
 
-func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath, agentConfPath string, serverIDBase uint32) error {
+func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath string, serverIDBase uint32) error {
 	log.Info("generate mysql configuration file", nil)
-	err := generateMySQLConfiguration(ctx, serverIDBase, moco.MySQLConfTemplatePath, moco.MySQLConfPath, moco.MySQLConfName)
+	err := generateMySQLConfiguration(ctx, serverIDBase, mocoagent.MySQLConfTemplatePath, mocoagent.MySQLConfPath, mocoagent.MySQLConfFileName)
 	if err != nil {
 		return err
 	}
@@ -63,7 +62,7 @@ func InitializeOnce(ctx context.Context, initOnceCompletedPath, passwordFilePath
 		return err
 	}
 
-	err = RestoreUsers(ctx, passwordFilePath, agentConfPath, "root", nil)
+	err = RestoreUsers(ctx, passwordFilePath, "root", nil)
 	if err != nil {
 		return err
 	}
@@ -101,18 +100,18 @@ func removeAllFiles(dir string) error {
 // generateMySQLConfiguration generate a MySQL configuration file.
 func generateMySQLConfiguration(ctx context.Context, serverIDBase uint32,
 	mySQLConfTemplatePath, mySQLConfPath, mySQLConfName string) error {
-	if len(os.Getenv(moco.PodNameEnvName)) == 0 {
-		return fmt.Errorf("environment variable %s is required", moco.PodNameEnvName)
+	if len(os.Getenv(mocoagent.PodNameEnvKey)) == 0 {
+		return fmt.Errorf("environment variable %s is required", mocoagent.PodNameEnvKey)
 	}
 
-	serverID, err := confServerID(os.Getenv(moco.PodNameEnvName), serverIDBase)
+	serverID, err := confServerID(os.Getenv(mocoagent.PodNameEnvKey), serverIDBase)
 	if err != nil {
 		return fmt.Errorf("failed to generate serverID: %w", err)
 	}
 
 	parameters := MyConfTemplateParameters{
 		ServerID:     serverID,
-		AdminAddress: os.Getenv(moco.PodNameEnvName),
+		AdminAddress: os.Getenv(mocoagent.PodNameEnvKey),
 	}
 
 	tmpl, err := template.ParseFiles(filepath.Join(mySQLConfTemplatePath, mySQLConfName))
@@ -134,39 +133,39 @@ func generateMySQLConfiguration(ctx context.Context, serverIDBase uint32,
 }
 
 // RestoreUsers creates users for MOCO and grants privileges to them.
-func RestoreUsers(ctx context.Context, passwordFilePath, agentConfPath, initUser string, initPassword *string) error {
+func RestoreUsers(ctx context.Context, passwordFilePath, initUser string, initPassword *string) error {
 	log.Info("setup moco-admin user", nil)
-	err := initializeAdminUser(ctx, passwordFilePath, initUser, initPassword, os.Getenv(mocoagent.AdminPasswordEnvName))
+	err := initializeAdminUser(ctx, passwordFilePath, initUser, initPassword, os.Getenv(mocoagent.AdminPasswordEnvKey))
 	if err != nil {
 		return err
 	}
 
 	log.Info("setup moco-agent user", nil)
-	err = initializeAgentUser(ctx, passwordFilePath, agentConfPath, os.Getenv(mocoagent.AgentPasswordEnvName))
+	err = initializeAgentUser(ctx, passwordFilePath, os.Getenv(mocoagent.AgentPasswordEnvKey))
 	if err != nil {
 		return err
 	}
 
 	log.Info("setup moco-clone-donor user", nil)
-	err = initializeDonorUser(ctx, passwordFilePath, os.Getenv(mocoagent.ClonePasswordEnvName))
+	err = initializeDonorUser(ctx, passwordFilePath, os.Getenv(mocoagent.CloneDonorPasswordEnvKey))
 	if err != nil {
 		return err
 	}
 
 	log.Info("setup moco-replication user", nil)
-	err = initializeReplicationUser(ctx, passwordFilePath, os.Getenv(mocoagent.ReplicationPasswordEnvName))
+	err = initializeReplicationUser(ctx, passwordFilePath, os.Getenv(mocoagent.ReplicationPasswordEnvKey))
 	if err != nil {
 		return err
 	}
 
 	log.Info("setup moco-readonly user", nil)
-	err = initializeReadOnlyUser(ctx, passwordFilePath, os.Getenv(mocoagent.ReadOnlyPasswordEnvName))
+	err = initializeReadOnlyUser(ctx, passwordFilePath, os.Getenv(mocoagent.ReadOnlyPasswordEnvKey))
 	if err != nil {
 		return err
 	}
 
 	log.Info("setup moco-writable user", nil)
-	err = initializeWritableUser(ctx, passwordFilePath, os.Getenv(mocoagent.WritablePasswordEnvName))
+	err = initializeWritableUser(ctx, passwordFilePath, os.Getenv(mocoagent.WritablePasswordEnvKey))
 	if err != nil {
 		return err
 	}
@@ -187,7 +186,7 @@ func RestoreUsers(ctx context.Context, passwordFilePath, agentConfPath, initUser
 }
 
 func initializeInstance(ctx context.Context) error {
-	out, err := doExec(ctx, nil, "mysqld", "--defaults-file="+filepath.Join(moco.MySQLConfPath, moco.MySQLConfName), "--initialize-insecure")
+	out, err := doExec(ctx, nil, "mysqld", "--defaults-file="+filepath.Join(mocoagent.MySQLConfPath, mocoagent.MySQLConfFileName), "--initialize-insecure")
 	if err != nil {
 		return fmt.Errorf("stdout=%s, err=%v", out, err)
 	}
@@ -306,11 +305,11 @@ GRANT
 		return fmt.Errorf("stdout=%s, err=%v", out, err)
 	}
 
-	err = os.Remove(moco.DonorPasswordPath)
+	err = os.Remove(mocoagent.DonorPasswordPath)
 	if err != nil && err.(*os.PathError).Unwrap() != syscall.ENOENT {
 		return err
 	}
-	return os.WriteFile(moco.DonorPasswordPath, []byte(password), 0400)
+	return os.WriteFile(mocoagent.DonorPasswordPath, []byte(password), 0400)
 }
 
 func initializeReplicationUser(ctx context.Context, passwordFilePath string, password string) error {
@@ -330,7 +329,7 @@ GRANT
 	err := t.Execute(sql, struct {
 		User     string
 		Password string
-	}{moco.ReplicationUser, password})
+	}{mocoagent.ReplicationUser, password})
 	if err != nil {
 		return err
 	}
@@ -342,7 +341,7 @@ GRANT
 	return nil
 }
 
-func initializeAgentUser(ctx context.Context, passwordFilePath string, agentConfPath string, password string) error {
+func initializeAgentUser(ctx context.Context, passwordFilePath string, password string) error {
 	t := template.Must(template.New("sql").Parse(`
 DROP USER IF EXISTS '{{ .User }}'@'%' ;
 CREATE USER '{{ .User }}'@'%' IDENTIFIED BY '{{ .Password }}' ;
@@ -374,11 +373,11 @@ GRANT
 user=%s
 password=%s
 `
-	err = os.Remove(agentConfPath)
+	err = os.Remove(mocoagent.MySQLPingConfFilePath)
 	if err != nil && err.(*os.PathError).Unwrap() != syscall.ENOENT {
 		return err
 	}
-	if err := os.WriteFile(agentConfPath, []byte(fmt.Sprintf(conf, mocoagent.AgentUser, password)), 0400); err != nil {
+	if err := os.WriteFile(mocoagent.MySQLPingConfFilePath, []byte(fmt.Sprintf(conf, mocoagent.AgentUser, password)), 0400); err != nil {
 		return err
 	}
 
@@ -407,7 +406,7 @@ GRANT
 	err := t.Execute(sql, struct {
 		User     string
 		Password string
-	}{moco.ReadOnlyUser, password})
+	}{mocoagent.ReadOnlyUser, password})
 	if err != nil {
 		return err
 	}
@@ -473,7 +472,7 @@ REVOKE
 	err := t.Execute(sql, struct {
 		User     string
 		Password string
-	}{moco.WritableUser, password})
+	}{mocoagent.WritableUser, password})
 	if err != nil {
 		return err
 	}

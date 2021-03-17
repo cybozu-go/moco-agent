@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/go-cmp/cmp"
@@ -19,7 +18,6 @@ import (
 var (
 	initOnceCompletedPath = filepath.Join(mocoagent.MySQLDataPath, "init-once-completed")
 	passwordFilePath      = filepath.Join("/tmp", "moco-root-password")
-	agentConfPath         = filepath.Join(mocoagent.MySQLDataPath, "agent.cnf")
 	adminPassword         = "admin-password"
 )
 
@@ -27,11 +25,11 @@ func testGenerateMySQLConfiguration(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 
-	if err := os.MkdirAll(filepath.Join(tempDir, moco.MySQLConfTemplatePath), 0777); err != nil {
+	if err := os.MkdirAll(filepath.Join(tempDir, mocoagent.MySQLConfTemplatePath), 0777); err != nil {
 		t.Fatalf("failed to craete temp dir: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tempDir, moco.MySQLConfPath), 0777); err != nil {
+	if err := os.MkdirAll(filepath.Join(tempDir, mocoagent.MySQLConfPath), 0777); err != nil {
 		t.Fatalf("failed to craete temp dir: %v", err)
 	}
 
@@ -40,19 +38,19 @@ func testGenerateMySQLConfiguration(t *testing.T) {
 		t.Fatalf("failed to load testdata: %v", err)
 	}
 
-	templateConfPath := filepath.Join(tempDir, moco.MySQLConfTemplatePath, moco.MySQLConfName)
+	templateConfPath := filepath.Join(tempDir, mocoagent.MySQLConfTemplatePath, mocoagent.MySQLConfFileName)
 
 	if err := os.WriteFile(templateConfPath, template, 0644); err != nil {
 		t.Fatalf("failed to create mysql configuration file template: %v", err)
 	}
 
-	if err := os.Setenv(moco.PodNameEnvName, "moco-mysqlcluster-0"); err != nil {
-		t.Fatalf("failed to set env %s: %v", moco.PodNameEnvName, err)
+	if err := os.Setenv(mocoagent.PodNameEnvKey, "moco-mysqlcluster-0"); err != nil {
+		t.Fatalf("failed to set env %s: %v", mocoagent.PodNameEnvKey, err)
 	}
-	defer os.Unsetenv(moco.PodNameEnvName)
+	defer os.Unsetenv(mocoagent.PodNameEnvKey)
 
 	if err := generateMySQLConfiguration(ctx, 1000,
-		filepath.Join(tempDir, moco.MySQLConfTemplatePath), filepath.Join(tempDir, moco.MySQLConfPath), moco.MySQLConfName); err != nil {
+		filepath.Join(tempDir, mocoagent.MySQLConfTemplatePath), filepath.Join(tempDir, mocoagent.MySQLConfPath), mocoagent.MySQLConfFileName); err != nil {
 		t.Fatalf("failed to generate mysql configuration file: %v", err)
 	}
 
@@ -61,7 +59,7 @@ func testGenerateMySQLConfiguration(t *testing.T) {
 		t.Fatalf("failed to load testdata: %v", err)
 	}
 
-	got, err := os.ReadFile(filepath.Join(tempDir, moco.MySQLConfPath, moco.MySQLConfName))
+	got, err := os.ReadFile(filepath.Join(tempDir, mocoagent.MySQLConfPath, mocoagent.MySQLConfFileName))
 	if err != nil {
 		t.Fatalf("failed to load generated mysql configration file: %v", err)
 	}
@@ -74,12 +72,12 @@ func testGenerateMySQLConfiguration(t *testing.T) {
 func testInitializeInstance(t *testing.T) {
 	ctx := context.Background()
 
-	err := os.MkdirAll(moco.MySQLConfPath, 0755)
+	err := os.MkdirAll(mocoagent.MySQLConfPath, 0755)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	confPath := filepath.Join(moco.MySQLConfPath, moco.MySQLConfName)
+	confPath := filepath.Join(mocoagent.MySQLConfPath, mocoagent.MySQLConfFileName)
 	err = os.WriteFile(confPath, []byte(`[client]
 socket = /var/run/mysqld/mysqld.sock
 loose_default_character_set = utf8mb4
@@ -188,7 +186,7 @@ func testInitializeReplicationUser(t *testing.T) {
 func testInitializeAgentUser(t *testing.T) {
 	ctx := context.Background()
 	agentPassword := "agent-password"
-	err := initializeAgentUser(ctx, passwordFilePath, agentConfPath, agentPassword)
+	err := initializeAgentUser(ctx, passwordFilePath, agentPassword)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +198,7 @@ func testInitializeAgentUser(t *testing.T) {
 	if !strings.Contains(string(out), "1") {
 		t.Fatalf("cannot find user: moco-agent")
 	}
-	_, err = os.Stat(agentConfPath)
+	_, err = os.Stat(mocoagent.MySQLPingConfFilePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,11 +278,11 @@ func testInstallPlugins(t *testing.T) {
 func testRestoreUsers(t *testing.T) {
 	ctx := context.Background()
 
-	if err := os.Setenv(mocoagent.AdminPasswordEnvName, adminPassword); err != nil {
-		t.Fatalf("failed to set env %s: %v", mocoagent.AdminPasswordEnvName, err)
+	if err := os.Setenv(mocoagent.AdminPasswordEnvKey, adminPassword); err != nil {
+		t.Fatalf("failed to set env %s: %v", mocoagent.AdminPasswordEnvKey, err)
 	}
-	defer os.Unsetenv(moco.PodNameEnvName)
-	err := RestoreUsers(ctx, passwordFilePath, agentConfPath, "moco-admin", &adminPassword)
+	defer os.Unsetenv(mocoagent.PodNameEnvKey)
+	err := RestoreUsers(ctx, passwordFilePath, "moco-admin", &adminPassword)
 	if err != nil {
 		t.Error(err)
 	}
@@ -354,12 +352,12 @@ func testRetryInitializeOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.Setenv(moco.PodNameEnvName, "moco-mysqlcluster-0"); err != nil {
-		t.Fatalf("failed to set env %s: %v", moco.PodNameEnvName, err)
+	if err := os.Setenv(mocoagent.PodNameEnvKey, "moco-mysqlcluster-0"); err != nil {
+		t.Fatalf("failed to set env %s: %v", mocoagent.PodNameEnvKey, err)
 	}
-	defer os.Unsetenv(moco.PodNameEnvName)
+	defer os.Unsetenv(mocoagent.PodNameEnvKey)
 
-	err = InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, agentConfPath, 1000)
+	err = InitializeOnce(ctx, initOnceCompletedPath, passwordFilePath, 1000)
 	if err != nil {
 		t.Fatal(err)
 	}

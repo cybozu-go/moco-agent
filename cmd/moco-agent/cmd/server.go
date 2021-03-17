@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/cybozu-go/log"
-	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server"
@@ -38,6 +37,8 @@ const (
 	connectionTimeoutFlag   = "connection-timeout"
 	logRotationScheduleFlag = "log-rotation-schedule"
 	readTimeoutFlag         = "read-timeout"
+	serverListenPort        = 9080
+	metricsListenPort       = 8080
 )
 
 type mysqlLogger struct{}
@@ -57,9 +58,9 @@ var agentCmd = &cobra.Command{
 		}
 		defer zapLogger.Sync()
 
-		podName := os.Getenv(moco.PodNameEnvName)
+		podName := os.Getenv(mocoagent.PodNameEnvKey)
 		if podName == "" {
-			return fmt.Errorf("%s is empty", moco.PodNameEnvName)
+			return fmt.Errorf("%s is empty", mocoagent.PodNameEnvKey)
 		}
 
 		buf, err := os.ReadFile(mocoagent.AgentPasswordPath)
@@ -68,26 +69,26 @@ var agentCmd = &cobra.Command{
 		}
 		agentPassword := strings.TrimSpace(string(buf))
 
-		buf, err = os.ReadFile(moco.DonorPasswordPath)
+		buf, err = os.ReadFile(mocoagent.DonorPasswordPath)
 		if err != nil {
-			return fmt.Errorf("cannot read donor password file at %s", moco.DonorPasswordPath)
+			return fmt.Errorf("cannot read donor password file at %s", mocoagent.DonorPasswordPath)
 		}
 		donorPassword := strings.TrimSpace(string(buf))
 
 		clusterName := os.Getenv(mocoagent.ClusterNameEnvKey)
 
-		token := os.Getenv(moco.AgentTokenEnvName)
+		token := os.Getenv(mocoagent.AgentTokenEnvName)
 		if token == "" {
-			return fmt.Errorf("%s is empty", moco.AgentTokenEnvName)
+			return fmt.Errorf("%s is empty", mocoagent.AgentTokenEnvName)
 		}
 
-		socketPath := os.Getenv(mocoagent.MySQLSocketPathEnvName)
+		socketPath := os.Getenv(mocoagent.MySQLSocketPathEnvKey)
 		if socketPath == "" {
 			socketPath = mocoagent.MySQLSocketDefaultPath
 		}
 
 		agent := server.New(podName, clusterName, token,
-			agentPassword, donorPassword, moco.ReplicationSourceSecretPath, socketPath, moco.VarLogPath, moco.MySQLAdminPort,
+			agentPassword, donorPassword, mocoagent.ReplicationSourceSecretPath, socketPath, mocoagent.VarLogPath, mocoagent.MySQLAdminPort,
 			&accessor.MySQLAccessorConfig{
 				ConnMaxLifeTime:   viper.GetDuration(connMaxLifetimeFlag),
 				ConnectionTimeout: viper.GetDuration(connectionTimeoutFlag),
@@ -166,8 +167,8 @@ var agentCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(agentCmd)
 
-	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", moco.AgentPort), "Listening address and port for gRPC API.")
-	agentCmd.Flags().String(metricsAddressFlag, fmt.Sprintf(":%d", mocoagent.MetricsPort), "Listening address and port for metrics.")
+	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", serverListenPort), "Listening address and port for gRPC API.")
+	agentCmd.Flags().String(metricsAddressFlag, fmt.Sprintf(":%d", metricsListenPort), "Listening address and port for metrics.")
 	agentCmd.Flags().Duration(connMaxLifetimeFlag, 30*time.Minute, "The maximum amount of time a connection may be reused")
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")
 	agentCmd.Flags().String(logRotationScheduleFlag, "*/5 * * * *", "Cron format schedule for MySQL log rotation")

@@ -99,7 +99,7 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 	}
 
 	// TODO: change user to AgentUser (need to add appropriate privileges to AgentUser)
-	adminPassword := os.Getenv(mocoagent.AdminPasswordEnvName)
+	adminPassword := os.Getenv(mocoagent.AdminPasswordEnvKey)
 	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), mocoagent.AdminUser, adminPassword)
 	if err != nil {
 		s.agent.sem.Release(1)
@@ -170,7 +170,7 @@ func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *agentrpc.Flu
 	defer s.agent.sem.Release(1)
 
 	// TODO: change user to AgentUser (need to add appropriate privileges to AgentUser)
-	adminPassword := os.Getenv(mocoagent.AdminPasswordEnvName)
+	adminPassword := os.Getenv(mocoagent.AdminPasswordEnvKey)
 	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), mocoagent.AdminUser, adminPassword)
 	if err != nil {
 		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{

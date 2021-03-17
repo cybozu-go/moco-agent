@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/cybozu-go/log"
-	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 )
@@ -20,7 +19,7 @@ func (a *Agent) RotateLog() {
 	metrics.IncrementLogRotationCountMetrics(a.clusterName)
 	startTime := time.Now()
 
-	errFile := filepath.Join(a.logDir, moco.MySQLErrorLogName)
+	errFile := filepath.Join(a.logDir, mocoagent.MySQLErrorLogName)
 	err := os.Rename(errFile, errFile+".0")
 	if err != nil && !os.IsNotExist(err) {
 		log.Error("failed to rotate err log file", map[string]interface{}{
@@ -30,7 +29,7 @@ func (a *Agent) RotateLog() {
 		return
 	}
 
-	slowFile := filepath.Join(a.logDir, moco.MySQLSlowLogName)
+	slowFile := filepath.Join(a.logDir, mocoagent.MySQLSlowLogName)
 	err = os.Rename(slowFile, slowFile+".0")
 	if err != nil && !os.IsNotExist(err) {
 		log.Error("failed to rotate slow query log file", map[string]interface{}{
