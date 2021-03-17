@@ -2,11 +2,9 @@ package server
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/cybozu-go/log"
 	mocoagent "github.com/cybozu-go/moco-agent"
-	"github.com/cybozu-go/moco/accessor"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -26,7 +24,7 @@ type healthService struct {
 }
 
 func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
-	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), mocoagent.AgentUser, s.agent.agentUserPassword)
+	db, err := s.agent.getMySQLConn()
 	if err != nil {
 		log.Error("failed to connect to database before health check", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,
@@ -36,7 +34,7 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to connect to database before health check: err=%v", err)
 	}
 
-	replicaStatus, err := accessor.GetMySQLReplicaStatus(ctx, db)
+	replicaStatus, err := GetMySQLReplicaStatus(ctx, db)
 	if err != nil {
 		log.Error("failed to get replica status", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,
@@ -46,7 +44,7 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to get replica status: err=%v", err)
 	}
 
-	cloneStatus, err := accessor.GetMySQLCloneStateStatus(ctx, db)
+	cloneStatus, err := GetMySQLCloneStateStatus(ctx, db)
 	if err != nil {
 		log.Error("failed to get clone status", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,

@@ -18,7 +18,6 @@ import (
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco-agent/test_utils"
-	"github.com/cybozu-go/moco/accessor"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
@@ -45,7 +44,7 @@ func testBackupBinlog() {
 		tmpDir, err = os.MkdirTemp("", agentTestPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
 		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", tmpDir, replicaPort,
-			&accessor.MySQLAccessorConfig{
+			MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
 				ReadTimeout:       30 * time.Second,

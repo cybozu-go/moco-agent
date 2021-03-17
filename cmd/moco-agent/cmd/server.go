@@ -14,7 +14,6 @@ import (
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
-	"github.com/cybozu-go/moco/accessor"
 	"github.com/cybozu-go/well"
 	"github.com/go-sql-driver/mysql"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -89,7 +88,7 @@ var agentCmd = &cobra.Command{
 
 		agent := server.New(podName, clusterName, token,
 			agentPassword, donorPassword, mocoagent.ReplicationSourceSecretPath, socketPath, mocoagent.VarLogPath, mocoagent.MySQLAdminPort,
-			&accessor.MySQLAccessorConfig{
+			server.MySQLAccessorConfig{
 				ConnMaxLifeTime:   viper.GetDuration(connMaxLifetimeFlag),
 				ConnectionTimeout: viper.GetDuration(connectionTimeoutFlag),
 				ReadTimeout:       viper.GetDuration(readTimeoutFlag),

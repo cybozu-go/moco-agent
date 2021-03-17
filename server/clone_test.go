@@ -15,7 +15,6 @@ import (
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/moco-agent/test_utils"
-	"github.com/cybozu-go/moco/accessor"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -57,7 +56,7 @@ func testClone() {
 		metrics.RegisterMetrics(registry)
 
 		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, test_utils.MysqlSocketDir+"/mysqld.sock", "", replicaPort,
-			&accessor.MySQLAccessorConfig{
+			MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
 				ReadTimeout:       30 * time.Second,
@@ -163,11 +162,12 @@ func testClone() {
 		Expect(*cloneGauge.Gauge.Value).Should(Equal(0.0))
 
 		By("checking clone status")
-		db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), mocoagent.AgentUser, test_utils.AgentUserPassword)
-		Expect(err).ShouldNot(HaveOccurred())
-
 		Eventually(func() error {
-			cloneStatus, err := accessor.GetMySQLCloneStateStatus(context.Background(), db)
+			db, err := test_utils.ConnectMySQL(test_utils.Host+":"+strconv.Itoa(replicaPort), mocoagent.AgentUser, test_utils.AgentUserPassword)
+			if err != nil {
+				return err
+			}
+			cloneStatus, err := GetMySQLCloneStateStatus(context.Background(), db)
 			if err == nil && cloneStatus.State.Valid && cloneStatus.State.String == "Completed" {
 				return nil
 			}
@@ -281,12 +281,12 @@ func testClone() {
 
 			By(fmt.Sprintf("(%s) %s", tt.title, "checking after clone status"))
 			Eventually(func() error {
-				db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), mocoagent.AgentUser, test_utils.AgentUserPassword)
+				db, err := test_utils.ConnectMySQL(test_utils.Host+":"+strconv.Itoa(replicaPort), mocoagent.AgentUser, test_utils.AgentUserPassword)
 				if err != nil {
 					return err
 				}
 
-				cloneStatus, err := accessor.GetMySQLCloneStateStatus(context.Background(), db)
+				cloneStatus, err := GetMySQLCloneStateStatus(context.Background(), db)
 				if err != nil {
 					return err
 				}
@@ -359,12 +359,12 @@ func testClone() {
 
 		By("confirming clone by init user")
 		Eventually(func() error {
-			db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), test_utils.ExternalInitUser, test_utils.ExternalInitUserPassword)
+			db, err := test_utils.ConnectMySQL(test_utils.Host+":"+strconv.Itoa(replicaPort), test_utils.ExternalInitUser, test_utils.ExternalInitUserPassword)
 			if err != nil {
 				return err
 			}
 
-			cloneStatus, err := accessor.GetMySQLCloneStateStatus(context.Background(), db)
+			cloneStatus, err := GetMySQLCloneStateStatus(context.Background(), db)
 			if err != nil {
 				return err
 			}
@@ -400,12 +400,12 @@ func testClone() {
 		By("confirming clone by restored agent user")
 		restoredAgentUserPassword := "dummy"
 		Eventually(func() error {
-			db, err := agent.acc.Get(test_utils.Host+":"+strconv.Itoa(replicaPort), mocoagent.AgentUser, restoredAgentUserPassword)
+			db, err := test_utils.ConnectMySQL(test_utils.Host+":"+strconv.Itoa(replicaPort), mocoagent.AgentUser, restoredAgentUserPassword)
 			if err != nil {
 				return err
 			}
 
-			cloneStatus, err := accessor.GetMySQLCloneStateStatus(context.Background(), db)
+			cloneStatus, err := GetMySQLCloneStateStatus(context.Background(), db)
 			if err != nil {
 				return err
 			}

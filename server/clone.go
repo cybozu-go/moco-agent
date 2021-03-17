@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"github.com/cybozu-go/moco-agent/initialize"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
-	"github.com/cybozu-go/moco/accessor"
 	"github.com/cybozu-go/well"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -59,7 +57,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
 	}
 
-	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), mocoagent.AgentUser, s.agent.agentUserPassword)
+	db, err := s.agent.getMySQLConn()
 	if err != nil {
 		s.agent.sem.Release(1)
 		log.Error("failed to connect to database before getting MySQL primary status", map[string]interface{}{
@@ -70,7 +68,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 		return nil, status.Errorf(codes.Internal, "failed to connect to database before getting MySQL primary status: hostname=%s, port=%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort)
 	}
 
-	primaryStatus, err := accessor.GetMySQLPrimaryStatus(ctx, db)
+	primaryStatus, err := GetMySQLPrimaryStatus(ctx, db)
 	if err != nil {
 		s.agent.sem.Release(1)
 		log.Error("failed to get MySQL primary status", map[string]interface{}{

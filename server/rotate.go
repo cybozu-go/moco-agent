@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -39,7 +38,7 @@ func (a *Agent) RotateLog() {
 		return
 	}
 
-	db, err := a.acc.Get(fmt.Sprintf("%s:%d", a.mysqlAdminHostname, a.mysqlAdminPort), mocoagent.AgentUser, a.agentUserPassword)
+	db, err := a.getMySQLConn()
 	if err != nil {
 		log.Error("failed to connect to database before log flush", map[string]interface{}{
 			"hostname":  a.mysqlAdminHostname,
