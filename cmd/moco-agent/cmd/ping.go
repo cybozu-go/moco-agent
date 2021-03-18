@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -35,7 +36,7 @@ var pingCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(pingCmd)
 
-	pingCmd.Flags().String(credentialConfPathFlag, agentConfPath, "MySQL config path that including credential to access MySQL instance")
+	pingCmd.Flags().String(credentialConfPathFlag, mocoagent.MySQLPingConfFilePath, "MySQL config path that including credential to access MySQL instance")
 	err := viper.BindPFlags(pingCmd.Flags())
 	if err != nil {
 		panic(err)

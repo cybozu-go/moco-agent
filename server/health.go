@@ -2,12 +2,9 @@ package server
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/cybozu-go/log"
-	"github.com/cybozu-go/moco"
 	mocoagent "github.com/cybozu-go/moco-agent"
-	"github.com/cybozu-go/moco/accessor"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -27,7 +24,7 @@ type healthService struct {
 }
 
 func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
-	db, err := s.agent.acc.Get(fmt.Sprintf("%s:%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort), mocoagent.AgentUser, s.agent.agentUserPassword)
+	db, err := s.agent.getMySQLConn()
 	if err != nil {
 		log.Error("failed to connect to database before health check", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,
@@ -37,7 +34,7 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to connect to database before health check: err=%v", err)
 	}
 
-	replicaStatus, err := accessor.GetMySQLReplicaStatus(ctx, db)
+	replicaStatus, err := GetMySQLReplicaStatus(ctx, db)
 	if err != nil {
 		log.Error("failed to get replica status", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,
@@ -47,7 +44,7 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, status.Errorf(codes.Internal, "failed to get replica status: err=%v", err)
 	}
 
-	cloneStatus, err := accessor.GetMySQLCloneStateStatus(ctx, db)
+	cloneStatus, err := GetMySQLCloneStateStatus(ctx, db)
 	if err != nil {
 		log.Error("failed to get clone status", map[string]interface{}{
 			"hostname":  s.agent.mysqlAdminHostname,
@@ -63,16 +60,16 @@ func (s *healthService) Check(ctx context.Context, in *healthpb.HealthCheckReque
 	// The below conditions utilize this to know the own instance works as primary or replica.
 	var hasIOThreadError, hasSQLThreadError bool
 	if replicaStatus != nil && replicaStatus.SlaveIOState != "" {
-		if replicaStatus.LastIoErrno != 0 || replicaStatus.SlaveIORunning != moco.ReplicaRunConnect {
+		if replicaStatus.LastIoErrno != 0 || replicaStatus.SlaveIORunning != mocoagent.ReplicaRunConnect {
 			hasIOThreadError = true
 		}
-		if replicaStatus.LastSQLErrno != 0 || replicaStatus.SlaveSQLRunning != moco.ReplicaRunConnect {
+		if replicaStatus.LastSQLErrno != 0 || replicaStatus.SlaveSQLRunning != mocoagent.ReplicaRunConnect {
 			hasSQLThreadError = true
 		}
 	}
 
 	var isUnderCloning bool
-	if cloneStatus.State.Valid && cloneStatus.State.String != moco.CloneStatusCompleted {
+	if cloneStatus.State.Valid && cloneStatus.State.String != mocoagent.CloneStatusCompleted {
 		isUnderCloning = true
 	}
 

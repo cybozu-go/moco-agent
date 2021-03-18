@@ -5,10 +5,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cybozu-go/moco"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/test_utils"
-	"github.com/cybozu-go/moco/accessor"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,7 +23,7 @@ func testRotate() {
 		tmpDir, err = os.MkdirTemp("", "moco-test-agent-")
 		Expect(err).ShouldNot(HaveOccurred())
 		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", tmpDir, replicaPort,
-			&accessor.MySQLAccessorConfig{
+			MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
 				ReadTimeout:       30 * time.Second,
@@ -56,8 +55,8 @@ func testRotate() {
 		}()
 
 		By("preparing log files for testing")
-		slowFile := filepath.Join(tmpDir, moco.MySQLSlowLogName)
-		errFile := filepath.Join(tmpDir, moco.MySQLErrorLogName)
+		slowFile := filepath.Join(tmpDir, mocoagent.MySQLSlowLogName)
+		errFile := filepath.Join(tmpDir, mocoagent.MySQLErrorLogName)
 		logFiles := []string{slowFile, errFile}
 
 		for _, file := range logFiles {

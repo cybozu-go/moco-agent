@@ -359,3 +359,23 @@ func StopAndResetSlave(port int) error {
 	_, err = db.Exec("RESET SLAVE")
 	return err
 }
+
+func ConnectMySQL(addr, user, password string) (*sqlx.DB, error) {
+	conf := mysql.NewConfig()
+	conf.User = user
+	conf.Passwd = password
+	conf.Net = "tcp"
+	conf.Addr = addr
+	conf.Timeout = 3 * time.Second
+	conf.ReadTimeout = 30 * time.Second
+	conf.InterpolateParams = true
+
+	db, err := sqlx.Connect("mysql", conf.FormatDSN())
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetConnMaxLifetime(30 * time.Minute)
+
+	return db, nil
+}
