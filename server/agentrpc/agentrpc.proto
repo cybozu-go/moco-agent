@@ -6,10 +6,9 @@ option go_package = "github.com/cybozu-go/moco-agent/server/agentrpc";
  * CloneRequest is the request message to invoke MySQL CLONE command.
 */
 message CloneRequest {
-    string token = 1; // token is used for simple authentication from moco-controller access
-    bool external = 2;  // external is a flag whether the donor is in the outside of the own cluster or not (default: false). If external=true, the MySQL users for MOCO will be automatically restored.
-    string donor_host = 3; // donor_host is the donor host in the own cluster (only has meaning if external=false)
-    int32 donor_port = 4; // donor_port is the port number where the donor host is listening (only has meaning if external=false)
+    bool external = 1;  // external is a flag whether the donor is in the outside of the own cluster or not (default: false). If external=true, the MySQL users for MOCO will be automatically restored.
+    string donor_host = 2; // donor_host is the donor host in the own cluster (only has meaning if external=false)
+    int32 donor_port = 3; // donor_port is the port number where the donor host is listening (only has meaning if external=false)
 }
 /**
  * CloneResponse is a response message against to CloneRequest.
@@ -28,14 +27,13 @@ service CloneService {
  * and upload the flushed binlog files to the given object storage bucket.
 */
 message FlushAndBackupBinlogRequest{
-    string token = 1; // token is used for simple authentication from moco-controller access
-    string backup_id = 2;  // backup_id is the unique id of this backup process
-    string bucket_host = 3;  // backet_host is the host address of the object storage
-    int32 bucket_port = 4; // bucket_port is the port number where the object storage is listening
-    string bucket_name = 5; // bucket_name is the bucket name where the backup files are uploaded
-    string bucket_region = 6; // bucket_region is the region name of the bucket
-    string access_key_id = 7; // access_key_id is used for authentication on the object storage
-    string secret_access_key = 8; // secret_access_key is used for authentication on the object storage
+    string backup_id = 1;  // backup_id is the unique id of this backup process
+    string bucket_host = 2;  // backet_host is the host address of the object storage
+    int32 bucket_port = 3; // bucket_port is the port number where the object storage is listening
+    string bucket_name = 4; // bucket_name is the bucket name where the backup files are uploaded
+    string bucket_region = 5; // bucket_region is the region name of the bucket
+    string access_key_id = 6; // access_key_id is used for authentication on the object storage
+    string secret_access_key = 7; // secret_access_key is used for authentication on the object storage
 }
 /**
  * FlushAndBackupBinlogResponse is a response message against to FlushANdBackupBinlogRequest.
@@ -45,8 +43,7 @@ message FlushAndBackupBinlogResponse {}
  * FlushBinlogRequest is the request message to invoke MySQL FLUSH BINARY LOGS command.
 */
 message FlushBinlogRequest {
-    string token = 1; // token is used for simple authentication from moco-controller access
-    bool delete = 2; // delete is the flag whether the flushed binlog files will be deleted or not (default: false)
+    bool delete = 1; // delete is the flag whether the flushed binlog files will be deleted or not (default: false)
 }
 /**
  * FlushBinlogResponse is a response message against to FlushBinlogRequest.

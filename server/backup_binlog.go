@@ -54,10 +54,6 @@ type BackupBinaryLogsParams struct {
 // FlushAndBackupBinaryLogs executes "FLUSH BINARY LOGS;"
 // and upload it to the object storage, then delete it
 func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *agentrpc.FlushAndBackupBinlogRequest) (*agentrpc.FlushAndBackupBinlogResponse, error) {
-	if req.Token != s.agent.token {
-		return nil, status.Error(codes.Unauthenticated, "invalid token")
-	}
-
 	if !s.agent.sem.TryAcquire(1) {
 		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
 	}
@@ -157,10 +153,6 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 
 // FlushBinlog executes "FLUSH BINARY LOGS;" and delete file if required
 func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *agentrpc.FlushBinlogRequest) (*agentrpc.FlushBinlogResponse, error) {
-	if req.Token != s.agent.token {
-		return nil, status.Error(codes.Unauthenticated, "invalid token")
-	}
-
 	if !s.agent.sem.TryAcquire(1) {
 		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
 	}

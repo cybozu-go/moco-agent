@@ -13,6 +13,9 @@ endif
 
 GO_FILES := $(shell find . -name '*.go' -print)
 
+PROTOC := $(PWD)/bin/protoc
+PROTOC_VERSION := 3.14.0
+
 .PHONY: all
 all: build/moco-agent
 
@@ -38,9 +41,16 @@ build/moco-agent: $(GO_FILES)
 	mkdir -p build
 	go build -o $@ ./cmd/moco-agent
 
-.PHONY: generate-agentrpc
-mod:
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative server/agentrpc/agentrpc.proto
+.PHONY: agentrpc
+agentrpc: $(PROTOC)
+	$(PROTOC) --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative server/agentrpc/agentrpc.proto
+
+$(PROTOC):
+	mkdir -p bin
+	curl -sfL -O https://github.com/protocolbuffers/protobuf/releases/download/v$(PROTOC_VERSION)/protoc-$(PROTOC_VERSION)-linux-x86_64.zip
+	unzip -p protoc-$(PROTOC_VERSION)-linux-x86_64.zip bin/protoc > bin/protoc
+	chmod +x bin/protoc
+	rm protoc-$(PROTOC_VERSION)-linux-x86_64.zip
 
 .PHONY: setup
 setup: custom-checker staticcheck nilerr

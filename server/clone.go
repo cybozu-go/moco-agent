@@ -44,10 +44,6 @@ type cloneParams struct {
 }
 
 func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*agentrpc.CloneResponse, error) {
-	if req.GetToken() != s.agent.token {
-		return nil, status.Error(codes.Unauthenticated, "invalid token")
-	}
-
 	params, err := gatherParams(req, s.agent)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
