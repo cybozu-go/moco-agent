@@ -77,10 +77,6 @@ const (
 	// MySQLConfigFileName is the file key of MySQL config
 	MySQLConfFileName = "my.cnf"
 
-	// AgentTokenEnvName is a key of the environment variable of agent token.
-	// TODO: To be removed
-	AgentTokenEnvName = "MOCO_AGENT_TOKEN"
-
 	// ReplicationSourceSecretPath is the path to replication source secret file
 	ReplicationSourceSecretPath = MySQLDataPath + "/replication-source-secret"
 

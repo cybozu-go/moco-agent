@@ -18,6 +18,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CloneServiceClient interface {
+	// Clone invokes MySQL CLONE command.
 	Clone(ctx context.Context, in *CloneRequest, opts ...grpc.CallOption) (*CloneResponse, error)
 }
 
@@ -42,6 +43,7 @@ func (c *cloneServiceClient) Clone(ctx context.Context, in *CloneRequest, opts .
 // All implementations must embed UnimplementedCloneServiceServer
 // for forward compatibility
 type CloneServiceServer interface {
+	// Clone invokes MySQL CLONE command.
 	Clone(context.Context, *CloneRequest) (*CloneResponse, error)
 	mustEmbedUnimplementedCloneServiceServer()
 }
@@ -97,14 +99,16 @@ var CloneService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "agentrpc.proto",
+	Metadata: "server/agentrpc/agentrpc.proto",
 }
 
 // BackupBinlogServiceClient is the client API for BackupBinlogService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BackupBinlogServiceClient interface {
+	// FlushAndBackupBinlog invokes MySQL FLUSH BINARY LOGS and backup process of them.
 	FlushAndBackupBinlog(ctx context.Context, in *FlushAndBackupBinlogRequest, opts ...grpc.CallOption) (*FlushAndBackupBinlogResponse, error)
+	// FlushBinlog invokes MySQL FLUSH BINARY LOGS
 	FlushBinlog(ctx context.Context, in *FlushBinlogRequest, opts ...grpc.CallOption) (*FlushBinlogResponse, error)
 }
 
@@ -138,7 +142,9 @@ func (c *backupBinlogServiceClient) FlushBinlog(ctx context.Context, in *FlushBi
 // All implementations must embed UnimplementedBackupBinlogServiceServer
 // for forward compatibility
 type BackupBinlogServiceServer interface {
+	// FlushAndBackupBinlog invokes MySQL FLUSH BINARY LOGS and backup process of them.
 	FlushAndBackupBinlog(context.Context, *FlushAndBackupBinlogRequest) (*FlushAndBackupBinlogResponse, error)
+	// FlushBinlog invokes MySQL FLUSH BINARY LOGS
 	FlushBinlog(context.Context, *FlushBinlogRequest) (*FlushBinlogResponse, error)
 	mustEmbedUnimplementedBackupBinlogServiceServer()
 }
@@ -219,5 +225,5 @@ var BackupBinlogService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "agentrpc.proto",
+	Metadata: "server/agentrpc/agentrpc.proto",
 }

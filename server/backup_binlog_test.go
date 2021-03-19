@@ -43,7 +43,7 @@ func testBackupBinlog() {
 		var err error
 		tmpDir, err = os.MkdirTemp("", agentTestPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
-		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", tmpDir, replicaPort,
+		agent = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", tmpDir, replicaPort,
 			MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -108,7 +108,6 @@ func testBackupBinlog() {
 	It("should flush and backup binlog", func() {
 		By("calling /flush-backup-binlog API")
 		req := &agentrpc.FlushAndBackupBinlogRequest{
-			Token:           token,
 			BackupId:        backupID,
 			BucketHost:      "localhost",
 			BucketPort:      9000,
@@ -188,15 +187,12 @@ func testBackupBinlog() {
 
 	It("should backup multiple binlog files", func() {
 		By("calling /flush-binlog API without delete flag")
-		flushReq := &agentrpc.FlushBinlogRequest{
-			Token: token,
-		}
+		flushReq := &agentrpc.FlushBinlogRequest{}
 		_, err := gsrv.FlushBinlog(context.Background(), flushReq)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("calling /flush-backup-binlog API")
 		req := &agentrpc.FlushAndBackupBinlogRequest{
-			Token:           token,
 			BackupId:        backupID,
 			BucketHost:      "localhost",
 			BucketPort:      9000,
@@ -247,9 +243,7 @@ func testBackupBinlog() {
 
 	It("should only flush binlog", func() {
 		By("calling /flush-binlog API without delete flag")
-		req := &agentrpc.FlushBinlogRequest{
-			Token: token,
-		}
+		req := &agentrpc.FlushBinlogRequest{}
 		_, err := gsrv.FlushBinlog(context.Background(), req)
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -262,7 +256,6 @@ func testBackupBinlog() {
 
 		By("calling /flush-binlog API with delete flag")
 		req = &agentrpc.FlushBinlogRequest{
-			Token:  token,
 			Delete: true,
 		}
 		_, err = gsrv.FlushBinlog(context.Background(), req)

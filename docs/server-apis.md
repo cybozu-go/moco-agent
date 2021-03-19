@@ -45,7 +45,6 @@ CloneRequest is the request message to invoke MySQL `CLONE` command.
 
 | Field      | Type   | Description                                                                                                                                                                  |
 | ---------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| token      | string | token is used for simple authentication from moco-controller access                                                                                                          |
 | external   | bool   | external is a flag whether the donor is in the outside of the own cluster or not (default: false). If external=true, the MySQL users for MOCO will be automatically restored |
 | donor_host | string | donor_host is the donor host in the own cluster (only has meaning if external=false)                                                                                         |
 | donor_port | int32  | donor_port is the port number where the donor host is listening (only has meaning if external=false)                                                                         |
@@ -68,7 +67,6 @@ and upload the flushed binlog files to the given object storage bucket.
 
 | Field             | Type   | Description                                                          |
 | ----------------- | ------ | -------------------------------------------------------------------- |
-| token             | string | token is used for simple authentication from moco-controller access  |
 | backup_id         | string | backup_id is the unique id of this backup process                    |
 | bucket_host       | string | backet_host is the host address of the object storage                |
 | bucket_port       | int32  | bucket_port is the port number where the object storage is listening |
@@ -83,10 +81,9 @@ FlushAndBackupBinlogResponse is a response message against to FlushANdBackupBinl
 ### FlushBinlogRequest
 FlushBinlogRequest is the request message to invoke MySQL `FLUSH BINARY LOGS` command.
 
-| Field  | Type   | Description                                                                                 |
-| ------ | ------ | ------------------------------------------------------------------------------------------- |
-| token  | string | token is used for simple authentication from moco-controller access                         |
-| delete | bool   | delete is the flag whether the flushed binlog files will be deleted or not (default: false) |
+| Field  | Type | Description                                                                                 |
+| ------ | ---- | ------------------------------------------------------------------------------------------- |
+| delete | bool | delete is the flag whether the flushed binlog files will be deleted or not (default: false) |
 
 ### FlushBinlogResponse
 FlushBinlogResponse is a response message against to FlushBinlogRequest.

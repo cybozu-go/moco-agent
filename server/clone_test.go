@@ -55,7 +55,7 @@ func testClone() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		agent = New(test_utils.Host, clusterName, token, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, test_utils.MysqlSocketDir+"/mysqld.sock", "", replicaPort,
+		agent = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, test_utils.MysqlSocketDir+"/mysqld.sock", "", replicaPort,
 			MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -79,31 +79,14 @@ func testClone() {
 			req   *agentrpc.CloneRequest
 		}{
 			{
-				title: "passing invalid token",
-				req: &agentrpc.CloneRequest{
-					Token:     "invalid-token",
-					DonorHost: donorHost,
-					DonorPort: donorPort,
-				},
-			},
-			{
-				title: "passing empty token",
-				req: &agentrpc.CloneRequest{
-					DonorHost: donorHost,
-					DonorPort: donorPort,
-				},
-			},
-			{
 				title: "passing empty donorHostName",
 				req: &agentrpc.CloneRequest{
-					Token:     token,
 					DonorPort: donorPort,
 				},
 			},
 			{
 				title: "passing empty donorPort",
 				req: &agentrpc.CloneRequest{
-					Token:     token,
 					DonorHost: donorHost,
 				},
 			},
@@ -129,7 +112,6 @@ func testClone() {
 
 		By("cloning from donor")
 		req := &agentrpc.CloneRequest{
-			Token:     token,
 			DonorHost: donorHost,
 			DonorPort: donorPort,
 		}
@@ -202,7 +184,6 @@ func testClone() {
 
 		By("cloning from donor")
 		req := &agentrpc.CloneRequest{
-			Token:     token,
 			DonorHost: donorHost,
 			DonorPort: donorPort,
 		}
@@ -269,7 +250,6 @@ func testClone() {
 
 			By(fmt.Sprintf("(%s) %s", tt.title, "cloning from external MySQL"))
 			req := &agentrpc.CloneRequest{
-				Token:    token,
 				External: true,
 			}
 
@@ -341,7 +321,6 @@ func testClone() {
 
 		By("cloning from external MySQL")
 		req := &agentrpc.CloneRequest{
-			Token:    token,
 			External: true,
 		}
 
@@ -383,7 +362,6 @@ func testClone() {
 		agent.replicationSourceSecretPath = pwd
 
 		req = &agentrpc.CloneRequest{
-			Token:    token,
 			External: true,
 		}
 
