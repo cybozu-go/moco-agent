@@ -26,17 +26,18 @@ func (a *Agent) Health(w http.ResponseWriter, r *http.Request) {
 			"port":      a.mysqlAdminPort,
 			log.FnError: err,
 		})
-		err := fmt.Errorf("failed to connect to database before health check: %+v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprintf(w, "failed to connect to database before health check: %+v", err)
 		return
 	}
+	defer db.Close()
 
-	rows, err := db.QueryxContext(r.Context(), `SHOW MASTER STATUS`)
+	_, err = db.QueryxContext(r.Context(), `SHOW MASTER STATUS`)
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Print("failed to execute a query")
 		return
 	}
-	defer rows.Close()
 }
 
 func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
@@ -47,15 +48,16 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 
 	db, err := a.getMySQLConn()
 	if err != nil {
-		log.Error("failed to connect to database before health check", map[string]interface{}{
+		log.Error("failed to connect to database before readiness check", map[string]interface{}{
 			"hostname":  a.mysqlAdminHostname,
 			"port":      a.mysqlAdminPort,
 			log.FnError: err,
 		})
-		err := fmt.Errorf("failed to connect to database before health check: %+v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprintf(w, "failed to connect to database before readiness check: %+v", err)
 		return
 	}
+	defer db.Close()
 
 	// Check the instance is under cloning or not
 	cloneStatus, err := GetMySQLCloneStateStatus(r.Context(), db)
@@ -75,7 +77,7 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 	}
 	if isUnderCloning {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Printf("the instance is under cloning")
+		fmt.Fprintf(w, "the instance is under cloning")
 		return
 	}
 
@@ -110,7 +112,7 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 	if replicaStatus == nil {
 		log.Info("the instance is under reconciling: read_only=true, but not works as a replica", nil)
 		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Print("the instance is under reconciling: read_only=true, but not works as a replica")
+		fmt.Fprintf(w, "the instance is under reconciling: read_only=true, but not works as a replica")
 		return
 	}
 
@@ -136,7 +138,7 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 			"maxDelaySecondsThreshold": maxDelaySecondsThreshold,
 		})
 		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Printf("the instance delays from the primary: maxDelaySecondsThreshold=%d", maxDelaySecondsThreshold)
+		fmt.Fprintf(w, "the instance delays from the primary: maxDelaySecondsThreshold=%d", maxDelaySecondsThreshold)
 		return
 	}
 }

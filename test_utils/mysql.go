@@ -180,7 +180,7 @@ func InitializeMySQL(port int) error {
 		},
 	}
 	for _, user := range users {
-		_, err = db.Exec("CREATE USER IF NOT EXISTS ?@'%' IDENTIFIED BY ?", user.name, user.password)
+		_, err = db.Exec("CREATE USER IF NOT EXISTS ?@'%' IDENTIFIED WITH mysql_native_password BY ?", user.name, user.password)
 		if err != nil {
 			return err
 		}
@@ -332,6 +332,16 @@ func ResetMaster(port int) error {
 	return err
 }
 
+func SetReadonly(port int) error {
+	db, err := Connect(port, 0)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec("SET GLOBAL read_only=1")
+	return err
+}
+
 func StartSlaveWithInvalidSettings(port int) error {
 	db, err := Connect(port, 0)
 	if err != nil {
@@ -339,6 +349,20 @@ func StartSlaveWithInvalidSettings(port int) error {
 	}
 
 	_, err = db.Exec("CHANGE MASTER TO MASTER_HOST = ?, MASTER_PORT = ?, MASTER_USER = ?, MASTER_PASSWORD = ?", "dummy", 3306, "dummy", "dummy")
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec("START SLAVE")
+	return err
+}
+
+func StartSlaveWithValidSettings(port int, targetHost string, targetPort int) error {
+	db, err := Connect(port, 0)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec("CHANGE MASTER TO MASTER_HOST = ?, MASTER_PORT = ?, MASTER_USER = ?, MASTER_PASSWORD = ?", targetHost, targetPort, mocoagent.ReplicationUser, ReplicationUserPassword)
 	if err != nil {
 		return err
 	}
@@ -357,6 +381,16 @@ func StopAndResetSlave(port int) error {
 		return err
 	}
 	_, err = db.Exec("RESET SLAVE")
+	return err
+}
+
+func ExecSQLCommand(port int, command string) error {
+	db, err := Connect(port, 0)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(command)
 	return err
 }
 
