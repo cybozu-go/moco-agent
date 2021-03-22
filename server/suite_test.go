@@ -73,10 +73,10 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Test Agent", func() {
-	// Context("rotate", testRotate)
-	// Context("health", testHealth)
-	// Context("clone", testClone)
-	// Context("backupBinlog", testBackupBinlog)
+	Context("rotate", testRotate)
+	Context("health", testHealth)
+	Context("clone", testClone)
+	Context("backupBinlog", testBackupBinlog)
 	Context("healthHTTP", testHealthHTTP)
 	Context("healthHTTP", testReadyHTTP)
 })

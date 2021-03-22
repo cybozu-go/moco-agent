@@ -31,12 +31,14 @@ import (
 
 const (
 	addressFlag             = "address"
+	probeAddressFlag        = "probe-address"
 	metricsAddressFlag      = "metrics-address"
 	connMaxLifetimeFlag     = "conn-max-lifetime"
 	connectionTimeoutFlag   = "connection-timeout"
 	logRotationScheduleFlag = "log-rotation-schedule"
 	readTimeoutFlag         = "read-timeout"
-	serverListenPort        = 9080
+	grpcListenPort          = 9080
+	probeListenPort         = 9081
 	metricsListenPort       = 8080
 )
 
@@ -94,15 +96,15 @@ var agentCmd = &cobra.Command{
 		registry := prometheus.DefaultRegisterer
 		metrics.RegisterMetrics(registry)
 
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.Handler())
-		serv := &well.HTTPServer{
+		metricsMux := http.NewServeMux()
+		metricsMux.Handle("/metrics", promhttp.Handler())
+		metricsServ := &well.HTTPServer{
 			Server: &http.Server{
 				Addr:    viper.GetString(metricsAddressFlag),
-				Handler: mux,
+				Handler: metricsMux,
 			},
 		}
-		err = serv.ListenAndServe()
+		err = metricsServ.ListenAndServe()
 		if err != nil {
 			return err
 		}
@@ -150,6 +152,20 @@ var agentCmd = &cobra.Command{
 			return nil
 		})
 
+		probeMux := http.NewServeMux()
+		probeMux.HandleFunc("/healthz", agent.Health)
+		probeMux.HandleFunc("/readyz", agent.Ready)
+		probeServ := &well.HTTPServer{
+			Server: &http.Server{
+				Addr:    viper.GetString(probeAddressFlag),
+				Handler: probeMux,
+			},
+		}
+		err = probeServ.ListenAndServe()
+		if err != nil {
+			return err
+		}
+
 		if err := well.Wait(); err != nil && !well.IsSignaled(err) {
 			return err
 		}
@@ -161,7 +177,8 @@ var agentCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(agentCmd)
 
-	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", serverListenPort), "Listening address and port for gRPC API.")
+	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", grpcListenPort), "Listening address and port for gRPC API.")
+	agentCmd.Flags().String(probeAddressFlag, fmt.Sprintf(":%d", probeListenPort), "Listening address and port for mysqld health probes.")
 	agentCmd.Flags().String(metricsAddressFlag, fmt.Sprintf(":%d", metricsListenPort), "Listening address and port for metrics.")
 	agentCmd.Flags().Duration(connMaxLifetimeFlag, 30*time.Minute, "The maximum amount of time a connection may be reused")
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")

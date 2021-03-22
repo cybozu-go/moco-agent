@@ -130,7 +130,7 @@ func testReadyHTTP() {
 		}).Should(Succeed())
 	})
 
-	FIt("should return appropriate status code when working as replica instance", func() {
+	It("should return appropriate status code when working as replica instance", func() {
 		By("setting read_only=true, but not works as replica")
 		test_utils.SetReadonly(replicaPort)
 
