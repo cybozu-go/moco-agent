@@ -8,6 +8,14 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// MySQLGlobalVariablesStatus defines the observed global variable state of a MySQL instance
+type MySQLGlobalVariablesStatus struct {
+	ReadOnly                           bool           `db:"@@read_only"`
+	SuperReadOnly                      bool           `db:"@@super_read_only"`
+	RplSemiSyncMasterWaitForSlaveCount int            `db:"@@rpl_semi_sync_master_wait_for_slave_count"`
+	CloneValidDonorList                sql.NullString `db:"@@clone_valid_donor_list"`
+}
+
 // MySQLCloneStateStatus defines the observed clone state of a MySQL instance
 type MySQLCloneStateStatus struct {
 	State sql.NullString `db:"state"`
@@ -88,6 +96,25 @@ type MySQLReplicaStatus struct {
 	Masterpublickeypath       string        `db:"Master_public_key_path"`
 	Getmasterpublickey        string        `db:"Get_master_public_key"`
 	NetworkNamespace          string        `db:"Network_Namespace"`
+}
+
+func GetMySQLGlobalVariablesStatus(ctx context.Context, db *sqlx.DB) (*MySQLGlobalVariablesStatus, error) {
+	rows, err := db.QueryxContext(ctx, `SELECT @@read_only, @@super_read_only, @@rpl_semi_sync_master_wait_for_slave_count, @@clone_valid_donor_list`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var status MySQLGlobalVariablesStatus
+	if rows.Next() {
+		err = rows.StructScan(&status)
+		if err != nil {
+			return nil, err
+		}
+		return &status, nil
+	}
+
+	return nil, errors.New("globalVariables status is empty")
 }
 
 func GetMySQLCloneStateStatus(ctx context.Context, db *sqlx.DB) (*MySQLCloneStateStatus, error) {
