@@ -98,6 +98,11 @@ type MySQLReplicaStatus struct {
 	NetworkNamespace          string        `db:"Network_Namespace"`
 }
 
+type MySQLLastAppliedTransactionTimestamps struct {
+	OriginalCommitTimestamp string `db:"LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP"`
+	EndApplyTimestamp       string `db:"LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP"`
+}
+
 func GetMySQLGlobalVariablesStatus(ctx context.Context, db *sqlx.DB) (*MySQLGlobalVariablesStatus, error) {
 	rows, err := db.QueryxContext(ctx, `SELECT @@read_only, @@super_read_only, @@rpl_semi_sync_master_wait_for_slave_count, @@clone_valid_donor_list`)
 	if err != nil {
@@ -172,4 +177,23 @@ func GetMySQLReplicaStatus(ctx context.Context, db *sqlx.DB) (*MySQLReplicaStatu
 	}
 
 	return nil, nil
+}
+
+func GetMySQLLastAppliedTransactionTimestamps(ctx context.Context, db *sqlx.DB) (*MySQLLastAppliedTransactionTimestamps, error) {
+	rows, err := db.QueryxContext(ctx, `SELECT LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP, LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP FROM performance_schema.replication_applier_status_by_worker`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var timestamps MySQLLastAppliedTransactionTimestamps
+	if rows.Next() {
+		err = rows.StructScan(&timestamps)
+		if err != nil {
+			return nil, err
+		}
+		return &timestamps, nil
+	}
+
+	return &timestamps, nil
 }

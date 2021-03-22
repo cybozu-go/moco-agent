@@ -166,12 +166,15 @@ func testReadyHTTP() {
 			return nil
 		}).Should(Succeed())
 
-		By("executing STOP SLAVE SQL_THREAD")
+		By("making delay between the original commit and the apply end time apply at the replica")
 		err = test_utils.ExecSQLCommand(replicaPort, "STOP SLAVE SQL_THREAD")
 		Expect(err).ShouldNot(HaveOccurred())
-		time.Sleep(time.Second*maxDelaySecondsThreshold + 1)
 		err = test_utils.ExecSQLCommand(donorPort, "CREATE DATABASE health_test_db")
 		Expect(err).ShouldNot(HaveOccurred())
+		time.Sleep(maxDelayThreshold + time.Second)
+		err = test_utils.ExecSQLCommand(replicaPort, "START SLAVE SQL_THREAD")
+		Expect(err).ShouldNot(HaveOccurred())
+
 		By("getting readiness (should be 503)")
 		Eventually(func() error {
 			res := getReady(agent)

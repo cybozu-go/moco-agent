@@ -3,13 +3,14 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/cybozu-go/log"
 	mocoagent "github.com/cybozu-go/moco-agent"
 )
 
 const (
-	maxDelaySecondsThreshold = 5
+	maxDelayThreshold = 5 * time.Second
 )
 
 // Health returns the health check result of own MySQL
@@ -97,7 +98,7 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check the instance has IO/SQLThread error or not, and has delay over threshold or not
+	// Check the instance has IO/SQLThread error or not
 	replicaStatus, err := GetMySQLReplicaStatus(r.Context(), db)
 	if err != nil {
 		log.Error("failed to get replica status", map[string]interface{}{
@@ -133,12 +134,46 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if replicaStatus.SecondsBehindMaster.Valid && replicaStatus.SecondsBehindMaster.Int64 >= maxDelaySecondsThreshold {
+	// Check the instance has IO/SQLThread error or not
+	timestamps, err := GetMySQLLastAppliedTransactionTimestamps(r.Context(), db)
+	if err != nil {
+		log.Error("failed to get transaction timestamps", map[string]interface{}{
+			"hostname":  a.mysqlAdminHostname,
+			"port":      a.mysqlAdminPort,
+			log.FnError: err,
+		})
+		err := fmt.Errorf("failed to get transaction timestamps: %+v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Check the delay isn't over the threshold
+	endTime, err := time.Parse(time.RFC3339Nano, timestamps.EndApplyTimestamp)
+	if err != nil {
+		log.Error("failed to parse transaction timestamps", map[string]interface{}{
+			log.FnError: err,
+		})
+		err := fmt.Errorf("failed to parse transaction timestamps: %+v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	commitTime, err := time.Parse(time.RFC3339Nano, timestamps.OriginalCommitTimestamp)
+	if err != nil {
+		log.Error("failed to parse transaction timestamps", map[string]interface{}{
+			log.FnError: err,
+		})
+		err := fmt.Errorf("failed to parse transaction timestamps: %+v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	delayied := endTime.Sub(commitTime)
+	if delayied >= maxDelayThreshold {
 		log.Info("the instance delays from the primary", map[string]interface{}{
-			"maxDelaySecondsThreshold": maxDelaySecondsThreshold,
+			"maxDelayThreshold": maxDelayThreshold,
+			"delayied":          delayied,
 		})
 		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, "the instance delays from the primary: maxDelaySecondsThreshold=%d", maxDelaySecondsThreshold)
+		fmt.Fprintf(w, "the instance delays from the primary: maxDelaySecondsThreshold=%s, delayied=%s", maxDelayThreshold, delayied)
 		return
 	}
 }
