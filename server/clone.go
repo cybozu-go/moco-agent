@@ -53,23 +53,10 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
 	}
 
-	db, err := s.agent.getMySQLConn()
-	if err != nil {
-		s.agent.sem.Release(1)
-		log.Error("failed to connect to database before getting MySQL primary status", map[string]interface{}{
-			"hostname":  s.agent.mysqlAdminHostname,
-			"port":      s.agent.mysqlAdminPort,
-			log.FnError: err,
-		})
-		return nil, status.Errorf(codes.Internal, "failed to connect to database before getting MySQL primary status: hostname=%s, port=%d", s.agent.mysqlAdminHostname, s.agent.mysqlAdminPort)
-	}
-
-	primaryStatus, err := GetMySQLPrimaryStatus(ctx, db)
+	primaryStatus, err := GetMySQLPrimaryStatus(ctx, s.agent.db)
 	if err != nil {
 		s.agent.sem.Release(1)
 		log.Error("failed to get MySQL primary status", map[string]interface{}{
-			"hostname":  s.agent.mysqlAdminHostname,
-			"port":      s.agent.mysqlAdminPort,
 			log.FnError: err,
 		})
 		return nil, status.Errorf(codes.Internal, "failed to get MySQL primary status: %+v", err)
@@ -96,7 +83,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 			s.agent.sem.Release(1)
 		}()
 
-		err := clone(ctx, db, params.donorUser, params.donorPassword, params.donorHostName, params.donorPort, s.agent)
+		err := clone(ctx, s.agent.db, params.donorUser, params.donorPassword, params.donorHostName, params.donorPort, s.agent)
 		if err != nil {
 			return err
 		}
@@ -105,8 +92,6 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 			err := waitBootstrap(ctx, params.initUser, params.initPassword, s.agent.mysqlSocketPath)
 			if err != nil {
 				log.Error("mysqld didn't boot up after cloning from external", map[string]interface{}{
-					"hostname":  s.agent.mysqlAdminHostname,
-					"port":      s.agent.mysqlAdminPort,
 					log.FnError: err,
 				})
 				return err
@@ -114,8 +99,6 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 			err = initialize.RestoreUsers(ctx, mocoagent.MySQLPasswordFilePath, params.initUser, &params.initPassword)
 			if err != nil {
 				log.Error("failed to initialize after clone", map[string]interface{}{
-					"hostname":  s.agent.mysqlAdminHostname,
-					"port":      s.agent.mysqlAdminPort,
 					log.FnError: err,
 				})
 				return err
@@ -123,8 +106,6 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 			err = initialize.ShutdownInstance(ctx, mocoagent.MySQLPasswordFilePath)
 			if err != nil {
 				log.Error("failed to shutdown mysqld after clone", map[string]interface{}{
-					"hostname":  s.agent.mysqlAdminHostname,
-					"port":      s.agent.mysqlAdminPort,
 					log.FnError: err,
 				})
 				return err
@@ -219,8 +200,6 @@ func clone(ctx context.Context, db *sqlx.DB, donorUser, donorPassword, donorHost
 		log.Error("failed to exec mysql CLONE", map[string]interface{}{
 			"donor_hostname": donorHostName,
 			"donor_port":     donorPort,
-			"hostname":       a.mysqlAdminHostname,
-			"port":           a.mysqlAdminPort,
 			log.FnError:      err,
 		})
 		return err
@@ -229,8 +208,6 @@ func clone(ctx context.Context, db *sqlx.DB, donorUser, donorPassword, donorHost
 	log.Info("success to exec mysql CLONE", map[string]interface{}{
 		"donor_hostname": donorHostName,
 		"donor_port":     donorPort,
-		"hostname":       a.mysqlAdminHostname,
-		"port":           a.mysqlAdminPort,
 		log.FnError:      err,
 	})
 	return nil

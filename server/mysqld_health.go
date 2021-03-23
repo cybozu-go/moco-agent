@@ -16,25 +16,13 @@ func (a *Agent) MySQLDHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := a.getMySQLConn()
+	rows, err := a.db.QueryxContext(r.Context(), `SHOW MASTER STATUS`)
 	if err != nil {
-		log.Error("failed to connect to database before health check", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
-			log.FnError: err,
-		})
-		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, "failed to connect to database before health check: %+v", err)
+		log.Info("failed to execute a query", nil)
+		http.Error(w, "failed to execute a query", http.StatusServiceUnavailable)
 		return
 	}
-	defer db.Close()
-
-	_, err = db.QueryxContext(r.Context(), `SHOW MASTER STATUS`)
-	if err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprint(w, "failed to execute a query")
-		return
-	}
+	rows.Close()
 }
 
 func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
@@ -43,69 +31,35 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := a.getMySQLConn()
-	if err != nil {
-		log.Error("failed to connect to database before readiness check", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
-			log.FnError: err,
-		})
-		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, "failed to connect to database before readiness check: %+v", err)
-		return
-	}
-	defer db.Close()
-
 	// Check the instance is under cloning or not
-	cloneStatus, err := GetMySQLCloneStateStatus(r.Context(), db)
+	mergedStatus, err := GetMySQLGlobalVariableAndCloneStateStatus(r.Context(), a.db)
 	if err != nil {
-		log.Error("failed to get clone status", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
+		log.Error("failed to get global variables and/or clone status", map[string]interface{}{
 			log.FnError: err,
 		})
-		err := fmt.Errorf("failed to get clone status: %w", err)
+		err := fmt.Errorf("failed to get global variables and/or clone status: %w", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if cloneStatus.State.Valid && cloneStatus.State.String != mocoagent.CloneStatusCompleted {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, "the instance is under cloning")
+	if mergedStatus.State.Valid && mergedStatus.State.String != mocoagent.CloneStatusCompleted {
+		log.Info("the instance is under cloning", nil)
+		http.Error(w, "the instance is under cloning", http.StatusServiceUnavailable)
 		return
 	}
 
 	// Check the instance works primary or not
-	globalVariables, err := GetMySQLGlobalVariablesStatus(r.Context(), db)
-	if err != nil {
-		log.Error("failed to get global variables", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
-			log.FnError: err,
-		})
-		err := fmt.Errorf("failed to get global variables: %+v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if !globalVariables.ReadOnly {
+	if !mergedStatus.ReadOnly {
 		return
 	}
 
 	// Check the instance has IO/SQLThread error or not
-	replicaStatus, err := GetMySQLReplicaStatus(r.Context(), db)
+	replicaStatus, err := GetMySQLReplicaStatus(r.Context(), a.db)
 	if err != nil {
 		log.Error("failed to get replica status", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
 			log.FnError: err,
 		})
 		err := fmt.Errorf("failed to get replica status: %+v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if replicaStatus == nil {
-		log.Info("the instance is under reconciling: read_only=true, but not works as a replica", nil)
-		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, "the instance is under reconciling: read_only=true, but not works as a replica")
 		return
 	}
 
@@ -121,17 +75,20 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 			"hasIOThreadError":  hasIOThreadError,
 			"hasSQLThreadError": hasSQLThreadError,
 		})
-		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, "the instance has error(s): hasIOThreadError=%t, hasSQLThreadError=%t", hasIOThreadError, hasSQLThreadError)
+		err = fmt.Errorf("the instance has error(s): hasIOThreadError=%t, hasSQLThreadError=%t", hasIOThreadError, hasSQLThreadError)
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 
 	// Check the delay isn't over the threshold
-	timestamps, err := GetMySQLLastAppliedTransactionTimestamps(r.Context(), db)
+	if a.maxDelayThreshold == 0 {
+		// Skip delay check
+		return
+	}
+
+	timestamps, err := GetMySQLLastAppliedTransactionTimestamps(r.Context(), a.db)
 	if err != nil {
 		log.Error("failed to get transaction timestamps", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
 			log.FnError: err,
 		})
 		err := fmt.Errorf("failed to get transaction timestamps: %+v", err)
@@ -146,14 +103,17 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	delayied := timestamps.EndApplyTimestamp.Time.Sub(timestamps.OriginalCommitTimestamp.Time)
-	if delayied >= a.maxDelayThreshold {
+	// This expression calculates the delay between "the end timestamp of last transaction at the own instance"
+	// and "the original commit timestamp at the primary".
+	// If this value becomes larger, it means the own instance cannot processing the original commits in time.
+	delayed := timestamps.EndApplyTimestamp.Time.Sub(timestamps.OriginalCommitTimestamp.Time)
+	if delayed >= a.maxDelayThreshold {
 		log.Info("the instance delays from the primary", map[string]interface{}{
 			"maxDelayThreshold": a.maxDelayThreshold,
-			"delayied":          delayied,
+			"delayed":           delayed,
 		})
-		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, "the instance delays from the primary: maxDelaySecondsThreshold=%s, delayied=%s", a.maxDelayThreshold, delayied)
+		err = fmt.Errorf("the instance delays from the primary: maxDelaySecondsThreshold=%s, delayed=%s", a.maxDelayThreshold, delayed)
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 }

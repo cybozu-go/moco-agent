@@ -93,20 +93,9 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 		return nil, status.Errorf(codes.Internal, "failed to get object: err=%+v", err)
 	}
 
-	db, err := s.agent.getMySQLConn()
-	if err != nil {
-		s.agent.sem.Release(1)
-		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
-			"hostname":  s.agent.mysqlAdminHostname,
-			"port":      s.agent.mysqlAdminPort,
-			log.FnError: err,
-		})
-		return nil, status.Errorf(codes.Internal, "failed to connect to database before flush binary logs: err=%+v", err)
-	}
-
 	metrics.IncrementBinlogBackupCountMetrics(s.agent.clusterName)
 
-	err = flushBinaryLogs(ctx, db)
+	err = flushBinaryLogs(ctx, s.agent.db)
 	if err != nil {
 		s.agent.sem.Release(1)
 		log.Error("failed to flush binary logs", map[string]interface{}{
@@ -126,14 +115,14 @@ func (s *backupBinlogService) FlushAndBackupBinlog(ctx context.Context, req *age
 			metrics.SetBinlogBackupInProgressMetrics(s.agent.clusterName, false)
 		}()
 
-		err = uploadBinaryLog(ctx, sess, db, convertProtoReqToParams(req))
+		err = uploadBinaryLog(ctx, sess, s.agent.db, convertProtoReqToParams(req))
 		if err != nil {
 			// Need not output error log here, because the errors are logged in the function.
 			metrics.IncrementBinlogBackupFailureCountMetrics(s.agent.clusterName, "upload")
 			return err
 		}
 
-		err = deleteBinaryLog(ctx, db)
+		err = deleteBinaryLog(ctx, s.agent.db)
 		if err != nil {
 			log.Error("failed to delete binary logs", map[string]interface{}{
 				log.FnError: err,
@@ -158,18 +147,7 @@ func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *agentrpc.Flu
 	}
 	defer s.agent.sem.Release(1)
 
-	// TODO: change user to AgentUser (need to add appropriate privileges to AgentUser)
-	db, err := s.agent.getMySQLConn()
-	if err != nil {
-		log.Error("failed to connect to database before flush binary logs", map[string]interface{}{
-			"hostname":  s.agent.mysqlAdminHostname,
-			"port":      s.agent.mysqlAdminPort,
-			log.FnError: err,
-		})
-		return nil, status.Errorf(codes.Internal, "failed to connect to database before flush binary logs: err=%+v", err)
-	}
-
-	err = flushBinaryLogs(ctx, db)
+	err := flushBinaryLogs(ctx, s.agent.db)
 	if err != nil {
 		log.Error("failed to flush binary logs", map[string]interface{}{
 			log.FnError: err,
@@ -178,7 +156,7 @@ func (s *backupBinlogService) FlushBinlog(ctx context.Context, req *agentrpc.Flu
 	}
 
 	if req.Delete {
-		err = deleteBinaryLog(ctx, db)
+		err = deleteBinaryLog(ctx, s.agent.db)
 		if err != nil {
 			log.Error("failed to delete binary logs", map[string]interface{}{
 				log.FnError: err,

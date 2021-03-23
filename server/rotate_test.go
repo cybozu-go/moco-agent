@@ -22,7 +22,13 @@ func testRotate() {
 		var err error
 		tmpDir, err = os.MkdirTemp("", "moco-test-agent-")
 		Expect(err).ShouldNot(HaveOccurred())
-		agent = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", tmpDir, replicaPort,
+
+		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID)
+		Expect(err).ShouldNot(HaveOccurred())
+		err = test_utils.InitializeMySQL(replicaPort)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		agent, err = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", tmpDir, replicaPort,
 			MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -30,6 +36,7 @@ func testRotate() {
 			},
 			maxDelayThreshold,
 		)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
@@ -37,23 +44,18 @@ func testRotate() {
 
 	AfterEach(func() {
 		os.RemoveAll(tmpDir)
+		agent.CloseDB()
+		test_utils.StopAndRemoveMySQLD(replicaHost)
 	})
 
 	It("should rotate log files", func() {
 		err := test_utils.StartMySQLD(donorHost, donorPort, donorServerID)
 		Expect(err).ShouldNot(HaveOccurred())
-		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID)
-		Expect(err).ShouldNot(HaveOccurred())
 
 		err = test_utils.InitializeMySQL(donorPort)
 		Expect(err).ShouldNot(HaveOccurred())
-		err = test_utils.InitializeMySQL(replicaPort)
-		Expect(err).ShouldNot(HaveOccurred())
 
-		defer func() {
-			test_utils.StopAndRemoveMySQLD(donorHost)
-			test_utils.StopAndRemoveMySQLD(replicaHost)
-		}()
+		test_utils.StopAndRemoveMySQLD(donorHost)
 
 		By("preparing log files for testing")
 		slowFile := filepath.Join(tmpDir, mocoagent.MySQLSlowLogName)

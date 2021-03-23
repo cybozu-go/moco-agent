@@ -26,7 +26,6 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
@@ -84,13 +83,17 @@ var agentCmd = &cobra.Command{
 			socketPath = mocoagent.MySQLSocketDefaultPath
 		}
 
-		agent := server.New(podName, clusterName,
+		agent, err := server.New(podName, clusterName,
 			agentPassword, donorPassword, mocoagent.ReplicationSourceSecretPath, socketPath, mocoagent.VarLogPath, mocoagent.MySQLAdminPort,
 			server.MySQLAccessorConfig{
 				ConnMaxLifeTime:   viper.GetDuration(connMaxLifetimeFlag),
 				ConnectionTimeout: viper.GetDuration(connectionTimeoutFlag),
 				ReadTimeout:       viper.GetDuration(readTimeoutFlag),
 			}, viper.GetDuration(maxDelayThreshold))
+		if err != nil {
+			return err
+		}
+		defer agent.CloseDB()
 
 		mysql.SetLogger(mysqlLogger{})
 
@@ -140,7 +143,8 @@ var agentCmd = &cobra.Command{
 				grpc_zap.UnaryServerInterceptor(grpcLogger),
 			),
 		))
-		healthpb.RegisterHealthServer(grpcServer, server.NewHealthService(agent))
+		// TODO: gRPC server health check will be implemented
+		// healthpb.RegisterHealthServer(grpcServer, server.NewHealthService(agent))
 		agentrpc.RegisterCloneServiceServer(grpcServer, server.NewCloneService(agent))
 		agentrpc.RegisterBackupBinlogServiceServer(grpcServer, server.NewBackupBinlogService(agent))
 
@@ -185,7 +189,7 @@ func init() {
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")
 	agentCmd.Flags().String(logRotationScheduleFlag, "*/5 * * * *", "Cron format schedule for MySQL log rotation")
 	agentCmd.Flags().Duration(readTimeoutFlag, 30*time.Second, "I/O read timeout")
-	agentCmd.Flags().Duration(maxDelayThreshold, 5*time.Second, "Acceptable max commit delay considering as ready")
+	agentCmd.Flags().Duration(maxDelayThreshold, time.Minute, "Acceptable max commit delay considering as ready")
 
 	err := viper.BindPFlags(agentCmd.Flags())
 	if err != nil {

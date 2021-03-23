@@ -24,7 +24,12 @@ func testMySQLDHealth() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		agent = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", "", replicaPort,
+		err := test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID)
+		Expect(err).ShouldNot(HaveOccurred())
+		err = test_utils.InitializeMySQL(replicaPort)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		agent, err = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", "", replicaPort,
 			MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -32,22 +37,24 @@ func testMySQLDHealth() {
 			},
 			maxDelayThreshold,
 		)
+		Expect(err).ShouldNot(HaveOccurred())
 	})
 
-	It("should return 200 if the agent can execute a query", func() {
-		err := test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID)
-		Expect(err).ShouldNot(HaveOccurred())
-		err = test_utils.InitializeMySQL(replicaPort)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		By("getting health")
-		res := getHealth(agent)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
-
+	AfterEach(func() {
+		agent.CloseDB()
 		test_utils.StopAndRemoveMySQLD(replicaHost)
 	})
 
+	It("should return 200 if the agent can execute a query", func() {
+		By("getting health")
+		res := getHealth(agent)
+		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
+	})
+
 	It("should return 503 if the agent cannot connect the own mysqld", func() {
+		By("stoping the instance")
+		test_utils.StopAndRemoveMySQLD(replicaHost)
+
 		By("getting health")
 		res := getHealth(agent)
 		Expect(res).Should(HaveHTTPStatus(http.StatusServiceUnavailable))
@@ -83,7 +90,7 @@ func testMySQLDReady() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		agent = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", "", replicaPort,
+		agent, err = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", "", replicaPort,
 			MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -91,11 +98,13 @@ func testMySQLDReady() {
 			},
 			maxDelayThreshold,
 		)
+		Expect(err).ShouldNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		test_utils.StopAndRemoveMySQLD(donorHost)
 		test_utils.StopAndRemoveMySQLD(replicaHost)
+		agent.CloseDB()
 	})
 
 	It("should return 200 if not under cloning and read_only=false", func() {
@@ -136,9 +145,9 @@ func testMySQLDReady() {
 		By("setting read_only=true, but not works as replica")
 		test_utils.SetReadonly(replicaPort)
 
-		By("getting readiness (should be 503)")
+		By("getting readiness (should be 500)")
 		res := getReady(agent)
-		Expect(res).Should(HaveHTTPStatus(http.StatusServiceUnavailable))
+		Expect(res).Should(HaveHTTPStatus(http.StatusInternalServerError))
 
 		By("executing START SLAVE with invalid parameters")
 		err := test_utils.StartSlaveWithInvalidSettings(replicaPort)

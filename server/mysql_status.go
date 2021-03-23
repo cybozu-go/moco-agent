@@ -22,6 +22,11 @@ type MySQLCloneStateStatus struct {
 	State sql.NullString `db:"state"`
 }
 
+type MergedGlobalVariableAndCloneStateStatus struct {
+	MySQLGlobalVariablesStatus
+	MySQLCloneStateStatus
+}
+
 // MySQLPrimaryStatus defines the observed state of a primary
 type MySQLPrimaryStatus struct {
 	ExecutedGtidSet string `db:"Executed_Gtid_Set"`
@@ -119,8 +124,11 @@ func GetMySQLGlobalVariablesStatus(ctx context.Context, db *sqlx.DB) (*MySQLGlob
 		}
 		return &status, nil
 	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 
-	return nil, errors.New("globalVariables status is empty")
+	return nil, errors.New("return value is empty")
 }
 
 func GetMySQLCloneStateStatus(ctx context.Context, db *sqlx.DB) (*MySQLCloneStateStatus, error) {
@@ -138,8 +146,33 @@ func GetMySQLCloneStateStatus(ctx context.Context, db *sqlx.DB) (*MySQLCloneStat
 		}
 		return &status, nil
 	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 
-	return &status, nil
+	return nil, errors.New("return value is empty")
+}
+
+func GetMySQLGlobalVariableAndCloneStateStatus(ctx context.Context, db *sqlx.DB) (*MergedGlobalVariableAndCloneStateStatus, error) {
+	rows, err := db.QueryxContext(ctx, `SELECT @@read_only, @@super_read_only, @@rpl_semi_sync_master_wait_for_slave_count, @@clone_valid_donor_list, state FROM performance_schema.clone_status`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var status MergedGlobalVariableAndCloneStateStatus
+	if rows.Next() {
+		err = rows.StructScan(&status)
+		if err != nil {
+			return nil, err
+		}
+		return &status, nil
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return nil, errors.New("return value is empty")
 }
 
 func GetMySQLPrimaryStatus(ctx context.Context, db *sqlx.DB) (*MySQLPrimaryStatus, error) {
@@ -157,8 +190,11 @@ func GetMySQLPrimaryStatus(ctx context.Context, db *sqlx.DB) (*MySQLPrimaryStatu
 		}
 		return &status, nil
 	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 
-	return nil, errors.New("primary status is empty")
+	return nil, errors.New("return value is empty")
 }
 
 func GetMySQLReplicaStatus(ctx context.Context, db *sqlx.DB) (*MySQLReplicaStatus, error) {
@@ -177,7 +213,7 @@ func GetMySQLReplicaStatus(ctx context.Context, db *sqlx.DB) (*MySQLReplicaStatu
 		return &status, nil
 	}
 
-	return nil, nil
+	return nil, errors.New("return value is empty")
 }
 
 func GetMySQLLastAppliedTransactionTimestamps(ctx context.Context, db *sqlx.DB) (*MySQLLastAppliedTransactionTimestamps, error) {
@@ -196,5 +232,5 @@ func GetMySQLLastAppliedTransactionTimestamps(ctx context.Context, db *sqlx.DB) 
 		return &timestamps, nil
 	}
 
-	return &timestamps, nil
+	return nil, errors.New("return value is empty")
 }
