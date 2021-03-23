@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -99,8 +100,8 @@ type MySQLReplicaStatus struct {
 }
 
 type MySQLLastAppliedTransactionTimestamps struct {
-	OriginalCommitTimestamp string `db:"LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP"`
-	EndApplyTimestamp       string `db:"LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP"`
+	OriginalCommitTimestamp mysql.NullTime `db:"LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP"`
+	EndApplyTimestamp       mysql.NullTime `db:"LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP"`
 }
 
 func GetMySQLGlobalVariablesStatus(ctx context.Context, db *sqlx.DB) (*MySQLGlobalVariablesStatus, error) {

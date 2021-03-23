@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -148,25 +149,14 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check the delay isn't over the threshold
-	endTime, err := time.Parse(time.RFC3339Nano, timestamps.EndApplyTimestamp)
-	if err != nil {
-		log.Error("failed to parse transaction timestamps", map[string]interface{}{
-			log.FnError: err,
-		})
-		err := fmt.Errorf("failed to parse transaction timestamps: %+v", err)
+	if !timestamps.OriginalCommitTimestamp.Valid || !timestamps.EndApplyTimestamp.Valid {
+		log.Error("failed to parse transaction timestamps", nil)
+		err := errors.New("failed to parse transaction timestamps")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	commitTime, err := time.Parse(time.RFC3339Nano, timestamps.OriginalCommitTimestamp)
-	if err != nil {
-		log.Error("failed to parse transaction timestamps", map[string]interface{}{
-			log.FnError: err,
-		})
-		err := fmt.Errorf("failed to parse transaction timestamps: %+v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	delayied := endTime.Sub(commitTime)
+
+	delayied := timestamps.EndApplyTimestamp.Time.Sub(timestamps.OriginalCommitTimestamp.Time)
 	if delayied >= maxDelayThreshold {
 		log.Info("the instance delays from the primary", map[string]interface{}{
 			"maxDelayThreshold": maxDelayThreshold,

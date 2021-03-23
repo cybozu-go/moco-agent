@@ -56,6 +56,7 @@ func (a *Agent) getMySQLConn() (*sqlx.DB, error) {
 	conf.Timeout = a.accConfig.ConnectionTimeout
 	conf.ReadTimeout = a.accConfig.ReadTimeout
 	conf.InterpolateParams = true
+	conf.ParseTime = true
 
 	db, err := sqlx.Connect("mysql", conf.FormatDSN())
 	if err != nil {
