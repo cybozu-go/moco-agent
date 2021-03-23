@@ -11,6 +11,7 @@ import (
 
 	"github.com/cybozu-go/log"
 	mocoagent "github.com/cybozu-go/moco-agent"
+	"github.com/cybozu-go/moco-agent/init"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
@@ -58,6 +59,13 @@ var agentCmd = &cobra.Command{
 			return err
 		}
 		defer zapLogger.Sync()
+
+		// TODO: How should we handle the context?
+		ctx := context.Background()
+		err = init.EnsureMOCOUsers(ctx, mocoagent.MySQLSocketDefaultPath)
+		if err != nil {
+			return err
+		}
 
 		podName := os.Getenv(mocoagent.PodNameEnvKey)
 		if podName == "" {

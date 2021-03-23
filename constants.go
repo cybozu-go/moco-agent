@@ -60,7 +60,7 @@ const (
 	MySQLSocketPathEnvKey = "MYSQL_SOCKET_PATH"
 
 	// MySQLSocketDefaultPath is the default path for MySQL unix domain socket file
-	MySQLSocketDefaultPath = "/var/run/mysqld/mysqld.sock"
+	MySQLSocketDefaultPath = "/run/mysqld.sock"
 
 	// AgentPasswordPath is a path for the password file for agent
 	AgentPasswordPath = MySQLDataPath + "/agent-password"

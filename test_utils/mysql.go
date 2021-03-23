@@ -413,3 +413,23 @@ func ConnectMySQL(addr, user, password string) (*sqlx.DB, error) {
 
 	return db, nil
 }
+
+func StartMySQLDForTestInit(name string) error {
+	ctx := context.Background()
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	args := []string{
+		"run", "--name", name, "-d", "--restart=always",
+		"-p", "3306:3306",
+		"-e", "MYSQL_ALLOW_EMPTY_PASSWORD=true",
+		"-v", filepath.Join(wd, "..", "my.cnf") + ":/etc/mysql/conf.d/my.cnf",
+		"-v", MysqlSocketDir + ":/var/run/mysqld",
+		"mysql:" + MySQLVersion,
+	}
+
+	cmd := well.CommandContext(ctx, "docker", args...)
+	return run(cmd)
+}
