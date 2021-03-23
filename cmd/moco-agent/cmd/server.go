@@ -37,9 +37,9 @@ const (
 	logRotationScheduleFlag = "log-rotation-schedule"
 	readTimeoutFlag         = "read-timeout"
 	maxDelayThreshold       = "max-delay"
-	grpcListenPort          = 9080
-	probeListenPort         = 9081
-	metricsListenPort       = 8080
+	grpcDefaultAddr         = ":9080"
+	probeDefaultAddr        = ":9081"
+	metricsDefaultAddr      = ":8080"
 )
 
 type mysqlLogger struct{}
@@ -182,9 +182,9 @@ var agentCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(agentCmd)
 
-	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", grpcListenPort), "Listening address and port for gRPC API.")
-	agentCmd.Flags().String(probeAddressFlag, fmt.Sprintf(":%d", probeListenPort), "Listening address and port for mysqld health probes.")
-	agentCmd.Flags().String(metricsAddressFlag, fmt.Sprintf(":%d", metricsListenPort), "Listening address and port for metrics.")
+	agentCmd.Flags().String(addressFlag, grpcDefaultAddr, "Listening address and port for gRPC API.")
+	agentCmd.Flags().String(probeAddressFlag, probeDefaultAddr, "Listening address and port for mysqld health probes.")
+	agentCmd.Flags().String(metricsAddressFlag, metricsDefaultAddr, "Listening address and port for metrics.")
 	agentCmd.Flags().Duration(connMaxLifetimeFlag, 30*time.Minute, "The maximum amount of time a connection may be reused")
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")
 	agentCmd.Flags().String(logRotationScheduleFlag, "*/5 * * * *", "Cron format schedule for MySQL log rotation")

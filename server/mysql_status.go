@@ -109,28 +109,6 @@ type MySQLLastAppliedTransactionTimestamps struct {
 	EndApplyTimestamp       mysql.NullTime `db:"LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP"`
 }
 
-func GetMySQLGlobalVariablesStatus(ctx context.Context, db *sqlx.DB) (*MySQLGlobalVariablesStatus, error) {
-	rows, err := db.QueryxContext(ctx, `SELECT @@read_only, @@super_read_only, @@rpl_semi_sync_master_wait_for_slave_count, @@clone_valid_donor_list`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var status MySQLGlobalVariablesStatus
-	if rows.Next() {
-		err = rows.StructScan(&status)
-		if err != nil {
-			return nil, err
-		}
-		return &status, nil
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return nil, errors.New("return value is empty")
-}
-
 func GetMySQLCloneStateStatus(ctx context.Context, db *sqlx.DB) (*MySQLCloneStateStatus, error) {
 	rows, err := db.QueryxContext(ctx, `SELECT state FROM performance_schema.clone_status`)
 	if err != nil {
@@ -212,6 +190,9 @@ func GetMySQLReplicaStatus(ctx context.Context, db *sqlx.DB) (*MySQLReplicaStatu
 		}
 		return &status, nil
 	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 
 	return nil, errors.New("return value is empty")
 }
@@ -230,6 +211,9 @@ func GetMySQLLastAppliedTransactionTimestamps(ctx context.Context, db *sqlx.DB) 
 			return nil, err
 		}
 		return &timestamps, nil
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return nil, errors.New("return value is empty")

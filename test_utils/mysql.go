@@ -403,7 +403,6 @@ func ConnectMySQL(addr, user, password string) (*sqlx.DB, error) {
 	conf.Timeout = 3 * time.Second
 	conf.ReadTimeout = 30 * time.Second
 	conf.InterpolateParams = true
-	conf.ParseTime = true
 
 	db, err := sqlx.Connect("mysql", conf.FormatDSN())
 	if err != nil {

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -98,8 +97,7 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 
 	if !timestamps.OriginalCommitTimestamp.Valid || !timestamps.EndApplyTimestamp.Valid {
 		log.Error("failed to parse transaction timestamps", nil)
-		err := errors.New("failed to parse transaction timestamps")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "failed to parse transaction timestamps", http.StatusInternalServerError)
 		return
 	}
 
