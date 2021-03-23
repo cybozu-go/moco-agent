@@ -29,17 +29,18 @@ import (
 )
 
 const (
-	addressFlag             = "address"
-	probeAddressFlag        = "probe-address"
-	metricsAddressFlag      = "metrics-address"
-	connMaxLifetimeFlag     = "conn-max-lifetime"
-	connectionTimeoutFlag   = "connection-timeout"
-	logRotationScheduleFlag = "log-rotation-schedule"
-	readTimeoutFlag         = "read-timeout"
-	maxDelayThreshold       = "max-delay"
-	grpcDefaultAddr         = ":9080"
-	probeDefaultAddr        = ":9081"
-	metricsDefaultAddr      = ":8080"
+	addressFlag                = "address"
+	probeAddressFlag           = "probe-address"
+	metricsAddressFlag         = "metrics-address"
+	connMaxLifetimeFlag        = "conn-max-lifetime"
+	connectionTimeoutFlag      = "connection-timeout"
+	logRotationScheduleFlag    = "log-rotation-schedule"
+	readTimeoutFlag            = "read-timeout"
+	maxDelayThreshold          = "max-delay"
+	grpcDefaultAddr            = ":9080"
+	probeDefaultAddr           = ":9081"
+	metricsDefaultAddr         = ":8080"
+	defaultLogRotationSchedule = "*/5 * * * *"
 )
 
 type mysqlLogger struct{}
@@ -114,7 +115,11 @@ var agentCmd = &cobra.Command{
 		}
 
 		c := cron.New()
-		if _, err := c.AddFunc(viper.GetString(logRotationScheduleFlag), agent.RotateLog); err != nil {
+		sched := viper.GetString(logRotationScheduleFlag)
+		if sched == "" {
+			sched = defaultLogRotationSchedule
+		}
+		if _, err := c.AddFunc(sched, agent.RotateLog); err != nil {
 			log.Error("failed to parse the cron spec", map[string]interface{}{
 				"spec":      viper.GetString(logRotationScheduleFlag),
 				log.FnError: err,
@@ -187,7 +192,7 @@ func init() {
 	agentCmd.Flags().String(metricsAddressFlag, metricsDefaultAddr, "Listening address and port for metrics.")
 	agentCmd.Flags().Duration(connMaxLifetimeFlag, 30*time.Minute, "The maximum amount of time a connection may be reused")
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")
-	agentCmd.Flags().String(logRotationScheduleFlag, "*/5 * * * *", "Cron format schedule for MySQL log rotation")
+	agentCmd.Flags().String(logRotationScheduleFlag, "", "Cron format schedule for MySQL log rotation")
 	agentCmd.Flags().Duration(readTimeoutFlag, 30*time.Second, "I/O read timeout")
 	agentCmd.Flags().Duration(maxDelayThreshold, time.Minute, "Acceptable max commit delay considering as ready")
 
