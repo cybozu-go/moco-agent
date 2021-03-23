@@ -61,6 +61,7 @@ func testClone() {
 				ConnectionTimeout: 3 * time.Second,
 				ReadTimeout:       30 * time.Second,
 			},
+			maxDelayThreshold,
 		)
 
 		gsrv = NewCloneService(agent)

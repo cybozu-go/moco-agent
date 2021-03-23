@@ -4,14 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/cybozu-go/log"
 	mocoagent "github.com/cybozu-go/moco-agent"
-)
-
-const (
-	maxDelayThreshold = 5 * time.Second
 )
 
 // Health returns the health check result of own MySQL
@@ -157,13 +152,13 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 	}
 
 	delayied := timestamps.EndApplyTimestamp.Time.Sub(timestamps.OriginalCommitTimestamp.Time)
-	if delayied >= maxDelayThreshold {
+	if delayied >= a.maxDelayThreshold {
 		log.Info("the instance delays from the primary", map[string]interface{}{
-			"maxDelayThreshold": maxDelayThreshold,
+			"maxDelayThreshold": a.maxDelayThreshold,
 			"delayied":          delayied,
 		})
 		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprintf(w, "the instance delays from the primary: maxDelaySecondsThreshold=%s, delayied=%s", maxDelayThreshold, delayied)
+		fmt.Fprintf(w, "the instance delays from the primary: maxDelaySecondsThreshold=%s, delayied=%s", a.maxDelayThreshold, delayied)
 		return
 	}
 }

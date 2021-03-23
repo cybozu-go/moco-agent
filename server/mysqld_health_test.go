@@ -30,6 +30,7 @@ func testHealthHTTP() {
 				ConnectionTimeout: 3 * time.Second,
 				ReadTimeout:       30 * time.Second,
 			},
+			maxDelayThreshold,
 		)
 	})
 
@@ -88,6 +89,7 @@ func testReadyHTTP() {
 				ConnectionTimeout: 3 * time.Second,
 				ReadTimeout:       30 * time.Second,
 			},
+			maxDelayThreshold,
 		)
 	})
 

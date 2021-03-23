@@ -17,14 +17,15 @@ import (
 )
 
 const (
-	clusterName     = "moco-agent-test"
-	metricsPrefix   = "moco_agent_"
-	donorHost       = "moco-agent-test-mysqld-donor"
-	donorPort       = 3307
-	donorServerID   = 1
-	replicaHost     = "moco-agent-test-mysqld-replica"
-	replicaPort     = 3308
-	replicaServerID = 2
+	clusterName       = "moco-agent-test"
+	metricsPrefix     = "moco_agent_"
+	donorHost         = "moco-agent-test-mysqld-donor"
+	donorPort         = 3307
+	donorServerID     = 1
+	replicaHost       = "moco-agent-test-mysqld-replica"
+	replicaPort       = 3308
+	replicaServerID   = 2
+	maxDelayThreshold = 5 * time.Second
 )
 
 var (

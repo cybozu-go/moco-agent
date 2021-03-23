@@ -56,6 +56,7 @@ func testHealth() {
 				ConnectionTimeout: 3 * time.Second,
 				ReadTimeout:       30 * time.Second,
 			},
+			maxDelayThreshold,
 		)
 
 		gsrv = NewHealthService(agent)

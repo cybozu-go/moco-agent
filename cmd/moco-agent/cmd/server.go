@@ -37,6 +37,7 @@ const (
 	connectionTimeoutFlag   = "connection-timeout"
 	logRotationScheduleFlag = "log-rotation-schedule"
 	readTimeoutFlag         = "read-timeout"
+	maxDelayThreshold       = "max-delay"
 	grpcListenPort          = 9080
 	probeListenPort         = 9081
 	metricsListenPort       = 8080
@@ -89,7 +90,7 @@ var agentCmd = &cobra.Command{
 				ConnMaxLifeTime:   viper.GetDuration(connMaxLifetimeFlag),
 				ConnectionTimeout: viper.GetDuration(connectionTimeoutFlag),
 				ReadTimeout:       viper.GetDuration(readTimeoutFlag),
-			})
+			}, viper.GetDuration(maxDelayThreshold))
 
 		mysql.SetLogger(mysqlLogger{})
 
@@ -184,6 +185,7 @@ func init() {
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")
 	agentCmd.Flags().String(logRotationScheduleFlag, "*/5 * * * *", "Cron format schedule for MySQL log rotation")
 	agentCmd.Flags().Duration(readTimeoutFlag, 30*time.Second, "I/O read timeout")
+	agentCmd.Flags().Duration(maxDelayThreshold, 5*time.Second, "Acceptable max commit delay considering as ready")
 
 	err := viper.BindPFlags(agentCmd.Flags())
 	if err != nil {

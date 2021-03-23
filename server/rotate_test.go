@@ -28,6 +28,7 @@ func testRotate() {
 				ConnectionTimeout: 3 * time.Second,
 				ReadTimeout:       30 * time.Second,
 			},
+			maxDelayThreshold,
 		)
 
 		registry = prometheus.NewRegistry()
