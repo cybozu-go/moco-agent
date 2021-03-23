@@ -26,18 +26,20 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
 	addressFlag             = "address"
+	probeAddressFlag        = "probe-address"
 	metricsAddressFlag      = "metrics-address"
 	connMaxLifetimeFlag     = "conn-max-lifetime"
 	connectionTimeoutFlag   = "connection-timeout"
 	logRotationScheduleFlag = "log-rotation-schedule"
 	readTimeoutFlag         = "read-timeout"
-	serverListenPort        = 9080
-	metricsListenPort       = 8080
+	maxDelayThreshold       = "max-delay"
+	grpcDefaultAddr         = ":9080"
+	probeDefaultAddr        = ":9081"
+	metricsDefaultAddr      = ":8080"
 )
 
 type mysqlLogger struct{}
@@ -81,28 +83,32 @@ var agentCmd = &cobra.Command{
 			socketPath = mocoagent.MySQLSocketDefaultPath
 		}
 
-		agent := server.New(podName, clusterName,
+		agent, err := server.New(podName, clusterName,
 			agentPassword, donorPassword, mocoagent.ReplicationSourceSecretPath, socketPath, mocoagent.VarLogPath, mocoagent.MySQLAdminPort,
 			server.MySQLAccessorConfig{
 				ConnMaxLifeTime:   viper.GetDuration(connMaxLifetimeFlag),
 				ConnectionTimeout: viper.GetDuration(connectionTimeoutFlag),
 				ReadTimeout:       viper.GetDuration(readTimeoutFlag),
-			})
+			}, viper.GetDuration(maxDelayThreshold))
+		if err != nil {
+			return err
+		}
+		defer agent.CloseDB()
 
 		mysql.SetLogger(mysqlLogger{})
 
 		registry := prometheus.DefaultRegisterer
 		metrics.RegisterMetrics(registry)
 
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.Handler())
-		serv := &well.HTTPServer{
+		metricsMux := http.NewServeMux()
+		metricsMux.Handle("/metrics", promhttp.Handler())
+		metricsServ := &well.HTTPServer{
 			Server: &http.Server{
 				Addr:    viper.GetString(metricsAddressFlag),
-				Handler: mux,
+				Handler: metricsMux,
 			},
 		}
-		err = serv.ListenAndServe()
+		err = metricsServ.ListenAndServe()
 		if err != nil {
 			return err
 		}
@@ -137,7 +143,8 @@ var agentCmd = &cobra.Command{
 				grpc_zap.UnaryServerInterceptor(grpcLogger),
 			),
 		))
-		healthpb.RegisterHealthServer(grpcServer, server.NewHealthService(agent))
+		// TODO: gRPC server health check will be implemented
+		// healthpb.RegisterHealthServer(grpcServer, server.NewHealthService(agent))
 		agentrpc.RegisterCloneServiceServer(grpcServer, server.NewCloneService(agent))
 		agentrpc.RegisterBackupBinlogServiceServer(grpcServer, server.NewBackupBinlogService(agent))
 
@@ -150,6 +157,20 @@ var agentCmd = &cobra.Command{
 			return nil
 		})
 
+		probeMux := http.NewServeMux()
+		probeMux.HandleFunc("/healthz", agent.MySQLDHealth)
+		probeMux.HandleFunc("/readyz", agent.MySQLDReady)
+		probeServ := &well.HTTPServer{
+			Server: &http.Server{
+				Addr:    viper.GetString(probeAddressFlag),
+				Handler: probeMux,
+			},
+		}
+		err = probeServ.ListenAndServe()
+		if err != nil {
+			return err
+		}
+
 		if err := well.Wait(); err != nil && !well.IsSignaled(err) {
 			return err
 		}
@@ -161,12 +182,14 @@ var agentCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(agentCmd)
 
-	agentCmd.Flags().String(addressFlag, fmt.Sprintf(":%d", serverListenPort), "Listening address and port for gRPC API.")
-	agentCmd.Flags().String(metricsAddressFlag, fmt.Sprintf(":%d", metricsListenPort), "Listening address and port for metrics.")
+	agentCmd.Flags().String(addressFlag, grpcDefaultAddr, "Listening address and port for gRPC API.")
+	agentCmd.Flags().String(probeAddressFlag, probeDefaultAddr, "Listening address and port for mysqld health probes.")
+	agentCmd.Flags().String(metricsAddressFlag, metricsDefaultAddr, "Listening address and port for metrics.")
 	agentCmd.Flags().Duration(connMaxLifetimeFlag, 30*time.Minute, "The maximum amount of time a connection may be reused")
 	agentCmd.Flags().Duration(connectionTimeoutFlag, 3*time.Second, "Dial timeout")
 	agentCmd.Flags().String(logRotationScheduleFlag, "*/5 * * * *", "Cron format schedule for MySQL log rotation")
 	agentCmd.Flags().Duration(readTimeoutFlag, 30*time.Second, "I/O read timeout")
+	agentCmd.Flags().Duration(maxDelayThreshold, time.Minute, "Acceptable max commit delay considering as ready")
 
 	err := viper.BindPFlags(agentCmd.Flags())
 	if err != nil {

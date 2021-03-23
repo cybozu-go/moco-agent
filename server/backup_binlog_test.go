@@ -43,13 +43,6 @@ func testBackupBinlog() {
 		var err error
 		tmpDir, err = os.MkdirTemp("", agentTestPrefix)
 		Expect(err).ShouldNot(HaveOccurred())
-		agent = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", tmpDir, replicaPort,
-			MySQLAccessorConfig{
-				ConnMaxLifeTime:   30 * time.Minute,
-				ConnectionTimeout: 3 * time.Second,
-				ReadTimeout:       30 * time.Second,
-			},
-		)
 
 		By("creating MySQL and MinIO containers")
 		binlogDir, err = os.MkdirTemp("", binlogDirPrefix)
@@ -70,6 +63,17 @@ func testBackupBinlog() {
 
 		By("initializing MySQL replica")
 		err = test_utils.InitializeMySQL(replicaPort)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("crating agent")
+		agent, err = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", tmpDir, replicaPort,
+			MySQLAccessorConfig{
+				ConnMaxLifeTime:   30 * time.Minute,
+				ConnectionTimeout: 3 * time.Second,
+				ReadTimeout:       30 * time.Second,
+			},
+			maxDelayThreshold,
+		)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("initializing MinIO")
@@ -103,6 +107,8 @@ func testBackupBinlog() {
 		test_utils.StopMinIO(agentTestPrefix + "minio")
 		os.RemoveAll(tmpDir)
 		os.RemoveAll(binlogDir)
+
+		agent.CloseDB()
 	})
 
 	It("should flush and backup binlog", func() {

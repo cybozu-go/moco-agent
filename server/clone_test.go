@@ -55,13 +55,15 @@ func testClone() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		agent = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, test_utils.MysqlSocketDir+"/mysqld.sock", "", replicaPort,
+		agent, err = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, test_utils.MysqlSocketDir+"/mysqld.sock", "", replicaPort,
 			MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
 				ReadTimeout:       30 * time.Second,
 			},
+			maxDelayThreshold,
 		)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		gsrv = NewCloneService(agent)
 	})
@@ -69,6 +71,7 @@ func testClone() {
 	AfterEach(func() {
 		test_utils.StopAndRemoveMySQLD(donorHost)
 		test_utils.StopAndRemoveMySQLD(replicaHost)
+		agent.CloseDB()
 	})
 
 	It("should return error with bad requests", func() {

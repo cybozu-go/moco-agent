@@ -17,14 +17,15 @@ import (
 )
 
 const (
-	clusterName     = "moco-agent-test"
-	metricsPrefix   = "moco_agent_"
-	donorHost       = "moco-agent-test-mysqld-donor"
-	donorPort       = 3307
-	donorServerID   = 1
-	replicaHost     = "moco-agent-test-mysqld-replica"
-	replicaPort     = 3308
-	replicaServerID = 2
+	clusterName       = "moco-agent-test"
+	metricsPrefix     = "moco_agent_"
+	donorHost         = "moco-agent-test-mysqld-donor"
+	donorPort         = 3307
+	donorServerID     = 1
+	replicaHost       = "moco-agent-test-mysqld-replica"
+	replicaPort       = 3308
+	replicaServerID   = 2
+	maxDelayThreshold = 5 * time.Second
 )
 
 var (
@@ -74,9 +75,10 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Test Agent", func() {
 	Context("rotate", testRotate)
-	Context("health", testHealth)
 	Context("clone", testClone)
 	Context("backupBinlog", testBackupBinlog)
+	Context("MySQLDHealth", testMySQLDHealth)
+	Context("MySQLDReady", testMySQLDReady)
 })
 
 func getMetric(registry *prometheus.Registry, metricName string) (*promgo.Metric, error) {

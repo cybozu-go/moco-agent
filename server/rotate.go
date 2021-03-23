@@ -38,21 +38,8 @@ func (a *Agent) RotateLog() {
 		return
 	}
 
-	db, err := a.getMySQLConn()
-	if err != nil {
-		log.Error("failed to connect to database before log flush", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
-			log.FnError: err,
-		})
-		metrics.IncrementLogRotationFailureCountMetrics(a.clusterName)
-		return
-	}
-
-	if _, err := db.ExecContext(ctx, "FLUSH LOCAL ERROR LOGS, SLOW LOGS"); err != nil {
+	if _, err := a.db.ExecContext(ctx, "FLUSH LOCAL ERROR LOGS, SLOW LOGS"); err != nil {
 		log.Error("failed to exec mysql FLUSH", map[string]interface{}{
-			"hostname":  a.mysqlAdminHostname,
-			"port":      a.mysqlAdminPort,
 			log.FnError: err,
 		})
 		metrics.IncrementLogRotationFailureCountMetrics(a.clusterName)
