@@ -154,8 +154,8 @@ var agentCmd = &cobra.Command{
 		})
 
 		probeMux := http.NewServeMux()
-		probeMux.HandleFunc("/healthz", agent.Health)
-		probeMux.HandleFunc("/readyz", agent.Ready)
+		probeMux.HandleFunc("/healthz", agent.MySQLDHealth)
+		probeMux.HandleFunc("/readyz", agent.MySQLDReady)
 		probeServ := &well.HTTPServer{
 			Server: &http.Server{
 				Addr:    viper.GetString(probeAddressFlag),

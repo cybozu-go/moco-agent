@@ -10,7 +10,7 @@ import (
 )
 
 // Health returns the health check result of own MySQL
-func (a *Agent) Health(w http.ResponseWriter, r *http.Request) {
+func (a *Agent) MySQLDHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -32,12 +32,12 @@ func (a *Agent) Health(w http.ResponseWriter, r *http.Request) {
 	_, err = db.QueryxContext(r.Context(), `SHOW MASTER STATUS`)
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Print("failed to execute a query")
+		fmt.Fprint(w, "failed to execute a query")
 		return
 	}
 }
 
-func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
+func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -68,11 +68,7 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	var isUnderCloning bool
 	if cloneStatus.State.Valid && cloneStatus.State.String != mocoagent.CloneStatusCompleted {
-		isUnderCloning = true
-	}
-	if isUnderCloning {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		fmt.Fprintf(w, "the instance is under cloning")
 		return
@@ -126,11 +122,11 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 			"hasSQLThreadError": hasSQLThreadError,
 		})
 		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Print("the instance is under reconciling: read_only=true, but not works as a replica")
+		fmt.Fprintf(w, "the instance has error(s): hasIOThreadError=%t, hasSQLThreadError=%t", hasIOThreadError, hasSQLThreadError)
 		return
 	}
 
-	// Check the instance has IO/SQLThread error or not
+	// Check the delay isn't over the threshold
 	timestamps, err := GetMySQLLastAppliedTransactionTimestamps(r.Context(), db)
 	if err != nil {
 		log.Error("failed to get transaction timestamps", map[string]interface{}{
@@ -143,7 +139,6 @@ func (a *Agent) Ready(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check the delay isn't over the threshold
 	if !timestamps.OriginalCommitTimestamp.Valid || !timestamps.EndApplyTimestamp.Valid {
 		log.Error("failed to parse transaction timestamps", nil)
 		err := errors.New("failed to parse transaction timestamps")

@@ -78,8 +78,8 @@ var _ = Describe("Test Agent", func() {
 	Context("health", testHealth)
 	Context("clone", testClone)
 	Context("backupBinlog", testBackupBinlog)
-	Context("healthHTTP", testHealthHTTP)
-	Context("healthHTTP", testReadyHTTP)
+	Context("healthHTTP", testMySQLDHealth)
+	Context("healthHTTP", testMySQLDReady)
 })
 
 func getMetric(registry *prometheus.Registry, metricName string) (*promgo.Metric, error) {

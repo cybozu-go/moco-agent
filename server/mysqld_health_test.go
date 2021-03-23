@@ -16,7 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func testHealthHTTP() {
+func testMySQLDHealth() {
 	var agent *Agent
 	var registry *prometheus.Registry
 
@@ -54,7 +54,7 @@ func testHealthHTTP() {
 	})
 }
 
-func testReadyHTTP() {
+func testMySQLDReady() {
 	var agent *Agent
 	var registry *prometheus.Registry
 
@@ -191,13 +191,13 @@ func testReadyHTTP() {
 func getHealth(agent *Agent) *httptest.ResponseRecorder {
 	req := httptest.NewRequest("GET", "http://"+replicaHost+"/healthz", nil)
 	res := httptest.NewRecorder()
-	agent.Health(res, req)
+	agent.MySQLDHealth(res, req)
 	return res
 }
 
 func getReady(agent *Agent) *httptest.ResponseRecorder {
 	req := httptest.NewRequest("GET", "http://"+replicaHost+"/readyz", nil)
 	res := httptest.NewRecorder()
-	agent.Ready(res, req)
+	agent.MySQLDReady(res, req)
 	return res
 }
