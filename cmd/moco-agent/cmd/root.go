@@ -63,7 +63,7 @@ var (
 
 			// TODO: How should we handle the context?
 			ctx := context.Background()
-			err = init.EnsureMOCOUsers(ctx, mocoagent.MySQLSocketDefaultPath)
+			err = init.EnsureMOCOUsers(ctx, "root", "", mocoagent.MySQLSocketDefaultPath)
 			if err != nil {
 				return err
 			}

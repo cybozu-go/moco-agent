@@ -80,7 +80,7 @@ var _ = Describe("Test Init", func() {
 
 	It("should create MOCO-embedded users", func() {
 		By("creating MOCO embedded users")
-		err := EnsureMOCOUsers(context.Background(), test_utils.MysqlSocketDir+"/mysqld.sock")
+		err := EnsureMOCOUsers(context.Background(), "root", "", test_utils.MysqlSocketDir+"/mysqld.sock")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("confirming user existens")
@@ -99,7 +99,7 @@ var _ = Describe("Test Init", func() {
 		db.Close()
 
 		By("ensuring MOCO embedded users")
-		err = EnsureMOCOUsers(context.Background(), test_utils.MysqlSocketDir+"/mysqld.sock")
+		err = EnsureMOCOUsers(context.Background(), "root", "", test_utils.MysqlSocketDir+"/mysqld.sock")
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 })

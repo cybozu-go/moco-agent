@@ -24,8 +24,8 @@ type userSetting struct {
 	useNativePasswordPlugin bool
 }
 
-func EnsureMOCOUsers(ctx context.Context, socket string) error {
-	db, err := getMySQLConnLocalSocket("root", "", socket, connRetryCount)
+func EnsureMOCOUsers(ctx context.Context, user, password, socket string) error {
+	db, err := getMySQLConnLocalSocket(user, password, socket, connRetryCount)
 	if err != nil {
 		return err
 	}
