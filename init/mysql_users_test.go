@@ -96,6 +96,11 @@ var _ = Describe("Test Init", func() {
 			mocoagent.WritableUser)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(6))
+
+		By("confirming local root user is dropped")
+		err = db.Get(&count, "SELECT COUNT(*) FROM mysql.user WHERE host='localhost' and user='root'")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(0))
 		db.Close()
 
 		By("ensuring MOCO embedded users")

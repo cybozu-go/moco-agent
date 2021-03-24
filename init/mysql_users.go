@@ -145,7 +145,8 @@ func EnsureMOCOUsers(ctx context.Context, user, password, socket string) error {
 		}
 	}
 
-	return nil
+	_, err = db.ExecContext(ctx, "DROP USER IF EXISTS 'root'@'localhost'")
+	return err
 }
 
 func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user userSetting) error {
