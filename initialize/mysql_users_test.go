@@ -2,6 +2,8 @@ package initialize
 
 import (
 	"context"
+	"os"
+	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/test_utils"
@@ -9,14 +11,26 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Test Init", func() {
-	It("should ensure user", func() {
+func testMySQLUsers() {
+	It("should ensure a user", func() {
 		err := test_utils.StartMySQLDForTestInit(containerName)
 		Expect(err).ShouldNot(HaveOccurred())
 
+		var count int
+		for {
+			time.Sleep(time.Second)
+			_, err := os.Stat(test_utils.MysqlSocketDir + "/mysqld.sock")
+			if err != nil {
+				count = 0
+				continue
+			}
+			if count++; count > 10 {
+				break
+			}
+		}
+
 		db, err := getMySQLConnLocalSocket("root", "", test_utils.MysqlSocketDir+"/mysqld.sock", 20)
 		Expect(err).ShouldNot(HaveOccurred())
-		defer db.Close()
 
 		ctx := context.Background()
 		_, err = db.ExecContext(ctx, "SET GLOBAL partial_revokes='ON'")
@@ -76,6 +90,8 @@ var _ = Describe("Test Init", func() {
 		err = db.Get(&grantOp, "SELECT Grant_priv FROM mysql.user WHERE user='moco-init-test-user-2'")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(grantOp).Should(Equal("Y"))
+
+		db.Close()
 	})
 
 	It("should create MOCO-embedded users", func() {
@@ -107,4 +123,4 @@ var _ = Describe("Test Init", func() {
 		err = EnsureMOCOUsers(context.Background(), "root", "", test_utils.MysqlSocketDir+"/mysqld.sock")
 		Expect(err).ShouldNot(HaveOccurred())
 	})
-})
+}

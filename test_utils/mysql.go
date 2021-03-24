@@ -422,8 +422,7 @@ func StartMySQLDForTestInit(name string) error {
 		return err
 	}
 	args := []string{
-		"run", "--name", name, "-d", "--restart=always",
-		"-p", "3306:3306",
+		"run", "--name", name, "-d",
 		"-e", "MYSQL_ALLOW_EMPTY_PASSWORD=true",
 		"-v", filepath.Join(wd, "..", "my.cnf") + ":/etc/mysql/conf.d/my.cnf",
 		"-v", MysqlSocketDir + ":/var/run/mysqld",

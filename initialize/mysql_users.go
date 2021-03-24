@@ -146,6 +146,10 @@ func EnsureMOCOUsers(ctx context.Context, user, password, socket string) error {
 	}
 
 	_, err = db.ExecContext(ctx, "DROP USER IF EXISTS 'root'@'localhost'")
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, "FLUSH PRIVILEGES")
 	return err
 }
 

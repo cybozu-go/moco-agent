@@ -2,7 +2,6 @@ package initialize
 
 import (
 	"log" // restrictpkg:ignore to suppress mysql client logs.
-	"os"
 	"testing"
 	"time"
 
@@ -14,10 +13,6 @@ import (
 
 const (
 	containerName = "moco-agent-init-test"
-)
-
-var (
-	replicationSourceSecretPath string
 )
 
 func TestInitialize(t *testing.T) {
@@ -45,7 +40,8 @@ var _ = AfterSuite(func() {
 	test_utils.StopAndRemoveMySQLD(containerName)
 	test_utils.RemoveNetwork()
 	test_utils.RemoveSocketDir()
+})
 
-	err := os.RemoveAll(replicationSourceSecretPath)
-	Expect(err).ShouldNot(HaveOccurred())
+var _ = Describe("Test Initialize", func() {
+	Context("TestMySQLUsers", testMySQLUsers)
 })
