@@ -10,7 +10,7 @@ import (
 
 	"github.com/cybozu-go/log"
 	mocoagent "github.com/cybozu-go/moco-agent"
-	"github.com/cybozu-go/moco-agent/init"
+	"github.com/cybozu-go/moco-agent/initialize"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
 	"github.com/cybozu-go/well"
@@ -96,7 +96,7 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 				})
 				return err
 			}
-			err = init.EnsureMOCOUsers(ctx, params.initUser, params.initPassword, s.agent.mysqlSocketPath)
+			err = initialize.EnsureMOCOUsers(ctx, params.initUser, params.initPassword, s.agent.mysqlSocketPath)
 			if err != nil {
 				log.Error("failed to initialize after clone", map[string]interface{}{
 					log.FnError: err,

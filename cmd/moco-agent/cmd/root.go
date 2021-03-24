@@ -11,7 +11,7 @@ import (
 
 	"github.com/cybozu-go/log"
 	mocoagent "github.com/cybozu-go/moco-agent"
-	"github.com/cybozu-go/moco-agent/init"
+	"github.com/cybozu-go/moco-agent/initialize"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/server"
 	"github.com/cybozu-go/moco-agent/server/agentrpc"
@@ -63,7 +63,7 @@ var (
 
 			// TODO: How should we handle the context?
 			ctx := context.Background()
-			err = init.EnsureMOCOUsers(ctx, "root", "", mocoagent.MySQLSocketDefaultPath)
+			err = initialize.EnsureMOCOUsers(ctx, "root", "", mocoagent.MySQLSocketDefaultPath)
 			if err != nil {
 				return err
 			}

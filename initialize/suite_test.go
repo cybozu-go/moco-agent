@@ -1,4 +1,4 @@
-package init
+package initialize
 
 import (
 	"log" // restrictpkg:ignore to suppress mysql client logs.
@@ -20,10 +20,10 @@ var (
 	replicationSourceSecretPath string
 )
 
-func TestInit(t *testing.T) {
+func TestInitialize(t *testing.T) {
 	RegisterFailHandler(Fail)
 	SetDefaultEventuallyTimeout(2 * time.Minute)
-	RunSpecs(t, "Init Suite")
+	RunSpecs(t, "Initialize Suite")
 }
 
 var _ = BeforeSuite(func(done Done) {
