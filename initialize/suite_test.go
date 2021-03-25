@@ -2,6 +2,8 @@ package initialize
 
 import (
 	"log" // restrictpkg:ignore to suppress mysql client logs.
+	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -12,8 +14,10 @@ import (
 )
 
 const (
-	containerName = "moco-agent-init-test"
+	containerName = "moco-agent-test-mysql-init"
 )
+
+var socketDir = path.Join(os.TempDir(), "moco-agent-test-init")
 
 func TestInitialize(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -31,7 +35,7 @@ var _ = BeforeSuite(func(done Done) {
 		return test_utils.CreateNetwork()
 	}, 10*time.Second).Should(Succeed())
 
-	test_utils.CreateSocketDir()
+	test_utils.CreateSocketDir(socketDir)
 
 	close(done)
 }, 60)
@@ -39,7 +43,7 @@ var _ = BeforeSuite(func(done Done) {
 var _ = AfterSuite(func() {
 	test_utils.StopAndRemoveMySQLD(containerName)
 	test_utils.RemoveNetwork()
-	test_utils.RemoveSocketDir()
+	os.RemoveAll(socketDir)
 })
 
 var _ = Describe("Test Initialize", func() {

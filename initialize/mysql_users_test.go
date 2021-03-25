@@ -13,13 +13,13 @@ import (
 
 func testMySQLUsers() {
 	It("should ensure a user", func() {
-		err := test_utils.StartMySQLDForTestInit(containerName)
+		err := test_utils.StartMySQLDForTestInit(containerName, socketDir)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		var count int
 		for {
 			time.Sleep(time.Second)
-			_, err := os.Stat(test_utils.MysqlSocketDir + "/mysqld.sock")
+			_, err := os.Stat(socketDir + "/mysqld.sock")
 			if err != nil {
 				count = 0
 				continue
@@ -29,7 +29,7 @@ func testMySQLUsers() {
 			}
 		}
 
-		db, err := getMySQLConnLocalSocket("root", "", test_utils.MysqlSocketDir+"/mysqld.sock", 20)
+		db, err := getMySQLConnLocalSocket("root", "", socketDir+"/mysqld.sock", 20)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		ctx := context.Background()
@@ -96,11 +96,11 @@ func testMySQLUsers() {
 
 	It("should create MOCO-embedded users", func() {
 		By("creating MOCO embedded users")
-		err := EnsureMOCOUsers(context.Background(), "root", "", test_utils.MysqlSocketDir+"/mysqld.sock")
+		err := EnsureMOCOUsers(context.Background(), "root", "", socketDir+"/mysqld.sock")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("confirming user existens")
-		db, err := getMySQLConnLocalSocket("root", "", test_utils.MysqlSocketDir+"/mysqld.sock", 20)
+		db, err := getMySQLConnLocalSocket("root", "", socketDir+"/mysqld.sock", 20)
 		Expect(err).ShouldNot(HaveOccurred())
 		var count int
 		err = db.Get(&count, "SELECT COUNT(*) FROM mysql.user WHERE host='%' and user in (?,?,?,?,?,?)",
@@ -120,7 +120,7 @@ func testMySQLUsers() {
 		db.Close()
 
 		By("ensuring MOCO embedded users")
-		err = EnsureMOCOUsers(context.Background(), "root", "", test_utils.MysqlSocketDir+"/mysqld.sock")
+		err = EnsureMOCOUsers(context.Background(), "root", "", socketDir+"/mysqld.sock")
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 }
