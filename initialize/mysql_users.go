@@ -6,14 +6,10 @@ import (
 	"os"
 	"strings"
 	"text/template"
-	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
-	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
-
-const connRetryCount = 20
 
 type userSetting struct {
 	name                    string
@@ -24,14 +20,8 @@ type userSetting struct {
 	useNativePasswordPlugin bool
 }
 
-func EnsureMOCOUsers(ctx context.Context, user, password, socket string) error {
-	db, err := getMySQLConnLocalSocket(user, password, socket, connRetryCount)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	_, err = db.ExecContext(ctx, "SET GLOBAL partial_revokes='ON'")
+func EnsureMOCOUsers(ctx context.Context, db *sqlx.DB) error {
+	_, err := db.ExecContext(ctx, "SET GLOBAL partial_revokes='ON'")
 	if err != nil {
 		return err
 	}
@@ -145,7 +135,11 @@ func EnsureMOCOUsers(ctx context.Context, user, password, socket string) error {
 		}
 	}
 
-	_, err = db.ExecContext(ctx, "DROP USER IF EXISTS 'root'@'localhost'")
+	return nil
+}
+
+func DropLocalRootUser(ctx context.Context, db *sqlx.DB) error {
+	_, err := db.ExecContext(ctx, "DROP USER IF EXISTS 'root'@'localhost'")
 	if err != nil {
 		return err
 	}
@@ -220,30 +214,4 @@ func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user userSetting) error {
 	}
 
 	return nil
-}
-
-func getMySQLConnLocalSocket(user, password, socket string, retryCount int) (*sqlx.DB, error) {
-	conf := mysql.NewConfig()
-	conf.User = user
-	conf.Passwd = password
-	conf.Net = "unix"
-	conf.Addr = socket
-	conf.InterpolateParams = true
-
-	var db *sqlx.DB
-	var err error
-	dataSource := conf.FormatDSN()
-	for i := 0; i <= retryCount; i++ {
-		db, err = sqlx.Connect("mysql", dataSource)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Second * 3)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	db.SetMaxIdleConns(0)
-	return db, nil
 }

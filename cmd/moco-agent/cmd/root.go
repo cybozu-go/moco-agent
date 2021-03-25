@@ -61,13 +61,6 @@ var (
 			}
 			defer zapLogger.Sync()
 
-			// TODO: How should we handle the context?
-			ctx := context.Background()
-			err = initialize.EnsureMOCOUsers(ctx, "root", "", mocoagent.MySQLSocketDefaultPath)
-			if err != nil {
-				return err
-			}
-
 			// Read required values for agent from ENV
 			podName := os.Getenv(mocoagent.PodNameEnvKey)
 			if podName == "" {
@@ -88,6 +81,13 @@ var (
 			socketPath := os.Getenv(mocoagent.MySQLSocketPathEnvKey)
 			if socketPath == "" {
 				socketPath = mocoagent.MySQLSocketDefaultPath
+			}
+
+			// TODO: How should we handle the context?
+			ctx := context.Background()
+			err = initializeMySQLForMOCO(ctx, socketPath)
+			if err != nil {
+				return err
 			}
 
 			agent, err := server.New(podName, clusterName,
@@ -213,4 +213,20 @@ func init() {
 func initConfig() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
+}
+
+func initializeMySQLForMOCO(ctx context.Context, socketPath string) error {
+	db, err := initialize.GetMySQLConnLocalSocket("root", "", socketPath, 20)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	err = initialize.EnsureMOCOUsers(ctx, db)
+	if err != nil {
+		return err
+	}
+	// TODO: Install plugins here,
+	// like initialize.InstallPlugins(ctx, initDB)
+	return initialize.DropLocalRootUser(ctx, db)
 }

@@ -96,7 +96,11 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 				})
 				return err
 			}
-			err = initialize.EnsureMOCOUsers(ctx, params.initUser, params.initPassword, s.agent.mysqlSocketPath)
+			initDB, err := initialize.GetMySQLConnLocalSocket(params.initUser, params.initPassword, s.agent.mysqlSocketPath, 20)
+			if err != nil {
+				return err
+			}
+			err = initialize.EnsureMOCOUsers(ctx, initDB)
 			if err != nil {
 				log.Error("failed to initialize after clone", map[string]interface{}{
 					log.FnError: err,

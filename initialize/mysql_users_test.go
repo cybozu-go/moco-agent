@@ -29,7 +29,7 @@ func testMySQLUsers() {
 			}
 		}
 
-		db, err := getMySQLConnLocalSocket("root", "", socketDir+"/mysqld.sock", 20)
+		db, err := GetMySQLConnLocalSocket("root", "", socketDir+"/mysqld.sock", 20)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		ctx := context.Background()
@@ -96,12 +96,13 @@ func testMySQLUsers() {
 
 	It("should create MOCO-embedded users", func() {
 		By("creating MOCO embedded users")
-		err := EnsureMOCOUsers(context.Background(), "root", "", socketDir+"/mysqld.sock")
+		db, err := GetMySQLConnLocalSocket("root", "", socketDir+"/mysqld.sock", 20)
+		Expect(err).ShouldNot(HaveOccurred())
+		defer db.Close()
+		err = EnsureMOCOUsers(context.Background(), db)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("confirming user existens")
-		db, err := getMySQLConnLocalSocket("root", "", socketDir+"/mysqld.sock", 20)
-		Expect(err).ShouldNot(HaveOccurred())
 		var count int
 		err = db.Get(&count, "SELECT COUNT(*) FROM mysql.user WHERE host='%' and user in (?,?,?,?,?,?)",
 			mocoagent.AdminUser,
@@ -113,14 +114,15 @@ func testMySQLUsers() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(6))
 
-		By("confirming local root user is dropped")
+		By("dropping local root user is dropped")
+		err = DropLocalRootUser(context.Background(), db)
+		Expect(err).ShouldNot(HaveOccurred())
 		err = db.Get(&count, "SELECT COUNT(*) FROM mysql.user WHERE host='localhost' and user='root'")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(0))
-		db.Close()
 
 		By("ensuring MOCO embedded users")
-		err = EnsureMOCOUsers(context.Background(), "root", "", socketDir+"/mysqld.sock")
+		err = EnsureMOCOUsers(context.Background(), db)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 }
