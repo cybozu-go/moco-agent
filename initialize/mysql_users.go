@@ -10,7 +10,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type userSetting struct {
+type UserSetting struct {
 	name                    string
 	password                string
 	privileges              []string
@@ -20,7 +20,7 @@ type userSetting struct {
 }
 
 var (
-	users = []userSetting{
+	Users = []UserSetting{
 		{
 			name:     mocoagent.AdminUser,
 			password: os.Getenv(mocoagent.AdminPasswordEnvKey),
