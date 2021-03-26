@@ -55,7 +55,7 @@ func testClone() {
 		registry = prometheus.NewRegistry()
 		metrics.RegisterMetrics(registry)
 
-		agent, err = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, test_utils.MysqlSocketDir+"/mysqld.sock", "", replicaPort,
+		agent, err = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, socketDir+"/mysqld.sock", "", replicaPort,
 			MySQLAccessorConfig{
 				ConnMaxLifeTime:   30 * time.Minute,
 				ConnectionTimeout: 3 * time.Second,
@@ -426,8 +426,9 @@ func writeTestData(data *testData) {
 
 func initializeDonorMySQL(isExternal bool) {
 	By("initializing MySQL donor")
-	err := test_utils.StartMySQLDWithSockeDir(donorHost, donorPort, donorServerID, isExternal)
+	err := test_utils.StartMySQLDWithSockeDir(donorHost, donorPort, donorServerID, socketDir)
 	Expect(err).ShouldNot(HaveOccurred())
+
 	if isExternal {
 		err = test_utils.InitializeMySQLAsExternalDonor(donorPort)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -435,6 +436,7 @@ func initializeDonorMySQL(isExternal bool) {
 		err = test_utils.InitializeMySQL(donorPort)
 		Expect(err).ShouldNot(HaveOccurred())
 	}
+
 	err = test_utils.PrepareTestData(donorPort)
 	Expect(err).ShouldNot(HaveOccurred())
 	err = test_utils.ResetMaster(donorPort)

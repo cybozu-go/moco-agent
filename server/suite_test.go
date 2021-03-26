@@ -30,6 +30,7 @@ const (
 
 var (
 	replicationSourceSecretPath string
+	socketDir                   = path.Join(os.TempDir(), "moco-agent-test-server")
 )
 
 func TestAgent(t *testing.T) {
@@ -58,7 +59,7 @@ var _ = BeforeSuite(func(done Done) {
 		return test_utils.CreateNetwork()
 	}, 10*time.Second).Should(Succeed())
 
-	test_utils.CreateSocketDir()
+	test_utils.CreateSocketDir(socketDir)
 
 	close(done)
 }, 60)
@@ -67,10 +68,9 @@ var _ = AfterSuite(func() {
 	test_utils.StopAndRemoveMySQLD(donorHost)
 	test_utils.StopAndRemoveMySQLD(replicaHost)
 	test_utils.RemoveNetwork()
-	test_utils.RemoveSocketDir()
 
-	err := os.RemoveAll(replicationSourceSecretPath)
-	Expect(err).ShouldNot(HaveOccurred())
+	os.RemoveAll(replicationSourceSecretPath)
+	os.RemoveAll(socketDir)
 })
 
 var _ = Describe("Test Agent", func() {

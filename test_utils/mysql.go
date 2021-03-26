@@ -47,10 +47,10 @@ var MySQLVersion = func() string {
 }()
 
 func StartMySQLD(name string, port int, serverID int, opt ...string) error {
-	return StartMySQLDWithSockeDir(name, port, serverID, false, opt...)
+	return StartMySQLDWithSockeDir(name, port, serverID, "", opt...)
 }
 
-func StartMySQLDWithSockeDir(name string, port int, serverID int, mountSocketDir bool, opt ...string) error {
+func StartMySQLDWithSockeDir(name string, port int, serverID int, socketDir string, opt ...string) error {
 	ctx := context.Background()
 
 	var binlogBaseDir string
@@ -73,8 +73,8 @@ func StartMySQLDWithSockeDir(name string, port int, serverID int, mountSocketDir
 		"-e", "MYSQL_ROOT_PASSWORD=" + RootUserPassword,
 		"-v", filepath.Join(wd, "..", "my.cnf") + ":/etc/mysql/conf.d/my.cnf",
 	}
-	if mountSocketDir {
-		args = append(args, "-v", MysqlSocketDir+":/var/run/mysqld")
+	if len(socketDir) > 0 {
+		args = append(args, "-v", socketDir+":/var/run/mysqld")
 	}
 	if binlogBaseDir != "" {
 		args = append(args, "-v", binlogBaseDir+":"+binlogBaseDir)
@@ -118,16 +118,12 @@ func RemoveNetwork() error {
 	return run(cmd)
 }
 
-func CreateSocketDir() error {
-	os.RemoveAll(MysqlSocketDir)
-	if err := os.Mkdir(MysqlSocketDir, os.ModePerm); err != nil {
+func CreateSocketDir(path string) error {
+	os.RemoveAll(path)
+	if err := os.Mkdir(path, os.ModePerm); err != nil {
 		return err
 	}
-	return os.Chmod(MysqlSocketDir, 0777)
-}
-
-func RemoveSocketDir() error {
-	return os.RemoveAll(MysqlSocketDir)
+	return os.Chmod(path, 0777)
 }
 
 func Connect(port, retryCount int) (*sqlx.DB, error) {
@@ -153,7 +149,7 @@ func Connect(port, retryCount int) (*sqlx.DB, error) {
 }
 
 func InitializeMySQL(port int) error {
-	db, err := Connect(port, 20)
+	db, err := Connect(port, 30)
 	if err != nil {
 		return err
 	}
@@ -222,7 +218,7 @@ func InitializeMySQL(port int) error {
 }
 
 func InitializeMySQLAsExternalDonor(port int) error {
-	db, err := Connect(port, 20)
+	db, err := Connect(port, 30)
 	if err != nil {
 		return err
 	}
@@ -412,4 +408,23 @@ func ConnectMySQL(addr, user, password string) (*sqlx.DB, error) {
 	db.SetConnMaxLifetime(30 * time.Minute)
 
 	return db, nil
+}
+
+func StartMySQLDForTestInit(name, socketDir string) error {
+	ctx := context.Background()
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	args := []string{
+		"run", "--name", name, "-d",
+		"-e", "MYSQL_ALLOW_EMPTY_PASSWORD=true",
+		"-v", filepath.Join(wd, "..", "my.cnf") + ":/etc/mysql/conf.d/my.cnf",
+		"-v", socketDir + ":/var/run/mysqld",
+		"mysql:" + MySQLVersion,
+	}
+
+	cmd := well.CommandContext(ctx, "docker", args...)
+	return run(cmd)
 }

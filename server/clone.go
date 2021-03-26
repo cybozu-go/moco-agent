@@ -96,16 +96,13 @@ func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*
 				})
 				return err
 			}
-			err = initialize.RestoreUsers(ctx, mocoagent.MySQLPasswordFilePath, params.initUser, &params.initPassword)
+			initDB, err := initialize.GetMySQLConnLocalSocket(params.initUser, params.initPassword, s.agent.mysqlSocketPath, 20)
 			if err != nil {
-				log.Error("failed to initialize after clone", map[string]interface{}{
-					log.FnError: err,
-				})
 				return err
 			}
-			err = initialize.ShutdownInstance(ctx, mocoagent.MySQLPasswordFilePath)
+			err = initialize.EnsureMOCOUsers(ctx, initDB)
 			if err != nil {
-				log.Error("failed to shutdown mysqld after clone", map[string]interface{}{
+				log.Error("failed to initialize after clone", map[string]interface{}{
 					log.FnError: err,
 				})
 				return err
