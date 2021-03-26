@@ -218,6 +218,12 @@ func initConfig() {
 func initializeMySQLForMOCO(ctx context.Context, socketPath string) error {
 	db, err := initialize.GetMySQLConnLocalSocket("root", "", socketPath, 20)
 	if err != nil {
+		merr, ok := err.(*mysql.MySQLError)
+		if ok && merr.Number == 1045 {
+			// There is no passwordless 'root'@'localhost' account.
+			// It means the initialization has been completed.
+			return nil
+		}
 		return err
 	}
 	defer db.Close()

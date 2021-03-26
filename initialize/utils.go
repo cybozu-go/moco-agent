@@ -23,6 +23,13 @@ func GetMySQLConnLocalSocket(user, password, socket string, retryCount int) (*sq
 		if err == nil {
 			break
 		}
+
+		// Break immediately if #1045 Access Denied error
+		merr, ok := err.(*mysql.MySQLError)
+		if ok && merr.Number == 1045 {
+			break
+		}
+
 		time.Sleep(time.Second * 3)
 	}
 	if err != nil {
