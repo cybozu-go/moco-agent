@@ -124,5 +124,8 @@ func testMySQLUsers() {
 		By("ensuring MOCO embedded users")
 		err = EnsureMOCOUsers(context.Background(), db)
 		Expect(err).ShouldNot(HaveOccurred())
+
+		err = test_utils.StopAndRemoveMySQLD(containerName)
+		Expect(err).ShouldNot(HaveOccurred())
 	})
 }
