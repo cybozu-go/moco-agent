@@ -29,6 +29,6 @@ func GetMySQLConnLocalSocket(user, password, socket string, retryCount int) (*sq
 		return nil, err
 	}
 
-	db.SetMaxIdleConns(0)
+	db.SetMaxIdleConns(1)
 	return db, nil
 }

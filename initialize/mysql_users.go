@@ -1,11 +1,10 @@
 package initialize
 
 import (
-	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"strings"
-	"text/template"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/jmoiron/sqlx"
@@ -20,13 +19,8 @@ type userSetting struct {
 	useNativePasswordPlugin bool
 }
 
-func EnsureMOCOUsers(ctx context.Context, db *sqlx.DB) error {
-	_, err := db.ExecContext(ctx, "SET GLOBAL partial_revokes='ON'")
-	if err != nil {
-		return err
-	}
-
-	users := []userSetting{
+var (
+	users = []userSetting{
 		{
 			name:     mocoagent.AdminUser,
 			password: os.Getenv(mocoagent.AdminPasswordEnvKey),
@@ -54,6 +48,8 @@ func EnsureMOCOUsers(ctx context.Context, db *sqlx.DB) error {
 				"REPLICATION SLAVE",
 				"REPLICATION CLIENT",
 			},
+			// TODO: When using encrypted connection, "WITH mysql_native_password" should be deleted.
+			// See https://yoku0825.blogspot.com/2018/10/mysql-80cachingsha2password-ssl.html
 			useNativePasswordPlugin: true,
 		},
 		{
@@ -127,6 +123,13 @@ func EnsureMOCOUsers(ctx context.Context, db *sqlx.DB) error {
 			withGrantOption: true,
 		},
 	}
+)
+
+func EnsureMOCOUsers(ctx context.Context, db *sqlx.DB) error {
+	_, err := db.ExecContext(ctx, "SET GLOBAL partial_revokes='ON'")
+	if err != nil {
+		return err
+	}
 
 	for _, u := range users {
 		err := ensureMySQLUser(ctx, db, u)
@@ -158,56 +161,29 @@ func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user userSetting) error {
 		return nil
 	}
 
-	// TODO: When using encrypted connection, "WITH mysql_native_password" should be deleted.
-	// See https://yoku0825.blogspot.com/2018/10/mysql-80cachingsha2password-ssl.html
 	queryStr := `CREATE USER IF NOT EXISTS ?@'%' IDENTIFIED`
 	if user.useNativePasswordPlugin {
 		queryStr = queryStr + " WITH mysql_native_password"
 	}
 	queryStr = queryStr + " BY ?"
-
 	_, err = db.ExecContext(ctx, queryStr, user.name, user.password)
 	if err != nil {
 		return err
 	}
 
-	t := template.Must(template.New("sql").Parse(
-		`GRANT {{ .Privileges }} ON *.* TO ?@'%'`))
-
-	sql := new(bytes.Buffer)
-	err = t.Execute(sql, struct {
-		Privileges string
-	}{strings.Join(user.privileges, ",")})
-	if err != nil {
-		return err
-	}
-	queryStr = sql.String()
+	queryStr = fmt.Sprintf(`GRANT %s ON *.* TO ?@'%%'`, strings.Join(user.privileges, ","))
 	if user.withGrantOption {
 		queryStr = queryStr + " WITH GRANT OPTION"
 	}
-
 	_, err = db.ExecContext(ctx, queryStr, user.name)
 	if err != nil {
 		return err
 	}
 
 	for target, privileges := range user.revokePrivileges {
-		t := template.Must(template.New("sql").Parse(
-			`REVOKE {{ .Privileges }} ON {{ .Target }} FROM ?@'%'`))
+		queryStr = fmt.Sprintf(`REVOKE %s ON %s FROM ?@'%%'`, strings.Join(privileges, ","), target)
 
-		sql := new(bytes.Buffer)
-		err = t.Execute(sql, struct {
-			Privileges string
-			Target     string
-		}{strings.Join(privileges, ","), target})
-		if err != nil {
-			return err
-		}
-
-		if err != nil {
-			return err
-		}
-		_, err = db.ExecContext(ctx, sql.String(), user.name)
+		_, err = db.ExecContext(ctx, queryStr, user.name)
 		if err != nil {
 			return err
 		}
