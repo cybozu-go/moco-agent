@@ -83,7 +83,6 @@ var (
 				socketPath = mocoagent.MySQLSocketDefaultPath
 			}
 
-			// TODO: How should we handle the context?
 			ctx := context.Background()
 			err = initializeMySQLForMOCO(ctx, socketPath)
 			if err != nil {
@@ -232,7 +231,10 @@ func initializeMySQLForMOCO(ctx context.Context, socketPath string) error {
 	if err != nil {
 		return err
 	}
-	// TODO: Install plugins here,
-	// like initialize.InstallPlugins(ctx, initDB)
+	err = initialize.EnsurePluginsForMOCO(ctx, db)
+	if err != nil {
+		return err
+	}
+
 	return initialize.DropLocalRootUser(ctx, db)
 }

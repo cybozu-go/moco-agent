@@ -48,4 +48,5 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Test Initialize", func() {
 	Context("TestMySQLUsers", testMySQLUsers)
+	Context("TestMySQLPlugins", testMySQLPlugins)
 })
