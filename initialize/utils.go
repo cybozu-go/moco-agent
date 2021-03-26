@@ -1,6 +1,7 @@
 package initialize
 
 import (
+	"errors"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -24,9 +25,7 @@ func GetMySQLConnLocalSocket(user, password, socket string, retryCount int) (*sq
 			break
 		}
 
-		// Break immediately if #1045 Access Denied error
-		merr, ok := err.(*mysql.MySQLError)
-		if ok && merr.Number == 1045 {
+		if IsAccessDenied(err) {
 			break
 		}
 
@@ -38,4 +37,13 @@ func GetMySQLConnLocalSocket(user, password, socket string, retryCount int) (*sq
 
 	db.SetMaxIdleConns(1)
 	return db, nil
+}
+
+func IsAccessDenied(err error) bool {
+	var merr *mysql.MySQLError
+	if errors.As(err, &merr) && merr.Number == 1045 {
+		return true
+	}
+
+	return false
 }
