@@ -37,7 +37,7 @@ func testMySQLUsers() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("creating user with revoke privileges")
-		user := userSetting{
+		user := UserSetting{
 			name:       "moco-init-test-user-1",
 			password:   "password",
 			privileges: []string{"ALL"},
@@ -60,7 +60,7 @@ func testMySQLUsers() {
 		Expect(grantOp).Should(Equal("Y"))
 
 		By("recalling with the same user name")
-		user = userSetting{
+		user = UserSetting{
 			name:       "moco-init-test-user-1",
 			password:   "password",
 			privileges: []string{"ALL"},
@@ -72,7 +72,7 @@ func testMySQLUsers() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("creating user with grant option and mysql_native_password plugin")
-		user = userSetting{
+		user = UserSetting{
 			name:                    "moco-init-test-user-2",
 			password:                "password",
 			privileges:              []string{"ALL"},

@@ -131,7 +131,7 @@ func EnsureMOCOUsers(ctx context.Context, db *sqlx.DB) error {
 		return err
 	}
 
-	for _, u := range users {
+	for _, u := range Users {
 		err := ensureMySQLUser(ctx, db, u)
 		if err != nil {
 			return err
@@ -150,7 +150,7 @@ func DropLocalRootUser(ctx context.Context, db *sqlx.DB) error {
 	return err
 }
 
-func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user userSetting) error {
+func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user UserSetting) error {
 	var count int
 	err := db.GetContext(ctx, &count, `SELECT COUNT(*) FROM mysql.user WHERE user=? and host='%'`, user.name)
 	if err != nil {
