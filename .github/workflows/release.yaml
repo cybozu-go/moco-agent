@@ -53,6 +53,6 @@ jobs:
       - uses: actions/checkout@v2
       - run: docker build . -t moco-agent:dev
       - name: Login to ghcr.io
-        run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
       - run: docker tag moco-agent:dev ghcr.io/cybozu-go/moco-agent:${GITHUB_REF#refs/tags/v}
       - run: docker push ghcr.io/cybozu-go/moco-agent:${GITHUB_REF#refs/tags/v}
