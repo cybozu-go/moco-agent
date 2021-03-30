@@ -3,28 +3,40 @@ on:
   pull_request:
   push:
     branches:
-      - 'main'
+    - 'main'
 env:
+  cache-version: 1
   go-version: 1.16
 jobs:
   validation:
     name: Validation
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: ${{ env.go-version }}
-      - name: Cache Tools
-        id: cache-tools
-        uses: actions/cache@v2
-        with:
-          path: |
-            bin
-          key: cache-${{ env.cache-version }}-go-${{ env.go-version }}-${{ hashFiles('Makefile') }}
-      - run: make setup
-        if: steps.cache-tools.outputs.cache-hit != 'true'
-      - run: make validate
+    - uses: actions/checkout@v2
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ${{ env.go-version }}
+    - name: Cache Tools
+      id: cache-tools
+      uses: actions/cache@v2
+      with:
+        path: |
+          bin
+          include
+        key: cache-${{ env.cache-version }}-go-${{ env.go-version }}-${{ hashFiles('Makefile') }}
+    - run: make setup
+      if: steps.cache-tools.outputs.cache-hit != 'true'
+    - run: make validate
+    - run: make check-generate
+  build:
+    name: build
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ${{ env.go-version }}
+    - run: docker build -t moco-agent:dev .
   test:
     name: Small Tests
     strategy:
@@ -32,8 +44,8 @@ jobs:
         mysql-version: ["8.0.18", "8.0.20"]
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: ${{ env.go-version }}
-      - run: make test MYSQL_VERSION=${{ matrix.mysql-version }}
+    - uses: actions/checkout@v2
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ${{ env.go-version }}
+    - run: make test MYSQL_VERSION=${{ matrix.mysql-version }}

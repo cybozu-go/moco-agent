@@ -5,19 +5,13 @@ import (
 	"net/http"
 
 	"github.com/cybozu-go/log"
-	mocoagent "github.com/cybozu-go/moco-agent"
 )
 
 // Health returns the health check result of own MySQL
 func (a *Agent) MySQLDHealth(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
-	rows, err := a.db.QueryxContext(r.Context(), `SHOW MASTER STATUS`)
+	rows, err := a.db.QueryxContext(r.Context(), `SELECT VERSION()`)
 	if err != nil {
-		log.Info("failed to execute a query", nil)
+		log.Info("health check failed", nil)
 		http.Error(w, "failed to execute a query", http.StatusServiceUnavailable)
 		return
 	}
@@ -25,57 +19,61 @@ func (a *Agent) MySQLDHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
 	// Check the instance is under cloning or not
-	mergedStatus, err := GetMySQLGlobalVariableAndCloneStateStatus(r.Context(), a.db)
+	cloneStatus, err := a.GetMySQLCloneStateStatus(r.Context())
 	if err != nil {
-		log.Error("failed to get global variables and/or clone status", map[string]interface{}{
+		log.Error("failed to get clone status", map[string]interface{}{
 			log.FnError: err,
 		})
-		err := fmt.Errorf("failed to get global variables and/or clone status: %w", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		msg := fmt.Sprintf("failed to get clone status: %+v", err)
+		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	if mergedStatus.State.Valid && mergedStatus.State.String != mocoagent.CloneStatusCompleted {
+	if cloneStatus.State.Valid && cloneStatus.State.String != "Completed" {
 		log.Info("the instance is under cloning", nil)
 		http.Error(w, "the instance is under cloning", http.StatusServiceUnavailable)
 		return
 	}
 
 	// Check the instance works primary or not
-	if !mergedStatus.ReadOnly {
+	globalVariables, err := a.GetMySQLGlobalVariable(r.Context())
+	if err != nil {
+		log.Error("failed to get global variables", map[string]interface{}{
+			log.FnError: err,
+		})
+		msg := fmt.Sprintf("failed to get global variables: %+v", err)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	if !globalVariables.ReadOnly {
 		return
 	}
 
 	// Check the instance has IO/SQLThread error or not
-	replicaStatus, err := GetMySQLReplicaStatus(r.Context(), a.db)
+	replicaStatus, err := a.GetMySQLReplicaStatus(r.Context())
 	if err != nil {
 		log.Error("failed to get replica status", map[string]interface{}{
 			log.FnError: err,
 		})
-		err := fmt.Errorf("failed to get replica status: %+v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		msg := fmt.Sprintf("failed to get replica status: %+v", err)
+		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
 
-	var hasIOThreadError, hasSQLThreadError bool
-	if replicaStatus.LastIoErrno != 0 {
-		hasIOThreadError = true
+	if replicaStatus.SlaveIORunning != "Yes" || replicaStatus.SlaveSQLRunning != "Yes" {
+		log.Info("replication threads are stopped", nil)
+		http.Error(w, "replication thread are stopped", http.StatusServiceUnavailable)
+		return
 	}
-	if replicaStatus.LastSQLErrno != 0 {
-		hasSQLThreadError = true
-	}
-	if hasIOThreadError || hasSQLThreadError {
-		log.Info("the instance has error(s)", map[string]interface{}{
-			"hasIOThreadError":  hasIOThreadError,
-			"hasSQLThreadError": hasSQLThreadError,
+
+	if replicaStatus.LastIOErrno != 0 || replicaStatus.LastSQLErrno != 0 {
+		log.Info("the instance has replication error(s)", map[string]interface{}{
+			"Last_IO_Errno":  replicaStatus.LastIOErrno,
+			"Last_IO_Error":  replicaStatus.LastIOError,
+			"Last_SQL_Errno": replicaStatus.LastSQLErrno,
+			"Last_SQL_Error": replicaStatus.LastSQLError,
 		})
-		err = fmt.Errorf("the instance has error(s): hasIOThreadError=%t, hasSQLThreadError=%t", hasIOThreadError, hasSQLThreadError)
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		http.Error(w, "the instance has replication errors", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -85,33 +83,27 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	timestamps, err := GetMySQLLastAppliedTransactionTimestamps(r.Context(), a.db)
+	timestamps, err := a.GetMySQLLastAppliedTransactionTimestamps(r.Context())
 	if err != nil {
 		log.Error("failed to get transaction timestamps", map[string]interface{}{
 			log.FnError: err,
 		})
-		err := fmt.Errorf("failed to get transaction timestamps: %+v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if !timestamps.OriginalCommitTimestamp.Valid || !timestamps.EndApplyTimestamp.Valid {
-		log.Error("failed to parse transaction timestamps", nil)
-		http.Error(w, "failed to parse transaction timestamps", http.StatusInternalServerError)
+		msg := fmt.Sprintf("failed to get transaction timestamps: %+v", err)
+		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
 
 	// This expression calculates the delay between "the end timestamp of last transaction at the own instance"
 	// and "the original commit timestamp at the primary".
 	// If this value becomes larger, it means the own instance cannot processing the original commits in time.
-	delayed := timestamps.EndApplyTimestamp.Time.Sub(timestamps.OriginalCommitTimestamp.Time)
+	delayed := timestamps.EndApplyTimestamp.Sub(timestamps.OriginalCommitTimestamp)
 	if delayed >= a.maxDelayThreshold {
 		log.Info("the instance delays from the primary", map[string]interface{}{
 			"maxDelayThreshold": a.maxDelayThreshold,
 			"delayed":           delayed,
 		})
-		err = fmt.Errorf("the instance delays from the primary: maxDelaySecondsThreshold=%s, delayed=%s", a.maxDelayThreshold, delayed)
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		msg := fmt.Sprintf("the instance delays from the primary: maxDelaySecondsThreshold=%s, delayed=%s", a.maxDelayThreshold, delayed)
+		http.Error(w, msg, http.StatusServiceUnavailable)
 		return
 	}
 }
