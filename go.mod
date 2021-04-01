@@ -3,11 +3,15 @@ module github.com/cybozu-go/moco-agent
 go 1.16
 
 require (
-	github.com/cybozu-go/log v1.6.0
+	github.com/cybozu-go/log v1.6.0 // indirect
 	github.com/cybozu-go/well v1.10.0
-	github.com/go-sql-driver/mysql v1.5.0
+	github.com/go-logr/logr v0.4.0
+	github.com/go-logr/stdr v0.4.0
+	github.com/go-logr/zapr v0.4.0
+	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/jmoiron/sqlx v1.3.1
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect

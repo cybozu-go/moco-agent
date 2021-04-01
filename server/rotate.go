@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cybozu-go/log"
 	mocoagent "github.com/cybozu-go/moco-agent"
 )
 
@@ -20,9 +19,7 @@ func (a *Agent) RotateLog() {
 	errFile := filepath.Join(a.logDir, mocoagent.MySQLErrorLogName)
 	err := os.Rename(errFile, errFile+".0")
 	if err != nil && !os.IsNotExist(err) {
-		log.Error("failed to rotate err log file", map[string]interface{}{
-			log.FnError: err,
-		})
+		a.logger.Error(err, "failed to rotate err log file")
 		a.logRotationFailureCount.Inc()
 		return
 	}
@@ -30,17 +27,13 @@ func (a *Agent) RotateLog() {
 	slowFile := filepath.Join(a.logDir, mocoagent.MySQLSlowLogName)
 	err = os.Rename(slowFile, slowFile+".0")
 	if err != nil && !os.IsNotExist(err) {
-		log.Error("failed to rotate slow query log file", map[string]interface{}{
-			log.FnError: err,
-		})
+		a.logger.Error(err, "failed to rotate slow query log file")
 		a.logRotationFailureCount.Inc()
 		return
 	}
 
 	if _, err := a.db.ExecContext(ctx, "FLUSH LOCAL ERROR LOGS, SLOW LOGS"); err != nil {
-		log.Error("failed to exec FLUSH LOCAL LOGS", map[string]interface{}{
-			log.FnError: err,
-		})
+		a.logger.Error(err, "failed to exec FLUSH LOCAL LOGS")
 		a.logRotationFailureCount.Inc()
 		return
 	}

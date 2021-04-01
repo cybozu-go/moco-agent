@@ -60,14 +60,16 @@ var _ = Describe("clone", func() {
 		defer StopAndRemoveMySQLD(replicaHost)
 
 		sockFile = filepath.Join(socketDir(replicaHost), "mysqld.sock")
-		agent, err := New("localhost", testClusterName, agentUserPassword, sockFile, "", replicaPort,
-			MySQLAccessorConfig{
-				ConnMaxIdleTime:   30 * time.Minute,
-				ConnectionTimeout: 3 * time.Second,
-				ReadTimeout:       30 * time.Second,
-			},
-			100*time.Millisecond,
-		)
+		conf := MySQLAccessorConfig{
+			Host:              "localhost",
+			Port:              replicaPort,
+			Password:          agentUserPassword,
+			ConnMaxIdleTime:   30 * time.Minute,
+			ConnectionTimeout: 3 * time.Second,
+			ReadTimeout:       30 * time.Second,
+		}
+		agent, err := New(conf, testClusterName, sockFile, "", 100*time.Millisecond, testLogger)
+
 		Expect(err).ShouldNot(HaveOccurred())
 		defer agent.CloseDB()
 

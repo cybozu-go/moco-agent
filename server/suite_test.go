@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/stdr"
 	"github.com/go-sql-driver/mysql"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -21,6 +22,10 @@ const (
 	replicaPort       = 3308
 	replicaServerID   = 2
 	maxDelayThreshold = 5 * time.Second
+)
+
+var (
+	testLogger = stdr.New(log.New(os.Stderr, "", log.LstdFlags))
 )
 
 func TestAgent(t *testing.T) {

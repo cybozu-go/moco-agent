@@ -22,14 +22,15 @@ var _ = Describe("log rotation", func() {
 		Expect(err).NotTo(HaveOccurred())
 		defer os.RemoveAll(tmpDir)
 
-		agent, err := New("localhost", testClusterName, agentUserPassword, sockFile, tmpDir, replicaPort,
-			MySQLAccessorConfig{
-				ConnMaxIdleTime:   30 * time.Minute,
-				ConnectionTimeout: 3 * time.Second,
-				ReadTimeout:       30 * time.Second,
-			},
-			maxDelayThreshold,
-		)
+		conf := MySQLAccessorConfig{
+			Host:              "localhost",
+			Port:              replicaPort,
+			Password:          agentUserPassword,
+			ConnMaxIdleTime:   30 * time.Minute,
+			ConnectionTimeout: 3 * time.Second,
+			ReadTimeout:       30 * time.Second,
+		}
+		agent, err := New(conf, testClusterName, sockFile, tmpDir, maxDelayThreshold, testLogger)
 		Expect(err).ShouldNot(HaveOccurred())
 		defer agent.CloseDB()
 

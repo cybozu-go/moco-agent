@@ -17,14 +17,15 @@ var _ = Describe("health", func() {
 		defer StopAndRemoveMySQLD(donorHost)
 
 		sockFile := filepath.Join(socketDir(donorHost), "mysqld.sock")
-		agent, err := New("localhost", testClusterName, agentUserPassword, sockFile, "", donorPort,
-			MySQLAccessorConfig{
-				ConnMaxIdleTime:   30 * time.Minute,
-				ConnectionTimeout: 3 * time.Second,
-				ReadTimeout:       30 * time.Second,
-			},
-			maxDelayThreshold,
-		)
+		conf := MySQLAccessorConfig{
+			Host:              "localhost",
+			Port:              donorPort,
+			Password:          agentUserPassword,
+			ConnMaxIdleTime:   30 * time.Minute,
+			ConnectionTimeout: 3 * time.Second,
+			ReadTimeout:       30 * time.Second,
+		}
+		agent, err := New(conf, testClusterName, sockFile, "", maxDelayThreshold, testLogger)
 		Expect(err).NotTo(HaveOccurred())
 		defer agent.CloseDB()
 
@@ -71,14 +72,15 @@ var _ = Describe("health", func() {
 		defer StopAndRemoveMySQLD(replicaHost)
 
 		sockFile = filepath.Join(socketDir(replicaHost), "mysqld.sock")
-		agent, err := New("localhost", testClusterName, agentUserPassword, sockFile, "", replicaPort,
-			MySQLAccessorConfig{
-				ConnMaxIdleTime:   30 * time.Minute,
-				ConnectionTimeout: 3 * time.Second,
-				ReadTimeout:       30 * time.Second,
-			},
-			100*time.Millisecond,
-		)
+		conf := MySQLAccessorConfig{
+			Host:              "localhost",
+			Port:              replicaPort,
+			Password:          agentUserPassword,
+			ConnMaxIdleTime:   30 * time.Minute,
+			ConnectionTimeout: 3 * time.Second,
+			ReadTimeout:       30 * time.Second,
+		}
+		agent, err := New(conf, testClusterName, sockFile, "", 100*time.Millisecond, testLogger)
 		Expect(err).ShouldNot(HaveOccurred())
 		defer agent.CloseDB()
 

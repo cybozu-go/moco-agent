@@ -3,9 +3,9 @@ package server
 import (
 	"time"
 
-	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/proto"
+	"github.com/go-logr/logr"
 	"github.com/jmoiron/sqlx"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -21,17 +21,18 @@ type agentService struct {
 }
 
 // New returns a Agent
-func New(podName, clusterName, agentUserPassword, mysqlSocketPath, logDir string, mysqlAdminPort int, config MySQLAccessorConfig, maxDelayThreshold time.Duration) (*Agent, error) {
-	db, err := getMySQLConn(mocoagent.AgentUser, agentUserPassword, podName, mysqlAdminPort, config)
+func New(config MySQLAccessorConfig, clusterName, socket, logDir string, maxDelay time.Duration, logger logr.Logger) (*Agent, error) {
+	db, err := getMySQLConn(config)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Agent{
 		db:                         db,
-		mysqlSocketPath:            mysqlSocketPath,
+		logger:                     logger,
+		mysqlSocketPath:            socket,
 		logDir:                     logDir,
-		maxDelayThreshold:          maxDelayThreshold,
+		maxDelayThreshold:          maxDelay,
 		cloneLock:                  make(chan struct{}, 1),
 		cloneCount:                 metrics.CloneCount.WithLabelValues(clusterName),
 		cloneFailureCount:          metrics.CloneFailureCount.WithLabelValues(clusterName),
@@ -46,6 +47,7 @@ func New(podName, clusterName, agentUserPassword, mysqlSocketPath, logDir string
 // Agent is the agent to executes some MySQL commands of the own Pod
 type Agent struct {
 	db                *sqlx.DB
+	logger            logr.Logger
 	mysqlSocketPath   string
 	logDir            string
 	maxDelayThreshold time.Duration
@@ -61,6 +63,9 @@ type Agent struct {
 }
 
 type MySQLAccessorConfig struct {
+	Host              string
+	Port              int
+	Password          string
 	ConnMaxIdleTime   time.Duration
 	ConnectionTimeout time.Duration
 	ReadTimeout       time.Duration

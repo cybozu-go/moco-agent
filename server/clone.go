@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cybozu-go/log"
 	"github.com/cybozu-go/moco-agent/proto"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	"github.com/go-sql-driver/mysql"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -30,19 +32,17 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 	}
 	defer func() { <-a.cloneLock }()
 
+	logger := zapr.NewLogger(ctxzap.Extract(ctx))
+
 	primaryStatus, err := a.GetMySQLPrimaryStatus(ctx)
 	if err != nil {
-		log.Error("failed to get MySQL primary status", map[string]interface{}{
-			log.FnError: err,
-		})
+		logger.Error(err, "failed to get MySQL primary status")
 		return status.Errorf(codes.Internal, "failed to get MySQL primary status: %+v", err)
 	}
 
 	gtid := primaryStatus.ExecutedGtidSet
 	if gtid != "" {
-		log.Error("recipient is not empty", map[string]interface{}{
-			"gtid": gtid,
-		})
+		logger.Error(err, "recipient is not empty")
 		return status.Errorf(codes.FailedPrecondition, "recipient is not empty: gtid=%s", gtid)
 	}
 
@@ -63,45 +63,34 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 	if err != nil && !IsRestartFailed(err) {
 		a.cloneFailureCount.Inc()
 
-		log.Error("failed to exec CLONE INSTANCE", map[string]interface{}{
-			"donor":     donorAddr,
-			log.FnError: err,
-		})
+		logger.Error(err, "failed to exec CLONE INSTANCE", "donor", donorAddr)
 		return err
 	}
 
-	log.Info("cloning finished successfully", map[string]interface{}{
-		"donor": donorAddr,
-	})
+	logger.Info("cloning finished successfully", "donor", donorAddr)
 
 	time.Sleep(100 * time.Millisecond)
 
-	if err := waitBootstrap(ctx, req.InitUser, req.InitPassword, a.mysqlSocketPath, cloneBootstrapTimeout); err != nil {
-		log.Error("mysqld didn't boot up after cloning from external", map[string]interface{}{
-			log.FnError: err,
-		})
+	if err := waitBootstrap(ctx, req.InitUser, req.InitPassword, a.mysqlSocketPath, cloneBootstrapTimeout, logger); err != nil {
+		logger.Error(err, "mysqld didn't boot up after cloning from external")
 		return err
 	}
 
 	initDB, err := GetMySQLConnLocalSocket(req.InitUser, req.InitPassword, a.mysqlSocketPath)
 	if err != nil {
-		log.Error("failed to connect to mysqld after bootstrap", map[string]interface{}{
-			log.FnError: err,
-		})
+		logger.Error(err, "failed to connect to mysqld after bootstrap")
 		return err
 	}
 
 	if err := InitExternal(ctx, initDB); err != nil {
-		log.Error("failed to initialize after clone", map[string]interface{}{
-			log.FnError: err,
-		})
+		logger.Error(err, "failed to initialize after clone")
 		return err
 	}
 
 	return nil
 }
 
-func waitBootstrap(ctx context.Context, user, password, socket string, timeout time.Duration) error {
+func waitBootstrap(ctx context.Context, user, password, socket string, timeout time.Duration, logger logr.Logger) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -119,9 +108,7 @@ func waitBootstrap(ctx context.Context, user, password, socket string, timeout t
 		}
 
 		if err != nil {
-			log.Info("connection failed", map[string]interface{}{
-				log.FnError: err,
-			})
+			logger.Error(err, "connection failed")
 		}
 	}
 }
