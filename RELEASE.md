@@ -43,6 +43,7 @@ Bump version
     $ git commit -a -m "Bump version to v$VERSION"
     $ git neco review
     ```
+
 1. Merge this branch.
 1. Checkout `main` branch.
 1. Add a git tag, then push it.
@@ -50,6 +51,7 @@ Bump version
     ```console
     $ git tag "v$VERSION"
     $ git push origin "v$VERSION"
+    ```
 
 Now the version is bumped up and the latest container image is uploaded to [GitHub Container Registry](https://github.com/orgs/cybozu-go/packages/container/package/moco-agent).
 
