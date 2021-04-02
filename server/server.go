@@ -1,75 +1,76 @@
 package server
 
 import (
-	"fmt"
 	"time"
 
-	mocoagent "github.com/cybozu-go/moco-agent"
-	"github.com/go-sql-driver/mysql"
+	"github.com/cybozu-go/moco-agent/metrics"
+	"github.com/cybozu-go/moco-agent/proto"
+	"github.com/go-logr/logr"
 	"github.com/jmoiron/sqlx"
-	"golang.org/x/sync/semaphore"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-const maxCloneWorkers = 1
+// NewAgentService creates a new AgentServer
+func NewAgentService(agent *Agent) proto.AgentServer {
+	return agentService{agent: agent}
+}
+
+type agentService struct {
+	agent *Agent
+	proto.UnimplementedAgentServer
+}
 
 // New returns a Agent
-func New(podName, clusterName, agentUserPassword, donorUserPassword, replicationSourceSecretPath, mysqlSocketPath, logDir string, mysqlAdminPort int, config MySQLAccessorConfig, maxDelayThreshold time.Duration) (*Agent, error) {
-	db, err := getMySQLConn(mocoagent.AgentUser, agentUserPassword, podName, mysqlAdminPort, config)
+func New(config MySQLAccessorConfig, clusterName, socket, logDir string, maxDelay time.Duration, logger logr.Logger) (*Agent, error) {
+	db, err := getMySQLConn(config)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Agent{
-		db:                          db,
-		sem:                         semaphore.NewWeighted(int64(maxCloneWorkers)),
-		donorUserPassword:           donorUserPassword,
-		replicationSourceSecretPath: replicationSourceSecretPath,
-		mysqlSocketPath:             mysqlSocketPath,
-		clusterName:                 clusterName,
-		logDir:                      logDir,
-		maxDelayThreshold:           maxDelayThreshold,
+		db:                         db,
+		logger:                     logger,
+		mysqlSocketPath:            socket,
+		logDir:                     logDir,
+		maxDelayThreshold:          maxDelay,
+		cloneLock:                  make(chan struct{}, 1),
+		cloneCount:                 metrics.CloneCount.WithLabelValues(clusterName),
+		cloneFailureCount:          metrics.CloneFailureCount.WithLabelValues(clusterName),
+		cloneDurationSeconds:       metrics.CloneDurationSeconds.WithLabelValues(clusterName),
+		cloneInProgress:            metrics.CloneInProgress.WithLabelValues(clusterName),
+		logRotationCount:           metrics.LogRotationCount.WithLabelValues(clusterName),
+		logRotationFailureCount:    metrics.LogRotationFailureCount.WithLabelValues(clusterName),
+		logRotationDurationSeconds: metrics.LogRotationDurationSeconds.WithLabelValues(clusterName),
 	}, nil
 }
 
 // Agent is the agent to executes some MySQL commands of the own Pod
 type Agent struct {
-	db                          *sqlx.DB
-	sem                         *semaphore.Weighted
-	donorUserPassword           string
-	replicationSourceSecretPath string
-	mysqlSocketPath             string
-	clusterName                 string
-	logDir                      string
-	maxDelayThreshold           time.Duration
+	db                *sqlx.DB
+	logger            logr.Logger
+	mysqlSocketPath   string
+	logDir            string
+	maxDelayThreshold time.Duration
+
+	cloneLock                  chan struct{}
+	cloneCount                 prometheus.Counter
+	cloneFailureCount          prometheus.Counter
+	cloneDurationSeconds       prometheus.Observer
+	cloneInProgress            prometheus.Gauge
+	logRotationCount           prometheus.Counter
+	logRotationFailureCount    prometheus.Counter
+	logRotationDurationSeconds prometheus.Observer
 }
 
 type MySQLAccessorConfig struct {
-	ConnMaxLifeTime   time.Duration
+	Host              string
+	Port              int
+	Password          string
+	ConnMaxIdleTime   time.Duration
 	ConnectionTimeout time.Duration
 	ReadTimeout       time.Duration
 }
 
 func (a *Agent) CloseDB() error {
 	return a.db.Close()
-}
-
-func getMySQLConn(user, password, host string, port int, config MySQLAccessorConfig) (*sqlx.DB, error) {
-	conf := mysql.NewConfig()
-	conf.User = user
-	conf.Passwd = password
-	conf.Net = "tcp"
-	conf.Addr = fmt.Sprintf("%s:%d", host, port)
-	conf.Timeout = config.ConnectionTimeout
-	conf.ReadTimeout = config.ReadTimeout
-	conf.InterpolateParams = true
-
-	db, err := sqlx.Connect("mysql", conf.FormatDSN())
-	if err != nil {
-		return nil, err
-	}
-
-	db.SetConnMaxLifetime(config.ConnMaxLifeTime)
-	db.SetMaxIdleConns(0)
-
-	return db, nil
 }

@@ -53,70 +53,15 @@ const (
 )
 
 const (
-	// MySQLDataPath is a path for MySQL data dir.
-	MySQLDataPath = "/var/lib/mysql"
-
-	// MySQLSocketPathEnvKey is the ENV key of a path for MySQL unix domain socket file
-	MySQLSocketPathEnvKey = "MYSQL_SOCKET_PATH"
-
-	// MySQLSocketDefaultPath is the default path for MySQL unix domain socket file
-	MySQLSocketDefaultPath = "/run/mysqld.sock"
-
-	// AgentPasswordPath is a path for the password file for agent
-	AgentPasswordPath = MySQLDataPath + "/agent-password"
-
-	// DonorPasswordPath is the path to donor user passsword file
-	DonorPasswordPath = MySQLDataPath + "/donor-password"
-
-	// MySQLPasswordFilePath includes the embed users' password of MOCO (used for restoring users)
-	MySQLPasswordFilePath = "/tmp/moco-root-password"
-
-	// MySQLPingConfFilePath is the file path of credential used for `moco-agent ping`
-	MySQLPingConfFilePath = MySQLDataPath + "/agent.cnf"
-
-	// MySQLConfigFileName is the file key of MySQL config
-	MySQLConfFileName = "my.cnf"
-
-	// ReplicationSourceSecretPath is the path to replication source secret file
-	ReplicationSourceSecretPath = MySQLDataPath + "/replication-source-secret"
-
 	// VarLogPath is a path for /var/log/mysql.
 	VarLogPath = "/var/log/mysql"
 
 	// MySQLAdminPort is a port number for MySQL Admin
 	MySQLAdminPort = 33062
 
-	// MySQLConfTemplatePath is
-	MySQLConfTemplatePath = "/etc/mysql_template"
-
-	// MySQLConfPath is a path for MySQL conf dir.
-	MySQLConfPath = "/etc/mysql"
-
 	// MySQLErrorLogName is a filekey of error log for MySQL.
 	MySQLErrorLogName = "mysql.err"
 
 	// MySQLSlowLogName is a filekey of slow query log for MySQL.
 	MySQLSlowLogName = "mysql.slow"
-
-	// ReplicationSourcePrimaryHostKey etc. are Secret key for replication source secret
-	ReplicationSourcePrimaryHostKey            = "PRIMARY_HOST"
-	ReplicationSourcePrimaryUserKey            = "PRIMARY_USER"
-	ReplicationSourcePrimaryPasswordKey        = "PRIMARY_PASSWORD"
-	ReplicationSourcePrimaryPortKey            = "PRIMARY_PORT"
-	ReplicationSourceCloneUserKey              = "CLONE_USER"
-	ReplicationSourceClonePasswordKey          = "CLONE_PASSWORD"
-	ReplicationSourceInitAfterCloneUserKey     = "INIT_AFTER_CLONE_USER"
-	ReplicationSourceInitAfterClonePasswordKey = "INIT_AFTER_CLONE_PASSWORD"
-)
-
-// The status strings of MySQL status
-const (
-	ReplicaRunConnect    = "Yes"
-	ReplicaNotRun        = "No"
-	ReplicaRunNotConnect = "Connecting"
-
-	CloneStatusNotStarted = "Not Started"
-	CloneStatusInProgress = "In Progress"
-	CloneStatusCompleted  = "Completed"
-	CloneStatusFailed     = "Failed"
 )

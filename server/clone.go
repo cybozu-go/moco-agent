@@ -3,237 +3,121 @@ package server
 import (
 	"context"
 	"errors"
-	"os"
-	"strconv"
-	"strings"
+	"fmt"
 	"time"
 
-	"github.com/cybozu-go/log"
-	mocoagent "github.com/cybozu-go/moco-agent"
-	"github.com/cybozu-go/moco-agent/initialize"
-	"github.com/cybozu-go/moco-agent/metrics"
-	"github.com/cybozu-go/moco-agent/server/agentrpc"
-	"github.com/cybozu-go/well"
+	"github.com/cybozu-go/moco-agent/proto"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	"github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// NewCloneService creates a new CloneServiceServer
-func NewCloneService(agent *Agent) agentrpc.CloneServiceServer {
-	return &cloneService{
-		agent: agent,
+const cloneBootstrapTimeout = 120 * time.Second
+
+func (s agentService) Clone(ctx context.Context, req *proto.CloneRequest) (*proto.CloneResponse, error) {
+	if err := s.agent.Clone(ctx, req); err != nil {
+		return nil, err
 	}
+	return &proto.CloneResponse{}, nil
 }
 
-type cloneService struct {
-	agentrpc.UnimplementedCloneServiceServer
-	agent *Agent
-}
+func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
+	select {
+	case a.cloneLock <- struct{}{}:
+	default:
+		return status.Error(codes.ResourceExhausted, "another request is undergoing")
+	}
+	defer func() { <-a.cloneLock }()
 
-const timeoutDuration = 120 * time.Second
+	logger := zapr.NewLogger(ctxzap.Extract(ctx))
 
-type cloneParams struct {
-	donorHostName string
-	donorPort     int
-	donorUser     string
-	donorPassword string
-	initUser      string
-	initPassword  string
-}
-
-func (s *cloneService) Clone(ctx context.Context, req *agentrpc.CloneRequest) (*agentrpc.CloneResponse, error) {
-	params, err := gatherParams(req, s.agent)
+	primaryStatus, err := a.GetMySQLPrimaryStatus(ctx)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-
-	if !s.agent.sem.TryAcquire(1) {
-		return nil, status.Error(codes.ResourceExhausted, "another request is under processing")
-	}
-
-	primaryStatus, err := GetMySQLPrimaryStatus(ctx, s.agent.db)
-	if err != nil {
-		s.agent.sem.Release(1)
-		log.Error("failed to get MySQL primary status", map[string]interface{}{
-			log.FnError: err,
-		})
-		return nil, status.Errorf(codes.Internal, "failed to get MySQL primary status: %+v", err)
+		logger.Error(err, "failed to get MySQL primary status")
+		return status.Errorf(codes.Internal, "failed to get MySQL primary status: %+v", err)
 	}
 
 	gtid := primaryStatus.ExecutedGtidSet
 	if gtid != "" {
-		s.agent.sem.Release(1)
-		log.Error("recipient is not empty", map[string]interface{}{
-			"gtid": gtid,
-		})
-		return nil, status.Errorf(codes.FailedPrecondition, "recipient is not empty: gtid=%s", gtid)
+		logger.Error(err, "recipient is not empty")
+		return status.Errorf(codes.FailedPrecondition, "recipient is not empty: gtid=%s", gtid)
 	}
-
-	metrics.IncrementCloneCountMetrics(s.agent.clusterName)
 
 	startTime := time.Now()
-	metrics.SetCloneInProgressMetrics(s.agent.clusterName, true)
-	env := well.NewEnvironment(context.Background())
-	env.Go(func(ctx context.Context) error {
+	a.cloneCount.Inc()
+	a.cloneInProgress.Set(1)
+	defer func() {
+		a.cloneInProgress.Set(0)
+		a.cloneDurationSeconds.Observe(time.Since(startTime).Seconds())
+	}()
 
-		defer func() {
-			metrics.SetCloneInProgressMetrics(s.agent.clusterName, false)
-			s.agent.sem.Release(1)
-		}()
-
-		err := clone(ctx, s.agent.db, params.donorUser, params.donorPassword, params.donorHostName, params.donorPort, s.agent)
-		if err != nil {
-			return err
-		}
-
-		if req.GetExternal() {
-			err := waitBootstrap(ctx, params.initUser, params.initPassword, s.agent.mysqlSocketPath)
-			if err != nil {
-				log.Error("mysqld didn't boot up after cloning from external", map[string]interface{}{
-					log.FnError: err,
-				})
-				return err
-			}
-			initDB, err := initialize.GetMySQLConnLocalSocket(params.initUser, params.initPassword, s.agent.mysqlSocketPath, 20)
-			if err != nil {
-				return err
-			}
-			err = initialize.EnsureMOCOUsers(ctx, initDB)
-			if err != nil {
-				log.Error("failed to initialize after clone", map[string]interface{}{
-					log.FnError: err,
-				})
-				return err
-			}
-		}
-
-		durationSeconds := time.Since(startTime).Seconds()
-		metrics.UpdateCloneDurationSecondsMetrics(s.agent.clusterName, durationSeconds)
-		return nil
-	})
-
-	return &agentrpc.CloneResponse{}, nil
-}
-
-func gatherParams(req *agentrpc.CloneRequest, agent *Agent) (*cloneParams, error) {
-	var res *cloneParams
-
-	if !req.GetExternal() {
-		donorHostName := req.GetDonorHost()
-		if len(donorHostName) <= 0 {
-			return nil, errors.New("invalid donor host name")
-		}
-
-		donorPort := req.GetDonorPort()
-		if donorPort <= 0 {
-			return nil, errors.New("invalid donor port")
-		}
-
-		res = &cloneParams{
-			donorHostName: donorHostName,
-			donorPort:     int(donorPort),
-			donorUser:     mocoagent.CloneDonorUser,
-			donorPassword: agent.donorUserPassword,
-		}
-	} else {
-		rawDonorHostName, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourcePrimaryHostKey)
-		if err != nil {
-			return nil, errors.New("cannot read donor host from Secret file")
-		}
-
-		rawDonorPort, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourcePrimaryPortKey)
-		if err != nil {
-			return nil, errors.New("cannot read donor port from Secret file")
-		}
-		donorPort, err := strconv.Atoi(string(rawDonorPort))
-		if err != nil {
-			return nil, errors.New("cannot convert donor port to int")
-		}
-
-		rawDonorUser, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourceCloneUserKey)
-		if err != nil {
-			return nil, errors.New("cannot read donor user from Secret file")
-		}
-
-		rawDonorPassword, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourceClonePasswordKey)
-		if err != nil {
-			return nil, errors.New("cannot read donor password from Secret file")
-		}
-
-		rawInitUser, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourceInitAfterCloneUserKey)
-		if err != nil {
-			return nil, errors.New("cannot read init user from Secret file")
-		}
-
-		rawInitPassword, err := os.ReadFile(agent.replicationSourceSecretPath + "/" + mocoagent.ReplicationSourceInitAfterClonePasswordKey)
-		if err != nil {
-			return nil, errors.New("cannot read init password from Secret file")
-		}
-
-		res = &cloneParams{
-			donorHostName: string(rawDonorHostName),
-			donorPort:     donorPort,
-			donorUser:     string(rawDonorUser),
-			donorPassword: string(rawDonorPassword),
-			initUser:      string(rawInitUser),
-			initPassword:  string(rawInitPassword),
-		}
+	donorAddr := fmt.Sprintf("%s:%d", req.Host, req.Port)
+	if _, err := a.db.ExecContext(ctx, `SET GLOBAL clone_valid_donor_list = ?`, donorAddr); err != nil {
+		return status.Errorf(codes.Internal, "failed to set clone_valid_donor_list: %+v", err)
 	}
 
-	return res, nil
-}
+	_, err = a.db.ExecContext(ctx, `CLONE INSTANCE FROM ?@?:? IDENTIFIED BY ?`, req.User, req.Host, req.Port, req.Password)
+	if err != nil && !IsRestartFailed(err) {
+		a.cloneFailureCount.Inc()
 
-func clone(ctx context.Context, db *sqlx.DB, donorUser, donorPassword, donorHostName string, donorPort int, a *Agent) error {
-	_, err := db.ExecContext(ctx, `CLONE INSTANCE FROM ?@?:? IDENTIFIED BY ?`, donorUser, donorHostName, donorPort, donorPassword)
-
-	// After cloning, the recipient MySQL server instance is restarted (stopped and started) automatically.
-	// And then the "ERROR 3707" (Restart server failed) occurs. This error does not indicate a cloning failure.
-	// So checking the error number here.
-	if err != nil && !strings.HasPrefix(err.Error(), "Error 3707") {
-		metrics.IncrementCloneFailureCountMetrics(a.clusterName)
-
-		log.Error("failed to exec mysql CLONE", map[string]interface{}{
-			"donor_hostname": donorHostName,
-			"donor_port":     donorPort,
-			log.FnError:      err,
-		})
+		logger.Error(err, "failed to exec CLONE INSTANCE", "donor", donorAddr)
 		return err
 	}
 
-	log.Info("success to exec mysql CLONE", map[string]interface{}{
-		"donor_hostname": donorHostName,
-		"donor_port":     donorPort,
-		log.FnError:      err,
-	})
+	logger.Info("cloning finished successfully", "donor", donorAddr)
+
+	time.Sleep(100 * time.Millisecond)
+
+	if err := waitBootstrap(ctx, req.InitUser, req.InitPassword, a.mysqlSocketPath, cloneBootstrapTimeout, logger); err != nil {
+		logger.Error(err, "mysqld didn't boot up after cloning from external")
+		return err
+	}
+
+	initDB, err := GetMySQLConnLocalSocket(req.InitUser, req.InitPassword, a.mysqlSocketPath)
+	if err != nil {
+		logger.Error(err, "failed to connect to mysqld after bootstrap")
+		return err
+	}
+
+	if err := InitExternal(ctx, initDB); err != nil {
+		logger.Error(err, "failed to initialize after clone")
+		return err
+	}
+
 	return nil
 }
 
-func waitBootstrap(ctx context.Context, user, password, socket string) error {
-	conf := mysql.NewConfig()
-	conf.User = user
-	conf.Passwd = password
-	conf.Net = "unix"
-	conf.Addr = socket
-	conf.InterpolateParams = true
-	uri := conf.FormatDSN()
-
-	ctx, cancel := context.WithTimeout(ctx, timeoutDuration)
+func waitBootstrap(ctx context.Context, user, password, socket string, timeout time.Duration, logger logr.Logger) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
-	tick := time.NewTicker(time.Second)
-	defer tick.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-tick.C:
-			_, err := sqlx.Connect("mysql", uri)
-			if err == nil {
-				return nil
-			}
+		case <-time.After(1 * time.Second):
+		}
+
+		db, err := GetMySQLConnLocalSocket(user, password, socket)
+		if err == nil {
+			db.Close()
+			return nil
+		}
+
+		if err != nil {
+			logger.Error(err, "connection failed")
 		}
 	}
+}
+
+func IsRestartFailed(err error) bool {
+	var merr *mysql.MySQLError
+	if errors.As(err, &merr) && merr.Number == 3707 {
+		return true
+	}
+
+	return false
 }

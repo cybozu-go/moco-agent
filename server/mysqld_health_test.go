@@ -1,201 +1,137 @@
 package server
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"time"
 
-	"github.com/cybozu-go/moco-agent/metrics"
-	"github.com/cybozu-go/moco-agent/server/agentrpc"
-	"github.com/cybozu-go/moco-agent/test_utils"
+	mocoagent "github.com/cybozu-go/moco-agent"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
-func testMySQLDHealth() {
-	var agent *Agent
-	var registry *prometheus.Registry
+var _ = Describe("health", func() {
+	It("should reply for probes as Primary", func() {
+		StartMySQLD(donorHost, donorPort, donorServerID)
+		defer StopAndRemoveMySQLD(donorHost)
 
-	BeforeEach(func() {
-		registry = prometheus.NewRegistry()
-		metrics.RegisterMetrics(registry)
-
-		err := test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID)
-		Expect(err).ShouldNot(HaveOccurred())
-		err = test_utils.InitializeMySQL(replicaPort)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		agent, err = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", "", replicaPort,
-			MySQLAccessorConfig{
-				ConnMaxLifeTime:   30 * time.Minute,
-				ConnectionTimeout: 3 * time.Second,
-				ReadTimeout:       30 * time.Second,
-			},
-			maxDelayThreshold,
-		)
-		Expect(err).ShouldNot(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		agent.CloseDB()
-		test_utils.StopAndRemoveMySQLD(replicaHost)
-	})
-
-	It("should return 200 if the agent can execute a query", func() {
-		By("getting health")
-		res := getHealth(agent)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
-	})
-
-	It("should return 503 if the agent cannot connect the own mysqld", func() {
-		By("stoping the instance")
-		test_utils.StopAndRemoveMySQLD(replicaHost)
-
-		By("getting health")
-		res := getHealth(agent)
-		Expect(res).Should(HaveHTTPStatus(http.StatusServiceUnavailable))
-	})
-}
-
-func testMySQLDReady() {
-	var agent *Agent
-	var registry *prometheus.Registry
-
-	BeforeEach(func() {
-		err := test_utils.StartMySQLD(donorHost, donorPort, donorServerID)
-		Expect(err).ShouldNot(HaveOccurred())
-		err = test_utils.StartMySQLD(replicaHost, replicaPort, replicaServerID)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		err = test_utils.InitializeMySQL(donorPort)
-		Expect(err).ShouldNot(HaveOccurred())
-		err = test_utils.InitializeMySQL(replicaPort)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		err = test_utils.PrepareTestData(donorPort)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		err = test_utils.SetValidDonorList(replicaPort, donorHost, donorPort)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		err = test_utils.ResetMaster(donorPort)
-		Expect(err).ShouldNot(HaveOccurred())
-		err = test_utils.ResetMaster(replicaPort)
-		Expect(err).ShouldNot(HaveOccurred())
-
-		registry = prometheus.NewRegistry()
-		metrics.RegisterMetrics(registry)
-
-		agent, err = New(test_utils.Host, clusterName, test_utils.AgentUserPassword, test_utils.CloneDonorUserPassword, replicationSourceSecretPath, "", "", replicaPort,
-			MySQLAccessorConfig{
-				ConnMaxLifeTime:   30 * time.Minute,
-				ConnectionTimeout: 3 * time.Second,
-				ReadTimeout:       30 * time.Second,
-			},
-			maxDelayThreshold,
-		)
-		Expect(err).ShouldNot(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		test_utils.StopAndRemoveMySQLD(donorHost)
-		test_utils.StopAndRemoveMySQLD(replicaHost)
-		agent.CloseDB()
-	})
-
-	It("should return 200 if not under cloning and read_only=false", func() {
-		By("getting readiness (should be 200)")
-		res := getReady(agent)
-		Expect(res).Should(HaveHTTPStatus(http.StatusOK))
-	})
-
-	It("should return 503 if cloning process is in progress", func() {
-		By("executing cloning")
-		err := test_utils.ResetMaster(replicaPort)
-		Expect(err).ShouldNot(HaveOccurred())
-		err = test_utils.SetValidDonorList(replicaPort, donorHost, donorPort)
-		Expect(err).ShouldNot(HaveOccurred())
-		gsrv := NewCloneService(agent)
-		req := &agentrpc.CloneRequest{
-			DonorHost: donorHost,
-			DonorPort: donorPort,
+		sockFile := filepath.Join(socketDir(donorHost), "mysqld.sock")
+		conf := MySQLAccessorConfig{
+			Host:              "localhost",
+			Port:              donorPort,
+			Password:          agentUserPassword,
+			ConnMaxIdleTime:   30 * time.Minute,
+			ConnectionTimeout: 3 * time.Second,
+			ReadTimeout:       30 * time.Second,
 		}
-		_, err = gsrv.Clone(context.Background(), req)
-		Expect(err).ShouldNot(HaveOccurred())
+		agent, err := New(conf, testClusterName, sockFile, "", maxDelayThreshold, testLogger)
+		Expect(err).NotTo(HaveOccurred())
+		defer agent.CloseDB()
 
-		By("getting readiness (should be 503)")
-		res := getReady(agent)
-		Expect(res).Should(HaveHTTPStatus(http.StatusServiceUnavailable))
+		db, err := GetMySQLConnLocalSocket(mocoagent.AdminUser, adminUserPassword, sockFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer db.Close()
 
-		By("wating cloning is completed")
-		Eventually(func() error {
-			if agent.sem.TryAcquire(1) {
-				agent.sem.Release(1)
-				return nil
-			}
-			return errors.New("clone process is still working")
-		}).Should(Succeed())
+		By("getting health for running Primary")
+		res := getHealth(agent)
+		Expect(res).To(HaveHTTPStatus(http.StatusOK))
+
+		By("getting readiness for read-only Primary")
+		res = getReady(agent)
+		Expect(res).NotTo(HaveHTTPStatus(http.StatusOK))
+
+		By("getting readiness for working Primary")
+		_, err = db.Exec("SET GLOBAL read_only=0")
+		Expect(err).NotTo(HaveOccurred())
+		res = getReady(agent)
+		Expect(res).To(HaveHTTPStatus(http.StatusOK))
+
+		By("getting health for stopped Primary")
+		StopAndRemoveMySQLD(donorHost)
+		res = getHealth(agent)
+		Expect(res).NotTo(HaveHTTPStatus(http.StatusOK))
+
+		By("getting readiness for stopped Primary")
+		res = getReady(agent)
+		Expect(res).NotTo(HaveHTTPStatus(http.StatusOK))
 	})
 
-	It("should return appropriate status code when working as replica instance", func() {
-		By("setting read_only=true, but not works as replica")
-		test_utils.SetReadonly(replicaPort)
+	It("should reply for probes as Replica", func() {
+		By("starting primary/replica MySQLds")
+		StartMySQLD(donorHost, donorPort, donorServerID)
+		defer StopAndRemoveMySQLD(donorHost)
 
-		By("getting readiness (should be 500)")
+		sockFile := filepath.Join(socketDir(donorHost), "mysqld.sock")
+
+		donorDB, err := GetMySQLConnLocalSocket(mocoagent.AdminUser, adminUserPassword, sockFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer donorDB.Close()
+
+		StartMySQLD(replicaHost, replicaPort, replicaServerID)
+		defer StopAndRemoveMySQLD(replicaHost)
+
+		sockFile = filepath.Join(socketDir(replicaHost), "mysqld.sock")
+		conf := MySQLAccessorConfig{
+			Host:              "localhost",
+			Port:              replicaPort,
+			Password:          agentUserPassword,
+			ConnMaxIdleTime:   30 * time.Minute,
+			ConnectionTimeout: 3 * time.Second,
+			ReadTimeout:       30 * time.Second,
+		}
+		agent, err := New(conf, testClusterName, sockFile, "", 100*time.Millisecond, testLogger)
+		Expect(err).ShouldNot(HaveOccurred())
+		defer agent.CloseDB()
+
+		replicaDB, err := GetMySQLConnLocalSocket(mocoagent.AdminUser, adminUserPassword, sockFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer replicaDB.Close()
+
+		By("checking readiness before starting replication")
 		res := getReady(agent)
-		Expect(res).Should(HaveHTTPStatus(http.StatusInternalServerError))
+		Expect(res).NotTo(HaveHTTPStatus(http.StatusOK))
 
-		By("executing START SLAVE with invalid parameters")
-		err := test_utils.StartSlaveWithInvalidSettings(replicaPort)
-		Expect(err).ShouldNot(HaveOccurred())
+		By("setting up donor")
+		_, err = replicaDB.Exec("SET GLOBAL clone_valid_donor_list = ?", donorHost+":3306")
+		Expect(err).NotTo(HaveOccurred())
+		_, err = donorDB.Exec("SET GLOBAL read_only=0")
+		Expect(err).NotTo(HaveOccurred())
+		_, err = donorDB.Exec("CREATE DATABASE foo")
+		Expect(err).NotTo(HaveOccurred())
+		_, err = donorDB.Exec("CREATE TABLE foo.bar (i INT PRIMARY KEY) ENGINE=InnoDB")
+		Expect(err).NotTo(HaveOccurred())
+		items := []interface{}{100, 299, 993, 9292}
+		_, err = donorDB.Exec("INSERT INTO foo.bar (i) VALUES (?), (?), (?), (?)", items...)
+		Expect(err).NotTo(HaveOccurred())
+		time.Sleep(200 * time.Millisecond) // to make the delayed replication timestamp
 
-		By("getting readiness (should be 503)")
-		Eventually(func() error {
-			res := getReady(agent)
-			if res.Result().StatusCode != http.StatusServiceUnavailable {
-				return fmt.Errorf("doesn't return 503: %+v", res.Result().Status)
-			}
-			return nil
-		}).Should(Succeed())
+		_, err = replicaDB.Exec(`CHANGE MASTER TO MASTER_HOST=?, MASTER_PORT=3306, MASTER_USER=?, MASTER_PASSWORD=?, GET_MASTER_PUBLIC_KEY=1`,
+			donorHost, mocoagent.ReplicationUser, replicationUserPassword)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = replicaDB.Exec(`START SLAVE`)
+		Expect(err).NotTo(HaveOccurred())
+		time.Sleep(1 * time.Second)
 
-		By("executing START SLAVE with valid parameters")
-		err = test_utils.StopAndResetSlave(replicaPort)
-		Expect(err).ShouldNot(HaveOccurred())
-		err = test_utils.StartSlaveWithValidSettings(replicaPort, donorHost, donorPort)
-		Expect(err).ShouldNot(HaveOccurred())
+		By("checking readiness with delayed transaction")
+		res = getReady(agent)
+		Expect(res).NotTo(HaveHTTPStatus(http.StatusOK))
 
-		By("getting readiness (should be 200)")
-		Eventually(func() error {
-			res := getReady(agent)
-			if res.Result().StatusCode != http.StatusOK {
-				return fmt.Errorf("doesn't return 200: %+v", res.Result().Status)
-			}
-			return nil
-		}).Should(Succeed())
+		By("checking readiness with the up-to-date transaction")
+		_, err = donorDB.Exec("INSERT INTO foo.bar (i) VALUES (-3)")
+		Expect(err).NotTo(HaveOccurred())
+		Eventually(func() bool {
+			res = getReady(agent)
+			return res.Result().StatusCode == http.StatusOK
+		}).Should(BeTrue())
 
-		By("making delay between the original commit and the apply end time apply at the replica")
-		err = test_utils.ExecSQLCommand(replicaPort, "STOP SLAVE SQL_THREAD")
-		Expect(err).ShouldNot(HaveOccurred())
-		err = test_utils.ExecSQLCommand(donorPort, "CREATE DATABASE health_test_db")
-		Expect(err).ShouldNot(HaveOccurred())
-		time.Sleep(maxDelayThreshold + time.Second)
-		err = test_utils.ExecSQLCommand(replicaPort, "START SLAVE SQL_THREAD")
-		Expect(err).ShouldNot(HaveOccurred())
-
-		By("getting readiness (should be 503)")
-		Eventually(func() error {
-			res := getReady(agent)
-			if res.Result().StatusCode != http.StatusServiceUnavailable {
-				return fmt.Errorf("doesn't return 503: %+v", res.Result().Status)
-			}
-			return nil
-		}).Should(Succeed())
+		By("checking readiness with stopped replication threads")
+		_, err = replicaDB.Exec(`STOP SLAVE`)
+		Expect(err).NotTo(HaveOccurred())
+		res = getReady(agent)
+		Expect(res).NotTo(HaveHTTPStatus(http.StatusOK))
 	})
-}
+})
 
 func getHealth(agent *Agent) *httptest.ResponseRecorder {
 	req := httptest.NewRequest("GET", "http://"+replicaHost+"/healthz", nil)

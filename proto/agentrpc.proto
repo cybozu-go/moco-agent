@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package moco;
+option go_package = "github.com/cybozu-go/moco-agent/proto";
+
+/**
+ * CloneRequest is the request message to invoke MySQL CLONE command.
+*/
+message CloneRequest {
+    string host = 1; // host is the donor host in the own cluster
+    int32 port = 2; // port is the port number where the donor host
+    string user = 3; // user is the MySQL user who has BACKUP_ADMIN privilege in the donor host.
+    string password = 4; // password for the above user.
+    string init_user = 5; // localhost user to initialize cloned database for MOCO.
+    string init_password = 6; // password for init_user.
+}
+
+/**
+ * CloneResponse is the response message of Clone.
+*/
+message CloneResponse {}
+
+/**
+ * Agent provides services for MOCO.
+*/
+service Agent {
+    // Clone invokes MySQL CLONE command initializes the cloned database for MOCO.
+    // It does _not_ start the replication (START REPLICA).  Actually, it works as follows.
+    //
+    // 1. Configure `clone_donor_valid_list` global variable to allow the donor instance.
+    //
+    // 2. Invoke `CLONE INSTANCE` with `user` and `password` in the CloneRequest.
+    //
+    // 3. Initialize the database for MOCO using `init_user` and `init_password`.
+    //
+    // For 2, the user must have BACKUP_ADMIN and REPLICATION SLAVE privilege.
+    // For 3, the init_user must have ALL privilege with GRANT OPTION.
+    // The init_user is used only via UNIX domain socket, so its host can be `localhost`.
+    //
+    // The donor database should have prepared these two users beforehand.
+    rpc Clone(CloneRequest) returns (CloneResponse);
+}

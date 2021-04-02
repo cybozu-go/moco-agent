@@ -4,9 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
-	"github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
+	"fmt"
+	"time"
 )
 
 // MySQLGlobalVariablesStatus defines the observed global variable state of a MySQL instance
@@ -22,11 +21,6 @@ type MySQLCloneStateStatus struct {
 	State sql.NullString `db:"state"`
 }
 
-type MergedGlobalVariableAndCloneStateStatus struct {
-	MySQLGlobalVariablesStatus
-	MySQLCloneStateStatus
-}
-
 // MySQLPrimaryStatus defines the observed state of a primary
 type MySQLPrimaryStatus struct {
 	ExecutedGtidSet string `db:"Executed_Gtid_Set"`
@@ -40,8 +34,8 @@ type MySQLPrimaryStatus struct {
 
 // MySQLReplicaStatus defines the observed state of a replica
 type MySQLReplicaStatus struct {
-	LastIoErrno      int    `db:"Last_IO_Errno"`
-	LastIoError      string `db:"Last_IO_Error"`
+	LastIOErrno      int    `db:"Last_IO_Errno"`
+	LastIOError      string `db:"Last_IO_Error"`
 	LastSQLErrno     int    `db:"Last_SQL_Errno"`
 	LastSQLError     string `db:"Last_SQL_Error"`
 	MasterHost       string `db:"Master_Host"`
@@ -105,58 +99,35 @@ type MySQLReplicaStatus struct {
 }
 
 type MySQLLastAppliedTransactionTimestamps struct {
-	OriginalCommitTimestamp mysql.NullTime `db:"LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP"`
-	EndApplyTimestamp       mysql.NullTime `db:"LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP"`
+	OriginalCommitTimestamp time.Time `db:"LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP"`
+	EndApplyTimestamp       time.Time `db:"LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP"`
 }
 
-func GetMySQLCloneStateStatus(ctx context.Context, db *sqlx.DB) (*MySQLCloneStateStatus, error) {
-	rows, err := db.QueryxContext(ctx, `SELECT state FROM performance_schema.clone_status`)
+func (a *Agent) GetMySQLGlobalVariable(ctx context.Context) (*MySQLGlobalVariablesStatus, error) {
+	status := &MySQLGlobalVariablesStatus{}
+	err := a.db.GetContext(ctx, status, `SELECT @@read_only, @@super_read_only, @@rpl_semi_sync_master_wait_for_slave_count, @@clone_valid_donor_list`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get global variable: %w", err)
 	}
-	defer rows.Close()
+	return status, nil
+}
 
-	var status MySQLCloneStateStatus
-	if rows.Next() {
-		err = rows.StructScan(&status)
-		if err != nil {
-			return nil, err
+func (a *Agent) GetMySQLCloneStateStatus(ctx context.Context) (*MySQLCloneStateStatus, error) {
+	status := &MySQLCloneStateStatus{}
+	err := a.db.GetContext(ctx, status, `SELECT state FROM performance_schema.clone_status`)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &MySQLCloneStateStatus{}, nil
 		}
-		return &status, nil
-	}
-	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-
-	return nil, errors.New("return value is empty")
+	return status, nil
 }
 
-func GetMySQLGlobalVariableAndCloneStateStatus(ctx context.Context, db *sqlx.DB) (*MergedGlobalVariableAndCloneStateStatus, error) {
-	rows, err := db.QueryxContext(ctx, `SELECT @@read_only, @@super_read_only, @@rpl_semi_sync_master_wait_for_slave_count, @@clone_valid_donor_list, state FROM performance_schema.clone_status`)
+func (a *Agent) GetMySQLPrimaryStatus(ctx context.Context) (*MySQLPrimaryStatus, error) {
+	rows, err := a.db.QueryxContext(ctx, `SHOW MASTER STATUS`)
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var status MergedGlobalVariableAndCloneStateStatus
-	if rows.Next() {
-		err = rows.StructScan(&status)
-		if err != nil {
-			return nil, err
-		}
-		return &status, nil
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return nil, errors.New("return value is empty")
-}
-
-func GetMySQLPrimaryStatus(ctx context.Context, db *sqlx.DB) (*MySQLPrimaryStatus, error) {
-	rows, err := db.QueryxContext(ctx, `SHOW MASTER STATUS`)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to show master status: %w", err)
 	}
 	defer rows.Close()
 
@@ -175,10 +146,10 @@ func GetMySQLPrimaryStatus(ctx context.Context, db *sqlx.DB) (*MySQLPrimaryStatu
 	return nil, errors.New("return value is empty")
 }
 
-func GetMySQLReplicaStatus(ctx context.Context, db *sqlx.DB) (*MySQLReplicaStatus, error) {
-	rows, err := db.QueryxContext(ctx, `SHOW SLAVE STATUS`)
+func (a *Agent) GetMySQLReplicaStatus(ctx context.Context) (*MySQLReplicaStatus, error) {
+	rows, err := a.db.QueryxContext(ctx, `SHOW SLAVE STATUS`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to show slave status: %w", err)
 	}
 	defer rows.Close()
 
@@ -197,24 +168,11 @@ func GetMySQLReplicaStatus(ctx context.Context, db *sqlx.DB) (*MySQLReplicaStatu
 	return nil, errors.New("return value is empty")
 }
 
-func GetMySQLLastAppliedTransactionTimestamps(ctx context.Context, db *sqlx.DB) (*MySQLLastAppliedTransactionTimestamps, error) {
-	rows, err := db.QueryxContext(ctx, `SELECT LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP, LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP FROM performance_schema.replication_applier_status_by_worker`)
+func (a *Agent) GetMySQLLastAppliedTransactionTimestamps(ctx context.Context) (*MySQLLastAppliedTransactionTimestamps, error) {
+	timestamps := &MySQLLastAppliedTransactionTimestamps{}
+	err := a.db.GetContext(ctx, timestamps, `SELECT LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP, LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP FROM performance_schema.replication_applier_status_by_worker`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get last applied transaction timestamps: %w", err)
 	}
-	defer rows.Close()
-
-	var timestamps MySQLLastAppliedTransactionTimestamps
-	if rows.Next() {
-		err = rows.StructScan(&timestamps)
-		if err != nil {
-			return nil, err
-		}
-		return &timestamps, nil
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return nil, errors.New("return value is empty")
+	return timestamps, nil
 }
