@@ -43,7 +43,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./server/agentrpc/agentrpc.proto
+          asset_path: ./proto/agentrpc.proto
           asset_name: agentrpc.proto
           asset_content_type: application/octet-stream
   image:
@@ -51,8 +51,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
-      - run: docker build . -t moco-agent:dev
       - name: Login to ghcr.io
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
-      - run: docker tag moco-agent:dev ghcr.io/cybozu-go/moco-agent:${GITHUB_REF#refs/tags/v}
+      - run: docker build -t ghcr.io/cybozu-go/moco-agent:${GITHUB_REF#refs/tags/v} .
       - run: docker push ghcr.io/cybozu-go/moco-agent:${GITHUB_REF#refs/tags/v}
