@@ -131,7 +131,6 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		registry.MustRegister(grpcMetrics)
 		grpcLogger := zapLogger.Named("grpc")
 		grpcServer := grpc.NewServer(grpc.UnaryInterceptor(
 			grpc_middleware.ChainUnaryServer(
@@ -143,7 +142,7 @@ var rootCmd = &cobra.Command{
 		proto.RegisterAgentServer(grpcServer, server.NewAgentService(agent))
 
 		// after all services are registered, initialize metrics.
-		grpcMetrics.InitializeMetrics(grpcServer)
+		grpc_prometheus.Register(grpcServer)
 
 		// enable server reflection service
 		// see https://github.com/grpc/grpc-go/blob/master/Documentation/server-reflection-tutorial.md
