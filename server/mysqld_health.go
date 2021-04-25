@@ -3,6 +3,9 @@ package server
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/cybozu-go/moco-agent/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Health returns the health check result of own MySQL
@@ -40,12 +43,15 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !globalVariables.ReadOnly {
+		a.configureReplicationMetrics(false)
+		metrics.UnregisterReplicationMetrics(prometheus.DefaultRegisterer)
 		return
 	}
 
 	// Check the instance has IO/SQLThread error or not
 	replicaStatus, err := a.GetMySQLReplicaStatus(r.Context())
 	if err != nil {
+		a.configureReplicationMetrics(false)
 		a.logger.Error(err, "failed to get replica status")
 		msg := fmt.Sprintf("failed to get replica status: %+v", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -87,6 +93,8 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 	// and "the original commit timestamp at the primary".
 	// If this value becomes larger, it means the own instance cannot processing the original commits in time.
 	delayed := timestamps.EndApplyTimestamp.Sub(timestamps.OriginalCommitTimestamp)
+	a.configureReplicationMetrics(true)
+	metrics.ReplicationDelay.Set(delayed.Seconds())
 	if delayed >= a.maxDelayThreshold {
 		a.logger.Info("the instance delays from the primary",
 			"maxDelayThreshold", a.maxDelayThreshold,

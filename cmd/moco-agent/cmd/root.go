@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
@@ -75,6 +77,9 @@ var rootCmd = &cobra.Command{
 		if podName == "" {
 			return fmt.Errorf("%s is empty", mocoagent.PodNameEnvKey)
 		}
+		index := -1
+		fields := strings.Split(podName, "-")
+		index, _ = strconv.Atoi(fields[len(fields)-1])
 		agentPassword := os.Getenv(mocoagent.AgentPasswordEnvKey)
 		if agentPassword == "" {
 			return fmt.Errorf("%s is empty", mocoagent.AgentPasswordEnvKey)
@@ -108,7 +113,7 @@ var rootCmd = &cobra.Command{
 		mysql.SetLogger(mysqlLogger{})
 
 		registry := prometheus.DefaultRegisterer
-		metrics.RegisterMetrics(registry)
+		metrics.Init(registry, clusterName, index)
 
 		c := cron.New(cron.WithLogger(rLogger.WithName("cron")))
 		if _, err := c.AddFunc(config.logRotationSchedule, agent.RotateLog); err != nil {
