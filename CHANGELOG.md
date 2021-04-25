@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2021-04-26
+
+### Added
+- New metric `moco_instance_replication_delay_seconds` (#45)
+
+### Changed
+- Reset user passwords after clone (#45)
+- Change metrics names (#45)
+
 ## [0.6.0] - 2021-04-02
 
 ### Changed
@@ -59,7 +68,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/cybozu-go/moco-agent/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/cybozu-go/moco-agent/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/cybozu-go/moco-agent/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/cybozu-go/moco-agent/compare/v0.3.0...v0.4.0
