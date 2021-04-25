@@ -138,7 +138,7 @@ var Plugins = []Plugin{
 	},
 }
 
-func ensureMOCOUsers(ctx context.Context, db *sqlx.DB) error {
+func ensureMOCOUsers(ctx context.Context, db *sqlx.DB, reset bool) error {
 	_, err := db.ExecContext(ctx, "SET GLOBAL partial_revokes='ON'")
 	if err != nil {
 		return fmt.Errorf("failed to set global partial_revokes=ON: %w", err)
@@ -160,7 +160,7 @@ func ensureMOCOUsers(ctx context.Context, db *sqlx.DB) error {
 	}
 
 	for _, u := range Users {
-		err := ensureMySQLUser(ctx, db, u, passwords[u.name])
+		err := ensureMySQLUser(ctx, db, u, passwords[u.name], reset)
 		if err != nil {
 			return err
 		}
@@ -181,14 +181,20 @@ func dropLocalRootUser(ctx context.Context, db *sqlx.DB) error {
 	return nil
 }
 
-func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user UserSetting, pwd string) error {
+func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user UserSetting, pwd string, reset bool) error {
 	var count int
 	err := db.GetContext(ctx, &count, `SELECT COUNT(*) FROM mysql.user WHERE user=? and host='%'`, user.name)
 	if err != nil {
 		return fmt.Errorf("failed to select from mysql.user: %w", err)
 	}
 	if count == 1 {
-		// The user is already exists
+		// The user already exists
+		if reset {
+			_, err := db.ExecContext(ctx, `ALTER USER ?@'%' IDENTIFIED BY ?`, user.name, pwd)
+			if err != nil {
+				return fmt.Errorf("failed to reset password for %s: %w", user.name, err)
+			}
+		}
 		return nil
 	}
 
@@ -252,7 +258,7 @@ func Init(ctx context.Context, db *sqlx.DB, socket string) error {
 	if _, err := db.ExecContext(ctx, "SET GLOBAL read_only=OFF"); err != nil {
 		return fmt.Errorf("failed to disable read_only: %w", err)
 	}
-	if err := ensureMOCOUsers(ctx, db); err != nil {
+	if err := ensureMOCOUsers(ctx, db, false); err != nil {
 		return err
 	}
 	if err := ensureMOCOPlugins(ctx, db); err != nil {
@@ -294,7 +300,7 @@ func InitExternal(ctx context.Context, db *sqlx.DB) error {
 	if _, err := db.ExecContext(ctx, "SET GLOBAL read_only=OFF"); err != nil {
 		return fmt.Errorf("failed to disable read_only: %w", err)
 	}
-	if err := ensureMOCOUsers(ctx, db); err != nil {
+	if err := ensureMOCOUsers(ctx, db, true); err != nil {
 		return err
 	}
 	if err := ensureMOCOPlugins(ctx, db); err != nil {
