@@ -1,6 +1,7 @@
 package server
 
 import (
+	"sync"
 	"time"
 
 	"github.com/cybozu-go/moco-agent/metrics"
@@ -20,7 +21,7 @@ type agentService struct {
 	proto.UnimplementedAgentServer
 }
 
-// New returns a Agent
+// New returns an Agent
 func New(config MySQLAccessorConfig, clusterName, socket, logDir string, maxDelay time.Duration, logger logr.Logger) (*Agent, error) {
 	db, err := getMySQLConn(config)
 	if err != nil {
@@ -28,19 +29,12 @@ func New(config MySQLAccessorConfig, clusterName, socket, logDir string, maxDela
 	}
 
 	return &Agent{
-		db:                         db,
-		logger:                     logger,
-		mysqlSocketPath:            socket,
-		logDir:                     logDir,
-		maxDelayThreshold:          maxDelay,
-		cloneLock:                  make(chan struct{}, 1),
-		cloneCount:                 metrics.CloneCount.WithLabelValues(clusterName),
-		cloneFailureCount:          metrics.CloneFailureCount.WithLabelValues(clusterName),
-		cloneDurationSeconds:       metrics.CloneDurationSeconds.WithLabelValues(clusterName),
-		cloneInProgress:            metrics.CloneInProgress.WithLabelValues(clusterName),
-		logRotationCount:           metrics.LogRotationCount.WithLabelValues(clusterName),
-		logRotationFailureCount:    metrics.LogRotationFailureCount.WithLabelValues(clusterName),
-		logRotationDurationSeconds: metrics.LogRotationDurationSeconds.WithLabelValues(clusterName),
+		db:                db,
+		logger:            logger,
+		mysqlSocketPath:   socket,
+		logDir:            logDir,
+		maxDelayThreshold: maxDelay,
+		cloneLock:         make(chan struct{}, 1),
 	}, nil
 }
 
@@ -52,14 +46,29 @@ type Agent struct {
 	logDir            string
 	maxDelayThreshold time.Duration
 
-	cloneLock                  chan struct{}
-	cloneCount                 prometheus.Counter
-	cloneFailureCount          prometheus.Counter
-	cloneDurationSeconds       prometheus.Observer
-	cloneInProgress            prometheus.Gauge
-	logRotationCount           prometheus.Counter
-	logRotationFailureCount    prometheus.Counter
-	logRotationDurationSeconds prometheus.Observer
+	cloneLock    chan struct{}
+	registryLock sync.Mutex
+	registered   bool
+}
+
+func (a *Agent) configureReplicationMetrics(enable bool) {
+	a.registryLock.Lock()
+	defer a.registryLock.Unlock()
+
+	if enable {
+		if a.registered {
+			return
+		}
+		metrics.RegisterReplicationMetrics(prometheus.DefaultRegisterer)
+		a.registered = true
+		return
+	}
+
+	if !a.registered {
+		return
+	}
+	metrics.UnregisterReplicationMetrics(prometheus.DefaultRegisterer)
+	a.registered = false
 }
 
 type MySQLAccessorConfig struct {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
+	"github.com/cybozu-go/moco-agent/metrics"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -50,8 +51,8 @@ var _ = Describe("log rotation", func() {
 			_, err := os.Stat(file + ".0")
 			Expect(err).ShouldNot(HaveOccurred())
 		}
-		Expect(testutil.ToFloat64(agent.logRotationCount)).To(BeNumerically("==", 1))
-		Expect(testutil.ToFloat64(agent.logRotationFailureCount)).To(BeNumerically("==", 0))
+		Expect(testutil.ToFloat64(metrics.LogRotationCount)).To(BeNumerically("==", 1))
+		Expect(testutil.ToFloat64(metrics.LogRotationFailureCount)).To(BeNumerically("==", 0))
 
 		By("creating the same name directory")
 		for _, file := range logFiles {
@@ -63,7 +64,7 @@ var _ = Describe("log rotation", func() {
 
 		agent.RotateLog()
 
-		Expect(testutil.ToFloat64(agent.logRotationCount)).To(BeNumerically("==", 2))
-		Expect(testutil.ToFloat64(agent.logRotationFailureCount)).To(BeNumerically("==", 1))
+		Expect(testutil.ToFloat64(metrics.LogRotationCount)).To(BeNumerically("==", 2))
+		Expect(testutil.ToFloat64(metrics.LogRotationFailureCount)).To(BeNumerically("==", 1))
 	})
 })

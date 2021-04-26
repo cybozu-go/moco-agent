@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/proto"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
@@ -47,11 +48,11 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 	}
 
 	startTime := time.Now()
-	a.cloneCount.Inc()
-	a.cloneInProgress.Set(1)
+	metrics.CloneCount.Inc()
+	metrics.CloneInProgress.Set(1)
 	defer func() {
-		a.cloneInProgress.Set(0)
-		a.cloneDurationSeconds.Observe(time.Since(startTime).Seconds())
+		metrics.CloneInProgress.Set(0)
+		metrics.CloneDurationSeconds.Observe(time.Since(startTime).Seconds())
 	}()
 
 	donorAddr := fmt.Sprintf("%s:%d", req.Host, req.Port)
@@ -61,7 +62,7 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 
 	_, err = a.db.ExecContext(ctx, `CLONE INSTANCE FROM ?@?:? IDENTIFIED BY ?`, req.User, req.Host, req.Port, req.Password)
 	if err != nil && !IsRestartFailed(err) {
-		a.cloneFailureCount.Inc()
+		metrics.CloneFailureCount.Inc()
 
 		logger.Error(err, "failed to exec CLONE INSTANCE", "donor", donorAddr)
 		return err

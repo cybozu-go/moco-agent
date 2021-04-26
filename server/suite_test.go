@@ -6,15 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/go-logr/stdr"
 	"github.com/go-sql-driver/mysql"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
 	testClusterName   = "moco-agent-test"
-	metricsPrefix     = "moco_agent_"
 	donorHost         = "moco-agent-test-mysqld-donor"
 	donorPort         = 3307
 	donorServerID     = 1
@@ -36,6 +37,7 @@ func TestAgent(t *testing.T) {
 
 var _ = BeforeSuite(func(done Done) {
 	mysql.SetLogger(log.New(GinkgoWriter, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
+	metrics.Init(prometheus.DefaultRegisterer, "test", 2)
 
 	os.RemoveAll(socketBaseDir)
 	RemoveNetwork()

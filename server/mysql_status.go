@@ -125,47 +125,19 @@ func (a *Agent) GetMySQLCloneStateStatus(ctx context.Context) (*MySQLCloneStateS
 }
 
 func (a *Agent) GetMySQLPrimaryStatus(ctx context.Context) (*MySQLPrimaryStatus, error) {
-	rows, err := a.db.QueryxContext(ctx, `SHOW MASTER STATUS`)
-	if err != nil {
+	status := &MySQLPrimaryStatus{}
+	if err := a.db.GetContext(ctx, status, `SHOW MASTER STATUS`); err != nil {
 		return nil, fmt.Errorf("failed to show master status: %w", err)
 	}
-	defer rows.Close()
-
-	var status MySQLPrimaryStatus
-	if rows.Next() {
-		err = rows.StructScan(&status)
-		if err != nil {
-			return nil, err
-		}
-		return &status, nil
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return nil, errors.New("return value is empty")
+	return status, nil
 }
 
 func (a *Agent) GetMySQLReplicaStatus(ctx context.Context) (*MySQLReplicaStatus, error) {
-	rows, err := a.db.QueryxContext(ctx, `SHOW SLAVE STATUS`)
-	if err != nil {
+	status := &MySQLReplicaStatus{}
+	if err := a.db.GetContext(ctx, status, `SHOW SLAVE STATUS`); err != nil {
 		return nil, fmt.Errorf("failed to show slave status: %w", err)
 	}
-	defer rows.Close()
-
-	var status MySQLReplicaStatus
-	if rows.Next() {
-		err = rows.StructScan(&status)
-		if err != nil {
-			return nil, err
-		}
-		return &status, nil
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return nil, errors.New("return value is empty")
+	return status, nil
 }
 
 func (a *Agent) GetMySQLLastAppliedTransactionTimestamps(ctx context.Context) (*MySQLLastAppliedTransactionTimestamps, error) {
