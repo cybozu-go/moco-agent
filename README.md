@@ -1,4 +1,5 @@
 [![GitHub release](https://img.shields.io/github/release/cybozu-go/moco-agent.svg?maxAge=60)][releases]
+[![CI](https://github.com/cybozu-go/moco-agent/actions/workflows/ci.yaml/badge.svg)](https://github.com/cybozu-go/moco-agent/actions/workflows/ci.yaml)
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/cybozu-go/moco-agent?tab=overview)](https://pkg.go.dev/github.com/cybozu-go/moco-agent?tab=overview)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cybozu-go/moco-agent)](https://goreportcard.com/report/github.com/cybozu-go/moco-agent)
 

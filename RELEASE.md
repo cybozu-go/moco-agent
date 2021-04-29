@@ -31,7 +31,12 @@ It should look like:
 ## Bump version
 
 1. Determine a new version number.  Let it write `$VERSION` as `VERSION=x.y.z`.
-2. Make a branch to release, for example by `git neco dev "bump-v$VERSION"`
+2. Make a branch to release
+
+    ```console
+    $ git neco dev "$VERSION"`
+    ```
+
 3. Edit `CHANGELOG.md` for the new version ([example][]).
 4. Commit the change and push it.
 
@@ -41,16 +46,17 @@ It should look like:
     ```
 
 5. Merge this branch.
-6. Add a git tag, then push it.
+6. Add a git tag to the main HEAD, then push it.
 
     ```console
     $ git checkout main
     $ git pull
-    $ git tag "v$VERSION"
+    $ git tag -a -m "Release v$VERSION" "v$VERSION"
     $ git push origin "v$VERSION"
     ```
 
-GitHub actions will make a new release and push the new container image to [GitHub Container Registry](https://github.com/orgs/cybozu-go/packages/container/package/moco-agent).
+GitHub actions will build and push artifacts such as container images and
+create a new GitHub release.
 
 [semver]: https://semver.org/spec/v2.0.0.html
 [example]: https://github.com/cybozu-go/etcdpasswd/commit/77d95384ac6c97e7f48281eaf23cb94f68867f79
