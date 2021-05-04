@@ -2,45 +2,26 @@ package mocoagent
 
 // MySQL user names for MOCO
 const (
-	// AdminUser is the admin user name used by MOCO operator.
-	// This user is a super user especially for creating and granting privileges to other users.
-	AdminUser = "moco-admin"
-
-	// AgentUser is the user name used by MOCO Agent.
-	AgentUser = "moco-agent"
-
-	// ReplicationUser is the user name used for replication.
+	AdminUser       = "moco-admin"
+	AgentUser       = "moco-agent"
 	ReplicationUser = "moco-repl"
-
-	// CloneDonorUser is the user name used for clone donor.
-	CloneDonorUser = "moco-clone-donor"
-
-	// ReadOnlyUser is the readonly user name used for human operator
-	ReadOnlyUser = "moco-readonly"
-
-	// WritableUser is the writable user name used for human operator
-	WritableUser = "moco-writable"
+	CloneDonorUser  = "moco-clone-donor"
+	ExporterUser    = "moco-exporter"
+	BackupUser      = "moco-backup"
+	ReadOnlyUser    = "moco-readonly"
+	WritableUser    = "moco-writable"
 )
 
-// ENV keys for initialize MySQL users
+// ENV keys for getting MySQL user passwords
 const (
-	// AdminPasswordEnvKey is the ENV key of moco-admin's password
-	AdminPasswordEnvKey = "ADMIN_PASSWORD"
-
-	// AgentPasswordEnvKey is the ENV key of moco-agent's password
-	AgentPasswordEnvKey = "AGENT_PASSWORD"
-
-	// ReplicationPasswordEnvKey is the ENV key of moco-repl's password
+	AdminPasswordEnvKey       = "ADMIN_PASSWORD"
+	AgentPasswordEnvKey       = "AGENT_PASSWORD"
 	ReplicationPasswordEnvKey = "REPLICATION_PASSWORD"
-
-	// CloneDonorPasswordEnvKey is the ENV key of moco-clone-donor's password
-	CloneDonorPasswordEnvKey = "CLONE_DONOR_PASSWORD"
-
-	// ReadOnlyPasswordEnvKey is the ENV key of moco-readonly's passowrd
-	ReadOnlyPasswordEnvKey = "READONLY_PASSWORD"
-
-	// WritablePasswordEnvKey is the ENV key of moco-writable's password
-	WritablePasswordEnvKey = "WRITABLE_PASSWORD"
+	CloneDonorPasswordEnvKey  = "CLONE_DONOR_PASSWORD"
+	ExporterPasswordKey       = "EXPORTER_PASSWORD"
+	BackupPasswordKey         = "BACKUP_PASSWORD"
+	ReadOnlyPasswordEnvKey    = "READONLY_PASSWORD"
+	WritablePasswordEnvKey    = "WRITABLE_PASSWORD"
 )
 
 // ENV keys for the values propergated by Kubernetes resource

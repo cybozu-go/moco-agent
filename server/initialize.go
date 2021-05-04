@@ -56,6 +56,27 @@ var Users = []UserSetting{
 		},
 	},
 	{
+		name: mocoagent.ExporterUser,
+		privileges: []string{
+			"PROCESS",
+			"REPLICATION CLIENT",
+			"SELECT",
+		},
+	},
+	{
+		name: mocoagent.BackupUser,
+		privileges: []string{
+			"BACKUP_ADMIN",
+			"EVENT",
+			"RELOAD",
+			"SELECT",
+			"SHOW VIEW",
+			"TRIGGER",
+			"REPLICATION CLIENT",
+			"SERVICE_CONNECTION_ADMIN",
+		},
+	},
+	{
 		name: mocoagent.ReadOnlyUser,
 		privileges: []string{
 			"PROCESS",
@@ -149,6 +170,8 @@ func ensureMOCOUsers(ctx context.Context, db *sqlx.DB, reset bool) error {
 		mocoagent.AgentUser:       os.Getenv(mocoagent.AgentPasswordEnvKey),
 		mocoagent.ReplicationUser: os.Getenv(mocoagent.ReplicationPasswordEnvKey),
 		mocoagent.CloneDonorUser:  os.Getenv(mocoagent.CloneDonorPasswordEnvKey),
+		mocoagent.ExporterUser:    os.Getenv(mocoagent.ExporterPasswordKey),
+		mocoagent.BackupUser:      os.Getenv(mocoagent.BackupPasswordKey),
 		mocoagent.ReadOnlyUser:    os.Getenv(mocoagent.ReadOnlyPasswordEnvKey),
 		mocoagent.WritableUser:    os.Getenv(mocoagent.WritablePasswordEnvKey),
 	}
