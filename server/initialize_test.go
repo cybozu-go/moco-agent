@@ -28,6 +28,10 @@ var _ = Describe("initialize", func() {
 				pwd = replicationUserPassword
 			case mocoagent.CloneDonorUser:
 				pwd = cloneDonorUserPassword
+			case mocoagent.ExporterUser:
+				pwd = exporterPassword
+			case mocoagent.BackupUser:
+				pwd = backupPassword
 			case mocoagent.ReadOnlyUser:
 				pwd = readOnlyPassword
 			case mocoagent.WritableUser:

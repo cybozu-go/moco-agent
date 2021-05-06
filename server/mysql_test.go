@@ -21,6 +21,8 @@ const (
 	agentUserPassword       = "agentpassword"
 	replicationUserPassword = "replpassword"
 	cloneDonorUserPassword  = "clonepassword"
+	exporterPassword        = "exporter"
+	backupPassword          = "backup"
 	readOnlyPassword        = "readonly"
 	writablePassword        = "writable"
 
@@ -115,6 +117,8 @@ func StartMySQLD(name string, port int, serverID int) {
 		mocoagent.AgentPasswordEnvKey:       agentUserPassword,
 		mocoagent.ReplicationPasswordEnvKey: replicationUserPassword,
 		mocoagent.CloneDonorPasswordEnvKey:  cloneDonorUserPassword,
+		mocoagent.ExporterPasswordKey:       exporterPassword,
+		mocoagent.BackupPasswordKey:         backupPassword,
 		mocoagent.ReadOnlyPasswordEnvKey:    readOnlyPassword,
 		mocoagent.WritablePasswordEnvKey:    writablePassword,
 	}

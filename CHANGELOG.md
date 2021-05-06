@@ -8,6 +8,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ## [0.6.1] - 2021-04-26
 
 ### Added
+- `moco-exporter` and `moco-backup` users. (#47)
+
+## [0.6.1] - 2021-04-26
+
+### Added
 - New metric `moco_instance_replication_delay_seconds` (#45)
 
 ### Changed
@@ -68,7 +73,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/cybozu-go/moco-agent/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/cybozu-go/moco-agent/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/cybozu-go/moco-agent/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/cybozu-go/moco-agent/compare/v0.4.0...v0.5.0
