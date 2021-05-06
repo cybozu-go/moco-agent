@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-## [0.6.1] - 2021-04-26
+## [0.6.2] - 2021-05-06
 
 ### Added
 - `moco-exporter` and `moco-backup` users. (#47)
