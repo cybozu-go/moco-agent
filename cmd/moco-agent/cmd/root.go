@@ -12,6 +12,7 @@ import (
 	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
+	"github.com/cybozu-go/moco-agent/cert"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/proto"
 	"github.com/cybozu-go/moco-agent/server"
@@ -31,6 +32,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -52,6 +54,7 @@ var config struct {
 	readTimeout         time.Duration
 	maxDelayThreshold   time.Duration
 	socketPath          string
+	grpcCertDir         string
 }
 
 type mysqlLogger struct{}
@@ -131,19 +134,27 @@ var rootCmd = &cobra.Command{
 			}
 		}()
 
+		reloader, err := cert.NewReloader(config.grpcCertDir, rLogger.WithName("cert-reloader"))
+		if err != nil {
+			return err
+		}
+
 		lis, err := net.Listen("tcp", config.address)
 		if err != nil {
 			return err
 		}
 
 		grpcLogger := zapLogger.Named("grpc")
-		grpcServer := grpc.NewServer(grpc.UnaryInterceptor(
-			grpc_middleware.ChainUnaryServer(
-				grpc_ctxtags.UnaryServerInterceptor(),
-				grpcMetrics.UnaryServerInterceptor(),
-				grpc_zap.UnaryServerInterceptor(grpcLogger),
+		grpcServer := grpc.NewServer(
+			grpc.Creds(credentials.NewTLS(reloader.TLSServerConfig())),
+			grpc.UnaryInterceptor(
+				grpc_middleware.ChainUnaryServer(
+					grpc_ctxtags.UnaryServerInterceptor(),
+					grpcMetrics.UnaryServerInterceptor(),
+					grpc_zap.UnaryServerInterceptor(grpcLogger),
+				),
 			),
-		))
+		)
 		proto.RegisterAgentServer(grpcServer, server.NewAgentService(agent))
 
 		// after all services are registered, initialize metrics.
@@ -153,6 +164,10 @@ var rootCmd = &cobra.Command{
 		// see https://github.com/grpc/grpc-go/blob/master/Documentation/server-reflection-tutorial.md
 		reflection.Register(grpcServer)
 
+		well.Go(func(ctx context.Context) error {
+			reloader.Run(ctx, 1*time.Hour)
+			return nil
+		})
 		well.Go(func(ctx context.Context) error {
 			return grpcServer.Serve(lis)
 		})
@@ -216,6 +231,7 @@ func init() {
 	fs.DurationVar(&config.readTimeout, "read-timeout", 30*time.Second, "I/O read timeout")
 	fs.DurationVar(&config.maxDelayThreshold, "max-delay", time.Minute, "Acceptable max commit delay considering as ready")
 	fs.StringVar(&config.socketPath, "socket-path", socketPathDefault, "Path of mysqld socket file.")
+	fs.StringVar(&config.grpcCertDir, "grpc-cert-dir", "/grpc-cert", "gRPC certificate directory")
 }
 
 func initializeMySQLForMOCO(ctx context.Context, socketPath string, logger logr.Logger) error {
