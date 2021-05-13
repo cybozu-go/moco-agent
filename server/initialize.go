@@ -73,6 +73,7 @@ var Users = []UserSetting{
 			"SHOW VIEW",
 			"TRIGGER",
 			"REPLICATION CLIENT",
+			"REPLICATION SLAVE",
 			"SERVICE_CONNECTION_ADMIN",
 		},
 	},

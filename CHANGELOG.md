@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.4] - 2021-05-14
+
+### Changed
+- Grant `REPLICATION SLAVE` privilege to `moco-backup` (#50).
+
 ## [0.6.3] - 2021-05-09
 
 ### Changed
@@ -78,7 +83,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.6.4...HEAD
+[0.6.3]: https://github.com/cybozu-go/moco-agent/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/cybozu-go/moco-agent/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/cybozu-go/moco-agent/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/cybozu-go/moco-agent/compare/v0.6.0...v0.6.1
