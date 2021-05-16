@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/prometheus/client_golang/prometheus"
@@ -81,26 +82,27 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	timestamps, err := a.GetMySQLLastAppliedTransactionTimestamps(r.Context())
+	queued, applied, err := a.GetTransactionTimestamps(r.Context())
 	if err != nil {
-		a.logger.Error(err, "failed to get transaction timestamps")
-		msg := fmt.Sprintf("failed to get transaction timestamps: %+v", err)
+		a.logger.Error(err, "failed to get replication lag")
+		msg := fmt.Sprintf("failed to get replication lag: %+v", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
 
-	// This expression calculates the delay between "the end timestamp of last transaction at the own instance"
-	// and "the original commit timestamp at the primary".
-	// If this value becomes larger, it means the own instance cannot processing the original commits in time.
-	delayed := timestamps.EndApplyTimestamp.Sub(timestamps.OriginalCommitTimestamp)
+	var lag time.Duration
+	if !queued.IsZero() {
+		lag = queued.Sub(applied)
+	}
+
 	a.configureReplicationMetrics(true)
-	metrics.ReplicationDelay.Set(delayed.Seconds())
-	if delayed >= a.maxDelayThreshold {
+	metrics.ReplicationDelay.Set(lag.Seconds())
+	if lag >= a.maxDelayThreshold {
 		a.logger.Info("the instance delays from the primary",
-			"maxDelayThreshold", a.maxDelayThreshold,
-			"delayed", delayed,
+			"maxDelayThreshold", a.maxDelayThreshold.Seconds(),
+			"lag", lag.Seconds(),
 		)
-		msg := fmt.Sprintf("the instance delays from the primary: maxDelaySecondsThreshold=%v, delayed=%v", a.maxDelayThreshold, delayed)
+		msg := fmt.Sprintf("the instance delays from the primary: maxDelaySecondsThreshold=%v, lag=%v", a.maxDelayThreshold, lag)
 		http.Error(w, msg, http.StatusServiceUnavailable)
 		return
 	}
