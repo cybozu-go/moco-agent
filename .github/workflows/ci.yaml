@@ -41,7 +41,7 @@ jobs:
     name: Small Tests
     strategy:
       matrix:
-        mysql-version: ["8.0.18", "8.0.20"]
+        mysql-version: ["8.0.18", "8.0.25"]
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
