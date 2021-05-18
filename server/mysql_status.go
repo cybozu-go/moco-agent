@@ -98,11 +98,6 @@ type MySQLReplicaStatus struct {
 	NetworkNamespace          string        `db:"Network_Namespace"`
 }
 
-type MySQLLastAppliedTransactionTimestamps struct {
-	OriginalCommitTimestamp time.Time `db:"LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP"`
-	EndApplyTimestamp       time.Time `db:"LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP"`
-}
-
 func (a *Agent) GetMySQLGlobalVariable(ctx context.Context) (*MySQLGlobalVariablesStatus, error) {
 	status := &MySQLGlobalVariablesStatus{}
 	err := a.db.GetContext(ctx, status, `SELECT @@read_only, @@super_read_only, @@rpl_semi_sync_master_wait_for_slave_count, @@clone_valid_donor_list`)
@@ -140,11 +135,15 @@ func (a *Agent) GetMySQLReplicaStatus(ctx context.Context) (*MySQLReplicaStatus,
 	return status, nil
 }
 
-func (a *Agent) GetMySQLLastAppliedTransactionTimestamps(ctx context.Context) (*MySQLLastAppliedTransactionTimestamps, error) {
-	timestamps := &MySQLLastAppliedTransactionTimestamps{}
-	err := a.db.GetContext(ctx, timestamps, `SELECT LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP, LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP FROM performance_schema.replication_applier_status_by_worker`)
+func (a *Agent) GetTransactionTimestamps(ctx context.Context) (queued, applied time.Time, err error) {
+	err = a.db.GetContext(ctx, &queued, `
+SELECT MAX(LAST_QUEUED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP)
+FROM performance_schema.replication_connection_status`)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get last applied transaction timestamps: %w", err)
+		return
 	}
-	return timestamps, nil
+	err = a.db.GetContext(ctx, &applied, `
+SELECT MAX(LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP)
+FROM performance_schema.replication_applier_status_by_worker`)
+	return
 }

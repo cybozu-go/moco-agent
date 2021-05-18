@@ -104,32 +104,36 @@ var _ = Describe("health", func() {
 		items := []interface{}{100, 299, 993, 9292}
 		_, err = donorDB.Exec("INSERT INTO foo.bar (i) VALUES (?), (?), (?), (?)", items...)
 		Expect(err).NotTo(HaveOccurred())
-		time.Sleep(200 * time.Millisecond) // to make the delayed replication timestamp
 
 		_, err = replicaDB.Exec(`CHANGE MASTER TO MASTER_HOST=?, MASTER_PORT=3306, MASTER_USER=?, MASTER_PASSWORD=?, GET_MASTER_PUBLIC_KEY=1`,
 			donorHost, mocoagent.ReplicationUser, replicationUserPassword)
 		Expect(err).NotTo(HaveOccurred())
 		_, err = replicaDB.Exec(`START SLAVE`)
 		Expect(err).NotTo(HaveOccurred())
-		time.Sleep(1 * time.Second)
 
-		By("checking readiness with delayed transaction")
-		res = getReady(agent)
-		Expect(res).NotTo(HaveHTTPStatus(http.StatusOK))
+		By("checking readiness")
+		Eventually(func() interface{} {
+			return getReady(agent)
+		}).Should(HaveHTTPStatus(http.StatusOK))
 
-		By("checking readiness with the up-to-date transaction")
-		_, err = donorDB.Exec("INSERT INTO foo.bar (i) VALUES (-3)")
+		By("locking replica")
+		_, err = replicaDB.Exec(`LOCK INSTANCE FOR BACKUP`)
 		Expect(err).NotTo(HaveOccurred())
-		Eventually(func() bool {
-			res = getReady(agent)
-			return res.Result().StatusCode == http.StatusOK
-		}).Should(BeTrue())
 
-		By("checking readiness with stopped replication threads")
-		_, err = replicaDB.Exec(`STOP SLAVE`)
+		By("checking lag")
+		time.Sleep(200 * time.Millisecond)
+		_, err = donorDB.Exec("ALTER TABLE foo.bar ADD COLUMN hoge TEXT")
 		Expect(err).NotTo(HaveOccurred())
-		res = getReady(agent)
-		Expect(res).NotTo(HaveHTTPStatus(http.StatusOK))
+		Eventually(func() interface{} {
+			return getReady(agent)
+		}).Should(HaveHTTPStatus(http.StatusServiceUnavailable))
+
+		By("unlocking replica")
+		_, err = replicaDB.Exec(`UNLOCK INSTANCE`)
+		Expect(err).NotTo(HaveOccurred())
+		Eventually(func() interface{} {
+			return getReady(agent)
+		}).Should(HaveHTTPStatus(http.StatusOK))
 	})
 })
 

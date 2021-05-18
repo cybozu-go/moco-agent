@@ -34,7 +34,7 @@ var socketBaseDir = path.Join(os.TempDir(), "moco-agent-test-server")
 
 var MySQLVersion = func() string {
 	if ver := os.Getenv("MYSQL_VERSION"); ver == "" {
-		os.Setenv("MYSQL_VERSION", "8.0.20")
+		os.Setenv("MYSQL_VERSION", "8.0.25")
 	}
 	return os.Getenv("MYSQL_VERSION")
 }()

@@ -1,4 +1,4 @@
-MYSQL_VERSION = 8.0.20
+MYSQL_VERSION = 8.0.25
 
 # For Go
 GOOS := $(shell go env GOOS)
@@ -30,11 +30,10 @@ all: build/moco-agent
 validate: setup
 	test -z "$$(gofmt -s -l . | tee /dev/stderr)"
 	staticcheck ./...
-	test -z "$$(nilerr ./... 2>&1 | tee /dev/stderr)"
+	nilerr ./...
 	test -z "$$(custom-checker -restrictpkg.packages=html/template,log $$(go list -tags='$(GOTAGS)' ./... ) 2>&1 | tee /dev/stderr)"
 	go build ./...
 	go vet ./...
-	test -z "$$(go vet ./... | tee /dev/stderr)"
 
 .PHONY: check-generate
 check-generate:
