@@ -98,11 +98,6 @@ type MySQLReplicaStatus struct {
 	NetworkNamespace          string        `db:"Network_Namespace"`
 }
 
-type MySQLLastAppliedTransactionTimestamps struct {
-	OriginalCommitTimestamp time.Time `db:"LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP"`
-	EndApplyTimestamp       time.Time `db:"LAST_APPLIED_TRANSACTION_END_APPLY_TIMESTAMP"`
-}
-
 func (a *Agent) GetMySQLGlobalVariable(ctx context.Context) (*MySQLGlobalVariablesStatus, error) {
 	status := &MySQLGlobalVariablesStatus{}
 	err := a.db.GetContext(ctx, status, `SELECT @@read_only, @@super_read_only, @@rpl_semi_sync_master_wait_for_slave_count, @@clone_valid_donor_list`)
