@@ -27,6 +27,7 @@ func getMySQLConn(config MySQLAccessorConfig) (*sqlx.DB, error) {
 	}
 
 	db.SetConnMaxIdleTime(config.ConnMaxIdleTime)
+	db.SetConnMaxLifetime(5 * time.Minute)
 	db.SetMaxIdleConns(1)
 
 	return db, nil

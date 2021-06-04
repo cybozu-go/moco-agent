@@ -29,6 +29,7 @@ func New(config MySQLAccessorConfig, clusterName, socket, logDir string, maxDela
 	}
 
 	return &Agent{
+		config:            config,
 		db:                db,
 		logger:            logger,
 		mysqlSocketPath:   socket,
@@ -40,6 +41,7 @@ func New(config MySQLAccessorConfig, clusterName, socket, logDir string, maxDela
 
 // Agent is the agent to executes some MySQL commands of the own Pod
 type Agent struct {
+	config            MySQLAccessorConfig
 	db                *sqlx.DB
 	logger            logr.Logger
 	mysqlSocketPath   string

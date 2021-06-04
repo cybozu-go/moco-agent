@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/proto"
 	"github.com/go-logr/logr"
@@ -60,7 +61,15 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 		return status.Errorf(codes.Internal, "failed to set clone_valid_donor_list: %+v", err)
 	}
 
-	_, err = a.db.ExecContext(ctx, `CLONE INSTANCE FROM ?@?:? IDENTIFIED BY ?`, req.User, req.Host, req.Port, req.Password)
+	// To clone, the connection should not set timeout values.
+	cloneDB, err := GetMySQLConnLocalSocket(mocoagent.AgentUser, a.config.Password, a.mysqlSocketPath)
+	if err != nil {
+		return fmt.Errorf("failed to connect to mysqld through %s: %w", a.mysqlSocketPath, err)
+	}
+	defer cloneDB.Close()
+
+	logger.Info("start cloning instance", "donor", donorAddr)
+	_, err = cloneDB.Exec(`CLONE INSTANCE FROM ?@?:? IDENTIFIED BY ?`, req.User, req.Host, req.Port, req.Password)
 	if err != nil && !IsRestartFailed(err) {
 		metrics.CloneFailureCount.Inc()
 
@@ -82,6 +91,7 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 		logger.Error(err, "failed to connect to mysqld after bootstrap")
 		return err
 	}
+	defer initDB.Close()
 
 	if err := InitExternal(ctx, initDB); err != nil {
 		logger.Error(err, "failed to initialize after clone")
