@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.6] - 2021-06-04
+
+### Fixed
+- Timeout error when cloning large data (#52).
+
 ## [0.6.5] - 2021-05-17
 
 ### Changed
@@ -88,7 +93,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.6.5...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.6.6...HEAD
+[0.6.6]: https://github.com/cybozu-go/moco-agent/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/cybozu-go/moco-agent/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/cybozu-go/moco-agent/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/cybozu-go/moco-agent/compare/v0.6.2...v0.6.3
