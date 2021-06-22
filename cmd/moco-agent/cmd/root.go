@@ -33,6 +33,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -147,6 +148,9 @@ var rootCmd = &cobra.Command{
 		grpcLogger := zapLogger.Named("grpc")
 		grpcServer := grpc.NewServer(
 			grpc.Creds(credentials.NewTLS(reloader.TLSServerConfig())),
+			grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+				MinTime: 10 * time.Second,
+			}),
 			grpc.UnaryInterceptor(
 				grpc_middleware.ChainUnaryServer(
 					grpc_ctxtags.UnaryServerInterceptor(),
