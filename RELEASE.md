@@ -34,7 +34,7 @@ It should look like:
 2. Make a branch to release
 
     ```console
-    $ git neco dev "$VERSION"`
+    $ git neco dev "$VERSION"
     ```
 
 3. Edit `CHANGELOG.md` for the new version ([example][]).
