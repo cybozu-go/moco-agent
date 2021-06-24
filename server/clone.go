@@ -81,7 +81,7 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 
 	time.Sleep(100 * time.Millisecond)
 
-	if err := waitBootstrap(ctx, req.InitUser, req.InitPassword, a.mysqlSocketPath, cloneBootstrapTimeout, logger); err != nil {
+	if err := waitBootstrap(req.InitUser, req.InitPassword, a.mysqlSocketPath, cloneBootstrapTimeout, logger); err != nil {
 		logger.Error(err, "mysqld didn't boot up after cloning from external")
 		return err
 	}
@@ -93,7 +93,7 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 	}
 	defer initDB.Close()
 
-	if err := InitExternal(ctx, initDB); err != nil {
+	if err := InitExternal(context.Background(), initDB); err != nil {
 		logger.Error(err, "failed to initialize after clone")
 		return err
 	}
@@ -101,8 +101,8 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 	return nil
 }
 
-func waitBootstrap(ctx context.Context, user, password, socket string, timeout time.Duration, logger logr.Logger) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+func waitBootstrap(user, password, socket string, timeout time.Duration, logger logr.Logger) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	for {
