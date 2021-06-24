@@ -93,7 +93,7 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 	}
 	defer initDB.Close()
 
-	if err := InitExternal(ctx, initDB); err != nil {
+	if err := InitExternal(context.Background(), initDB); err != nil {
 		logger.Error(err, "failed to initialize after clone")
 		return err
 	}
