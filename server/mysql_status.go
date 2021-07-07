@@ -130,6 +130,10 @@ func (a *Agent) GetMySQLPrimaryStatus(ctx context.Context) (*MySQLPrimaryStatus,
 func (a *Agent) GetMySQLReplicaStatus(ctx context.Context) (*MySQLReplicaStatus, error) {
 	status := &MySQLReplicaStatus{}
 	if err := a.db.GetContext(ctx, status, `SHOW SLAVE STATUS`); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// slave status can be empty for non-replica servers
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to show slave status: %w", err)
 	}
 	return status, nil
