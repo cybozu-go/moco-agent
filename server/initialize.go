@@ -17,6 +17,7 @@ const initTimeout = 1 * time.Minute
 type UserSetting struct {
 	name             string
 	privileges       []string
+	proxyAdmin       bool
 	revokePrivileges map[string][]string
 	withGrantOption  bool
 }
@@ -27,6 +28,7 @@ var Users = []UserSetting{
 		privileges: []string{
 			"ALL",
 		},
+		proxyAdmin:      true,
 		withGrantOption: true,
 	},
 	{
@@ -235,6 +237,14 @@ func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user UserSetting, pwd str
 	_, err = db.ExecContext(ctx, queryStr, user.name)
 	if err != nil {
 		return fmt.Errorf("failed to grant to %s: %w", user.name, err)
+	}
+
+	if user.proxyAdmin {
+		queryStr = fmt.Sprintf(`GRANT PROXY ON ''@'' TO ?@'%%' WITH GRANT OPTION`)
+		_, err = db.ExecContext(ctx, queryStr, user.name)
+		if err != nil {
+			return fmt.Errorf("failed to grant to %s: %w", user.name, err)
+		}
 	}
 
 	for target, privileges := range user.revokePrivileges {
