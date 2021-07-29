@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.9] - 2021-07-29
+
+### Changed
+- Change LICENSE from MIT to Apache2 (#59)
+
+### Fixed
+- Grant PROXY privilege to AdminUser (#58)
+
 ## [0.6.8] - 2021-06-24
 
 ### Changed
@@ -103,7 +111,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.6.8...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.6.9...HEAD
+[0.6.9]: https://github.com/cybozu-go/moco-agent/compare/v0.6.8...v0.6.9
 [0.6.8]: https://github.com/cybozu-go/moco-agent/compare/v0.6.7...v0.6.8
 [0.6.7]: https://github.com/cybozu-go/moco-agent/compare/v0.6.6...v0.6.7
 [0.6.6]: https://github.com/cybozu-go/moco-agent/compare/v0.6.5...v0.6.6
