@@ -11,7 +11,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Change LICENSE from MIT to Apache2 (#59)
 
 ### Fixed
-- Grant PROXY privilage to AdminUser (#58)
+- Grant PROXY privilege to AdminUser (#58)
 
 ## [0.6.8] - 2021-06-24
 
