@@ -1,4 +1,4 @@
-MYSQL_VERSION = 8.0.26
+MYSQL_VERSION = 8.0.27
 
 # For Go
 GOOS := $(shell go env GOOS)
