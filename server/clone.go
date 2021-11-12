@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const cloneBootstrapTimeout = 120 * time.Second
+const cloneBootstrapTimeout = 10 * time.Minute
 
 func (s agentService) Clone(ctx context.Context, req *proto.CloneRequest) (*proto.CloneResponse, error) {
 	if err := s.agent.Clone(ctx, req); err != nil {
