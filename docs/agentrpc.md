@@ -34,6 +34,7 @@ CloneRequest is the request message to invoke MySQL CLONE command.
 | password | [string](#string) |  | password for the above user. |
 | init_user | [string](#string) |  | localhost user to initialize cloned database for MOCO. |
 | init_password | [string](#string) |  | password for init_user. |
+| boot_timeout | [google.protobuf.Duration](#google.protobuf.Duration) |  | wait up to this duration for mysqld to boot after clone. |
 
 
 
