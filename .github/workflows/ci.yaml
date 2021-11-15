@@ -6,7 +6,7 @@ on:
     - 'main'
 env:
   cache-version: 1
-  go-version: 1.16
+  go-version: 1.17
 jobs:
   validation:
     name: Validation
