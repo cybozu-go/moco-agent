@@ -9,6 +9,7 @@ import (
 	"github.com/cybozu-go/moco-agent/proto"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 const (
@@ -85,6 +86,7 @@ var _ = Describe("clone", func() {
 			Password:     externalDonorPassword,
 			InitUser:     externalInitUser,
 			InitPassword: externalInitPassword,
+			BootTimeout:  durationpb.New(2 * time.Minute),
 		})
 		Expect(err).NotTo(HaveOccurred())
 
