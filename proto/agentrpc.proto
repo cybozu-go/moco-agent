@@ -3,6 +3,8 @@ syntax = "proto3";
 package moco;
 option go_package = "github.com/cybozu-go/moco-agent/proto";
 
+import "google/protobuf/duration.proto";
+
 /**
  * CloneRequest is the request message to invoke MySQL CLONE command.
 */
@@ -13,6 +15,7 @@ message CloneRequest {
     string password = 4; // password for the above user.
     string init_user = 5; // localhost user to initialize cloned database for MOCO.
     string init_password = 6; // password for init_user.
+    google.protobuf.Duration boot_timeout = 7; // wait up to this duration for mysqld to boot after clone.
 }
 
 /**
