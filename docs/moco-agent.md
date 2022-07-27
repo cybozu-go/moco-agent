@@ -13,7 +13,7 @@ Flags:
       --logfile string                 Log filename
       --logformat string               Log format [plain,logfmt,json]
       --loglevel string                Log level [critical,error,warning,info,debug]
-      --max-delay duration             Acceptable max commit delay considering as ready (default 1m0s)
+      --max-delay duration             Acceptable max commit delay considering as ready; the zero value accepts any delay (default 1m0s)
       --max-idle-time duration         The maximum amount of time a connection may be idle (default 30s)
       --metrics-address string         Listening address and port for metrics. (default ":8080")
       --probe-address string           Listening address and port for mysqld health probes. (default ":9081")
