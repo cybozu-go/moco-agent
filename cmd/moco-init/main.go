@@ -2,6 +2,8 @@ package main
 
 import (
 	_ "embed"
+	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,7 +29,7 @@ var config struct {
 	dataDir string
 	confDir string
 
-	lowerCaseTableNames bool
+	lowerCaseTableNames int
 
 	podName  string
 	baseID   uint32
@@ -85,6 +87,10 @@ func subMain(serverIDBase string) error {
 	}
 	config.baseID = uint32(baseUint64)
 
+	if err := validateFlags(); err != nil {
+		return err
+	}
+
 	_, err = os.Stat(filepath.Join(config.dataDir, initializedFile))
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -109,8 +115,9 @@ func initMySQL(mysqld string) error {
 	args = append(args, "--datadir="+dataDir)
 	args = append(args, "--initialize-insecure")
 
-	if config.lowerCaseTableNames {
-		args = append(args, "--lower_case_table_names=1")
+	// Set only if lower-case-table-names flag is set.
+	if isVisitLowerCaseTableNamesFlag() {
+		args = append(args, fmt.Sprintf("--lower_case_table_names=%d", config.lowerCaseTableNames))
 	}
 
 	cmd := exec.Command(mysqld, args...)
@@ -170,9 +177,33 @@ func createConf() error {
 	return f.Sync()
 }
 
+func validateFlags() error {
+	// refs: https://dev.mysql.com/doc/refman/8.0/en/identifier-case-sensitivity.html
+	switch config.lowerCaseTableNames {
+	case 0, 1, 2:
+		// noop
+	default:
+		return errors.New("the value of lower-case-table-names flag must be 0, 1 or 2")
+	}
+
+	return nil
+}
+
+func isVisitLowerCaseTableNamesFlag() bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "lower-case-table-names" {
+			found = true
+		}
+	})
+	return found
+}
+
 func init() {
 	rootCmd.Flags().StringVar(&config.baseDir, "base-dir", defaultBaseDir, "The base directory for MySQL.")
 	rootCmd.Flags().StringVar(&config.dataDir, "data-dir", defaultDataDir, "The data directory for MySQL.  Data will be stored in a subdirectory named 'data'")
 	rootCmd.Flags().StringVar(&config.confDir, "conf-dir", defaultConfDir, "The directory where configuration file is created.")
-	rootCmd.Flags().BoolVar(&config.lowerCaseTableNames, "lower-case-table-names", false, "Initialize mysqld with 'lower-case-table-names=1'.")
+	// On Unix, the default value of lower_case_table_names is 0.
+	// https://dev.mysql.com/doc/refman/8.0/en/identifier-case-sensitivity.html
+	rootCmd.Flags().IntVar(&config.lowerCaseTableNames, "lower-case-table-names", 0, "The value to pass to the '--lower-case-table-names' flag.")
 }
