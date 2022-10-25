@@ -3,7 +3,6 @@ package main
 import (
 	_ "embed"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/sys/unix"
 )
 
@@ -29,7 +29,8 @@ var config struct {
 	dataDir string
 	confDir string
 
-	lowerCaseTableNames int
+	lowerCaseTableNames        int
+	visitedLowerCaseTableNames *int
 
 	podName  string
 	baseID   uint32
@@ -55,6 +56,11 @@ such as server_id and admin_address.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
+		cmd.Flags().Visit(func(f *pflag.Flag) {
+			if f.Name == "lower-case-table-names" {
+				config.visitedLowerCaseTableNames = &config.lowerCaseTableNames
+			}
+		})
 		return subMain(args[0])
 	},
 }
@@ -116,7 +122,7 @@ func initMySQL(mysqld string) error {
 	args = append(args, "--initialize-insecure")
 
 	// Set only if lower-case-table-names flag is set.
-	if isVisitLowerCaseTableNamesFlag() {
+	if config.visitedLowerCaseTableNames != nil {
 		args = append(args, fmt.Sprintf("--lower_case_table_names=%d", config.lowerCaseTableNames))
 	}
 
@@ -187,16 +193,6 @@ func validateFlags() error {
 	}
 
 	return nil
-}
-
-func isVisitLowerCaseTableNamesFlag() bool {
-	found := false
-	flag.Visit(func(f *flag.Flag) {
-		if f.Name == "lower-case-table-names" {
-			found = true
-		}
-	})
-	return found
 }
 
 func init() {
