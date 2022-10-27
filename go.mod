@@ -1,6 +1,6 @@
 module github.com/cybozu-go/moco-agent
 
-go 1.17
+go 1.19
 
 require (
 	github.com/cybozu-go/well v1.10.0
