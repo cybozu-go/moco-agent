@@ -30,7 +30,6 @@ all: build/moco-agent
 validate: setup
 	test -z "$$(gofmt -s -l . | tee /dev/stderr)"
 	staticcheck ./...
-	nilerr ./...
 	test -z "$$(custom-checker -restrictpkg.packages=html/template,log $$(go list -tags='$(GOTAGS)' ./... ) 2>&1 | tee /dev/stderr)"
 	go build ./...
 	go vet ./...
@@ -81,7 +80,7 @@ $(PROTOC_GEN_DOC):
 	GOBIN=$(PWD)/bin go install github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc@v$(PROTOC_GEN_DOC_VERSION)
 
 .PHONY: setup
-setup: custom-checker staticcheck nilerr $(PROTOC_BIN) $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC) $(PROTOC_GEN_DOC)
+setup: custom-checker staticcheck $(PROTOC_BIN) $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC) $(PROTOC_GEN_DOC)
 
 .PHONY: custom-checker
 custom-checker:
@@ -93,12 +92,6 @@ custom-checker:
 staticcheck:
 	if ! which staticcheck >/dev/null; then \
 		env GOFLAGS= go install honnef.co/go/tools/cmd/staticcheck@latest; \
-	fi
-
-.PHONY: nilerr
-nilerr:
-	if ! which nilerr >/dev/null; then \
-		env GOFLAGS= go install github.com/gostaticanalysis/nilerr/cmd/nilerr@latest; \
 	fi
 
 .PHONY: clean
