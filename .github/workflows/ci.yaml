@@ -22,7 +22,7 @@ jobs:
         path: |
           bin
           include
-        key: cache-${{ env.cache-version }}-go-${{ env.go-version }}-${{ hashFiles('Makefile') }}
+        key: cache-${{ env.cache-version }}-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
     - run: make setup
       if: steps.cache-tools.outputs.cache-hit != 'true'
     - run: make validate
