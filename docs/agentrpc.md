@@ -3,24 +3,24 @@
 
 ## Table of Contents
 
-- [proto/agentrpc.proto](#proto/agentrpc.proto)
-    - [CloneRequest](#moco.CloneRequest)
-    - [CloneResponse](#moco.CloneResponse)
+- [proto/agentrpc.proto](#proto_agentrpc-proto)
+    - [CloneRequest](#moco-CloneRequest)
+    - [CloneResponse](#moco-CloneResponse)
   
-    - [Agent](#moco.Agent)
+    - [Agent](#moco-Agent)
   
 - [Scalar Value Types](#scalar-value-types)
 
 
 
-<a name="proto/agentrpc.proto"></a>
+<a name="proto_agentrpc-proto"></a>
 <p align="right"><a href="#top">Top</a></p>
 
 ## proto/agentrpc.proto
 
 
 
-<a name="moco.CloneRequest"></a>
+<a name="moco-CloneRequest"></a>
 
 ### CloneRequest
 CloneRequest is the request message to invoke MySQL CLONE command.
@@ -34,14 +34,14 @@ CloneRequest is the request message to invoke MySQL CLONE command.
 | password | [string](#string) |  | password for the above user. |
 | init_user | [string](#string) |  | localhost user to initialize cloned database for MOCO. |
 | init_password | [string](#string) |  | password for init_user. |
-| boot_timeout | [google.protobuf.Duration](#google.protobuf.Duration) |  | wait up to this duration for mysqld to boot after clone. |
+| boot_timeout | [google.protobuf.Duration](#google-protobuf-Duration) |  | wait up to this duration for mysqld to boot after clone. |
 
 
 
 
 
 
-<a name="moco.CloneResponse"></a>
+<a name="moco-CloneResponse"></a>
 
 ### CloneResponse
 CloneResponse is the response message of Clone.
@@ -57,14 +57,14 @@ CloneResponse is the response message of Clone.
  
 
 
-<a name="moco.Agent"></a>
+<a name="moco-Agent"></a>
 
 ### Agent
 Agent provides services for MOCO.
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Clone | [CloneRequest](#moco.CloneRequest) | [CloneResponse](#moco.CloneResponse) | Clone invokes MySQL CLONE command initializes the cloned database for MOCO. It does _not_ start the replication (START REPLICA). Actually, it works as follows.
+| Clone | [CloneRequest](#moco-CloneRequest) | [CloneResponse](#moco-CloneResponse) | Clone invokes MySQL CLONE command initializes the cloned database for MOCO. It does _not_ start the replication (START REPLICA). Actually, it works as follows.
 
 1. Configure `clone_donor_valid_list` global variable to allow the donor instance.
 

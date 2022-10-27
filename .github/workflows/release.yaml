@@ -3,18 +3,16 @@ on:
   push:
     tags:
     - 'v*'
-env:
-  go-version: 1.16
 jobs:
   release:
     name: Release on GitHub
     needs: image
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
-          go-version: ${{ env.go-version }}
+          go-version-file: go.mod
       - run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 make build/moco-agent
       - name: Create Release
         id: create_release
@@ -50,7 +48,7 @@ jobs:
     name: Push Container Image
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Login to ghcr.io
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
       - run: docker build -t ghcr.io/cybozu-go/moco-agent:${GITHUB_REF#refs/tags/v} .
