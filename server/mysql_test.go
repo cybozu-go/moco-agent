@@ -60,9 +60,7 @@ func StartMySQLD(name string, port int, serverID int) {
 	}
 
 	dir := socketDir(name)
-	ExpectWithOffset(1, os.MkdirAll(dir, 0755)).NotTo(HaveOccurred())
-	err := os.Chmod(dir, 0777)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+	ExpectWithOffset(1, os.MkdirAll(dir, 0775)).NotTo(HaveOccurred())
 
 	args := []string{
 		"run", "--name", name, "-d", "--restart=always",
@@ -107,7 +105,7 @@ func StartMySQLD(name string, port int, serverID int) {
 	}).Should(Succeed())
 	defer db.Close()
 
-	_, err = db.Exec("SET GLOBAL read_only=ON")
+	_, err := db.Exec("SET GLOBAL read_only=ON")
 	ExpectWithOffset(1, err).NotTo(HaveOccurred())
 	_, err = db.Exec("SET GLOBAL super_read_only=ON")
 	ExpectWithOffset(1, err).NotTo(HaveOccurred())
