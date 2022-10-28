@@ -15,35 +15,15 @@ jobs:
           go-version-file: go.mod
       - run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 make build/moco-agent
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body: |
-            See [CHANGELOG.md](./CHANGELOG.md) for details.
-          draft: false
-          prerelease: ${{ contains(github.ref, '-') }}
-      - name: Upload Agent
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/moco-agent
-          asset_name: moco-agent
-          asset_content_type: application/octet-stream
-      - name: Upload Agent RPC definition
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./proto/agentrpc.proto
-          asset_name: agentrpc.proto
-          asset_content_type: application/octet-stream
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/} # Don't remove "v" prefix.
+          if echo ${VERSION} | grep -q -e '-'; then PRERELEASE_FLAG=-p; fi
+          gh release create $VERSION $PRERELEASE_FLAG \
+            -t "Release $VERSION"  \
+            -n "See [CHANGELOG.md](./CHANGELOG.md) for details."
+          gh release upload $VERSION ./build/moco-agent ./proto/agentrpc.proto
   image:
     name: Push Container Image
     runs-on: ubuntu-20.04
