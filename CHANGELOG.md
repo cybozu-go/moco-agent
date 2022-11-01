@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2022-11-01
+
+### Added
+- Add moco-init and lower-case-table-names flags (#71)
+
+### Changed
+- Add description about --max-delay 0 (#70)
+- Support MySQL 8.0.28 (#68)
+- Update Go to 1.19 and some dependencies (#72)
+- Ginkgo v2 (#73)
+- Use gh command (#74)
+
 ## [0.7.1] - 2021-11-15
 
 ### Changed
@@ -121,7 +133,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/cybozu-go/moco-agent/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/cybozu-go/moco-agent/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/cybozu-go/moco-agent/compare/v0.6.9...v0.7.0
 [0.6.9]: https://github.com/cybozu-go/moco-agent/compare/v0.6.8...v0.6.9
