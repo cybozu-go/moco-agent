@@ -9,7 +9,7 @@ import (
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/go-logr/stdr"
 	"github.com/go-sql-driver/mysql"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -35,15 +35,14 @@ func TestAgent(t *testing.T) {
 	RunSpecs(t, "Agent Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	mysql.SetLogger(log.New(GinkgoWriter, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
 	metrics.Init(prometheus.DefaultRegisterer, "test", 2)
 
 	os.RemoveAll(socketBaseDir)
 	RemoveNetwork()
 	CreateNetwork()
-	close(done)
-}, 60)
+})
 
 var _ = AfterSuite(func() {
 	RemoveNetwork()
