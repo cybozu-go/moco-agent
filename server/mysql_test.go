@@ -69,7 +69,7 @@ func StartMySQLD(name string, port int, serverID int) {
 		"-e", "MYSQL_ROOT_HOST=localhost",
 		"-p", fmt.Sprintf("%d:3306", port),
 		"-v", dir + ":/var/run/mysqld",
-		"mysql:" + MySQLVersion,
+		"quay.io/cybozu/mysql:" + MySQLVersion,
 		fmt.Sprintf("--server-id=%d", serverID),
 	}
 	for k, v := range testMycnf {
