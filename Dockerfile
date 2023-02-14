@@ -1,5 +1,5 @@
 # stage1: build the binary
-FROM quay.io/cybozu/golang:1.19-focal as builder
+FROM quay.io/cybozu/golang:1.19-jammy as builder
 
 COPY ./ .
 RUN CGO_ENABLED=0 go build -ldflags="-w -s" -a -o moco-agent ./cmd/moco-agent
