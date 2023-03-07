@@ -35,7 +35,10 @@ jobs:
     - uses: actions/setup-go@v3
       with:
         go-version-file: go.mod
-    - run: docker build -t moco-agent:dev .
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v2
+    - run: docker buildx build --load -t moco-agent:dev .
   test:
     name: Small Tests
     strategy:

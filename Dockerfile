@@ -1,13 +1,15 @@
 # stage1: build the binary
-FROM quay.io/cybozu/golang:1.19-jammy as builder
+FROM --platform=$BUILDPLATFORM quay.io/cybozu/golang:1.19-jammy as builder
+
+ARG TARGETARCH
 
 COPY ./ .
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -a -o moco-agent ./cmd/moco-agent
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -a -o moco-init ./cmd/moco-init
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -a -o cp ./cmd/cp
+RUN GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -ldflags="-w -s" -a -o moco-agent ./cmd/moco-agent
+RUN GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -ldflags="-w -s" -a -o moco-init ./cmd/moco-init
+RUN GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -ldflags="-w -s" -a -o cp ./cmd/cp
 
 # stage2: build the final image
-FROM scratch
+FROM --platform=$TARGETPLATFORM scratch
 LABEL org.opencontainers.image.source https://github.com/cybozu-go/moco-agent
 
 COPY --from=builder /work/moco-agent /
