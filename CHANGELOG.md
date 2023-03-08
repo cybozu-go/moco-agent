@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2023-03-07
+
+### Added
+- Support multi-platform [#79](https://github.com/cybozu-go/moco-agent/pull/79)
+
+### Changed
+- Build on Ubuntu 22.04 [#78](https://github.com/cybozu-go/moco-agent/pull/78)
+
 ## [0.8.0] - 2022-11-01
 
 ### Added
@@ -133,7 +141,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/cybozu-go/moco-agent/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/cybozu-go/moco-agent/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/cybozu-go/moco-agent/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/cybozu-go/moco-agent/compare/v0.6.9...v0.7.0
