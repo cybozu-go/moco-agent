@@ -91,6 +91,9 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var lag time.Duration
+	// "0000-00-00 00:00:00.000000", the zero value of transaction timestamps (type TIMESTAMP(6) column),
+	// is converted to "0001-01-01 00:00:00 +0000", the zero value of time.Time.
+	// So, this IsZero() works as expected.
 	if !queued.IsZero() {
 		lag = queued.Sub(applied)
 	}
