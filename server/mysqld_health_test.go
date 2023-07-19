@@ -18,14 +18,11 @@ var _ = Describe("health", func() {
 
 		sockFile := filepath.Join(socketDir(donorHost), "mysqld.sock")
 		conf := MySQLAccessorConfig{
-			Host:              "localhost",
-			Port:              donorPort,
-			Password:          agentUserPassword,
 			ConnMaxIdleTime:   30 * time.Minute,
 			ConnectionTimeout: 3 * time.Second,
 			ReadTimeout:       30 * time.Second,
 		}
-		agent, err := New(conf, testClusterName, sockFile, "", maxDelayThreshold, testLogger)
+		agent, err := New(conf, testClusterName, agentUserPassword, sockFile, "", maxDelayThreshold, testLogger)
 		Expect(err).NotTo(HaveOccurred())
 		defer agent.CloseDB()
 
@@ -73,14 +70,11 @@ var _ = Describe("health", func() {
 
 		sockFile = filepath.Join(socketDir(replicaHost), "mysqld.sock")
 		conf := MySQLAccessorConfig{
-			Host:              "localhost",
-			Port:              replicaPort,
-			Password:          agentUserPassword,
 			ConnMaxIdleTime:   30 * time.Minute,
 			ConnectionTimeout: 3 * time.Second,
 			ReadTimeout:       30 * time.Second,
 		}
-		agent, err := New(conf, testClusterName, sockFile, "", 100*time.Millisecond, testLogger)
+		agent, err := New(conf, testClusterName, agentUserPassword, sockFile, "", 100*time.Millisecond, testLogger)
 		Expect(err).ShouldNot(HaveOccurred())
 		defer agent.CloseDB()
 

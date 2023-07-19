@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/proto"
 	"github.com/go-logr/logr"
@@ -22,14 +23,15 @@ type agentService struct {
 }
 
 // New returns an Agent
-func New(config MySQLAccessorConfig, clusterName, socket, logDir string, maxDelay time.Duration, logger logr.Logger) (*Agent, error) {
-	db, err := getMySQLConn(config)
+func New(config MySQLAccessorConfig, clusterName, agentPassword, socket, logDir string, maxDelay time.Duration, logger logr.Logger) (*Agent, error) {
+	db, err := GetMySQLConnLocalSocket(mocoagent.AgentUser, agentPassword, socket,
+		WithAccessorConfig(config), WithConnMaxLifeTime(5*time.Minute))
 	if err != nil {
 		return nil, err
 	}
 
 	return &Agent{
-		config:            config,
+		agentUserPassword: agentPassword,
 		db:                db,
 		logger:            logger,
 		mysqlSocketPath:   socket,
@@ -41,7 +43,7 @@ func New(config MySQLAccessorConfig, clusterName, socket, logDir string, maxDela
 
 // Agent is the agent to executes some MySQL commands of the own Pod
 type Agent struct {
-	config            MySQLAccessorConfig
+	agentUserPassword string
 	db                *sqlx.DB
 	logger            logr.Logger
 	mysqlSocketPath   string
@@ -74,9 +76,6 @@ func (a *Agent) configureReplicationMetrics(enable bool) {
 }
 
 type MySQLAccessorConfig struct {
-	Host              string
-	Port              int
-	Password          string
 	ConnMaxIdleTime   time.Duration
 	ConnectionTimeout time.Duration
 	ReadTimeout       time.Duration

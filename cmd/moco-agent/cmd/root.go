@@ -100,14 +100,11 @@ var rootCmd = &cobra.Command{
 		}
 
 		conf := server.MySQLAccessorConfig{
-			Host:              podName,
-			Port:              mocoagent.MySQLAdminPort,
-			Password:          agentPassword,
 			ConnMaxIdleTime:   config.connIdleTime,
 			ConnectionTimeout: config.connectionTimeout,
 			ReadTimeout:       config.readTimeout,
 		}
-		agent, err := server.New(conf, clusterName, config.socketPath, mocoagent.VarLogPath,
+		agent, err := server.New(conf, clusterName, agentPassword, config.socketPath, mocoagent.VarLogPath,
 			config.maxDelayThreshold, rLogger.WithName("agent"))
 		if err != nil {
 			return err

@@ -62,7 +62,7 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 	}
 
 	// To clone, the connection should not set timeout values.
-	cloneDB, err := GetMySQLConnLocalSocket(mocoagent.AgentUser, a.config.Password, a.mysqlSocketPath)
+	cloneDB, err := GetMySQLConnLocalSocket(mocoagent.AgentUser, a.agentUserPassword, a.mysqlSocketPath)
 	if err != nil {
 		return fmt.Errorf("failed to connect to mysqld through %s: %w", a.mysqlSocketPath, err)
 	}

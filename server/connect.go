@@ -2,38 +2,53 @@ package server
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
-	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
-func getMySQLConn(config MySQLAccessorConfig) (*sqlx.DB, error) {
-	conf := mysql.NewConfig()
-	conf.User = mocoagent.AgentUser
-	conf.Passwd = config.Password
-	conf.Net = "tcp"
-	conf.Addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
-	conf.Timeout = config.ConnectionTimeout
-	conf.ReadTimeout = config.ReadTimeout
-	conf.InterpolateParams = true
-	conf.ParseTime = true
-
-	db, err := sqlx.Connect("mysql", conf.FormatDSN())
-	if err != nil {
-		return nil, err
-	}
-
-	db.SetConnMaxIdleTime(config.ConnMaxIdleTime)
-	db.SetConnMaxLifetime(5 * time.Minute)
-	db.SetMaxIdleConns(1)
-
-	return db, nil
+type options struct {
+	connMaxIdleTime   time.Duration
+	connMaxLifeTime   time.Duration
+	readTimeout       time.Duration
+	connectionTimeout time.Duration
 }
 
-func GetMySQLConnLocalSocket(user, password, socket string) (*sqlx.DB, error) {
+type Option interface {
+	apply(opts *options)
+}
+
+type accessorConfigOption MySQLAccessorConfig
+
+func (ac accessorConfigOption) apply(opts *options) {
+	opts.connMaxIdleTime = ac.ConnMaxIdleTime
+	opts.readTimeout = ac.ReadTimeout
+	opts.connectionTimeout = ac.ConnectionTimeout
+}
+
+func WithAccessorConfig(ac MySQLAccessorConfig) Option {
+	return accessorConfigOption(ac)
+}
+
+type connMaxLifeTimeOption time.Duration
+
+func (t connMaxLifeTimeOption) apply(opts *options) {
+	opts.connMaxLifeTime = time.Duration(t)
+}
+
+func WithConnMaxLifeTime(t time.Duration) Option {
+	return connMaxLifeTimeOption(t)
+}
+
+func GetMySQLConnLocalSocket(user, password, socket string, opts ...Option) (*sqlx.DB, error) {
+	options := options{
+		connMaxIdleTime: 30 * time.Second,
+	}
+	for _, o := range opts {
+		o.apply(&options)
+	}
+
 	conf := mysql.NewConfig()
 	conf.User = user
 	conf.Passwd = password
@@ -41,14 +56,26 @@ func GetMySQLConnLocalSocket(user, password, socket string) (*sqlx.DB, error) {
 	conf.Addr = socket
 	conf.InterpolateParams = true
 	conf.ParseTime = true
+	if options.connectionTimeout > 0 {
+		conf.Timeout = options.connectionTimeout
+	}
+	if options.readTimeout > 0 {
+		conf.ReadTimeout = options.readTimeout
+	}
 
 	db, err := sqlx.Connect("mysql", conf.FormatDSN())
 	if err != nil {
 		return nil, err
 	}
 
-	db.SetConnMaxIdleTime(30 * time.Second)
+	if options.connMaxLifeTime > 0 {
+		db.SetConnMaxIdleTime(options.connMaxIdleTime)
+	}
+	if options.connMaxLifeTime > 0 {
+		db.SetConnMaxLifetime(options.connMaxLifeTime)
+	}
 	db.SetMaxIdleConns(1)
+
 	return db, nil
 }
 
