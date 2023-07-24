@@ -6,19 +6,21 @@ This is the specification document of `moco-agent` command.
 
 ```
 Flags:
-      --address string                 Listening address and port for gRPC API. (default ":9080")
-      --connection-timeout duration    Dial timeout (default 5s)
-  -h, --help                           help for moco-agent
-      --log-rotation-schedule string   Cron format schedule for MySQL log rotation (default "*/5 * * * *")
-      --logfile string                 Log filename
-      --logformat string               Log format [plain,logfmt,json]
-      --loglevel string                Log level [critical,error,warning,info,debug]
-      --max-delay duration             Acceptable max commit delay considering as ready; the zero value accepts any delay (default 1m0s)
-      --max-idle-time duration         The maximum amount of time a connection may be idle (default 30s)
-      --metrics-address string         Listening address and port for metrics. (default ":8080")
-      --probe-address string           Listening address and port for mysqld health probes. (default ":9081")
-      --read-timeout duration          I/O read timeout (default 30s)
-      --socket-path string             Path of mysqld socket file. (default "/run/mysqld.sock")
+      --address string                       Listening address and port for gRPC API. (default ":9080")
+      --connection-timeout duration          Dial timeout (default 5s)
+      --grpc-cert-dir string                 gRPC certificate directory (default "/grpc-cert")
+  -h, --help                                 help for moco-agent
+      --log-rotation-schedule string         Cron format schedule for MySQL log rotation (default "*/5 * * * *")
+      --logfile string                       Log filename
+      --logformat string                     Log format [plain,logfmt,json]
+      --loglevel string                      Log level [critical,error,warning,info,debug]
+      --max-delay duration                   Acceptable max commit delay considering as ready; the zero value accepts any delay (default 1m0s)
+      --max-idle-time duration               The maximum amount of time a connection may be idle (default 30s)
+      --metrics-address string               Listening address and port for metrics. (default ":8080")
+      --probe-address string                 Listening address and port for mysqld health probes. (default ":9081")
+      --read-timeout duration                I/O read timeout (default 30s)
+      --socket-path string                   Path of mysqld socket file. (default "/run/mysqld.sock")
+      --transaction-queueing-wait duration   The maximum amount of time for waiting transaction queueing on replica (default 1m0s)
 ```
 
 ## Environment variables

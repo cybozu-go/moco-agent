@@ -82,7 +82,7 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	queued, applied, err := a.GetTransactionTimestamps(r.Context())
+	queued, applied, uptime, err := a.GetTransactionTimestamps(r.Context())
 	if err != nil {
 		a.logger.Error(err, "failed to get replication lag")
 		msg := fmt.Sprintf("failed to get replication lag: %+v", err)
@@ -94,6 +94,13 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 	// "0000-00-00 00:00:00.000000", the zero value of transaction timestamps (type TIMESTAMP(6) column),
 	// is converted to "0001-01-01 00:00:00 +0000", the zero value of time.Time.
 	// So, this IsZero() works as expected.
+	if queued.IsZero() && uptime < a.transactionQueueingWait {
+		a.logger.Info("the instance does not seem to receive transactions yet", "uptime", uptime)
+		msg := fmt.Sprintf("the instance does not seem to receive transactions yet: uptime=%v", uptime)
+		http.Error(w, msg, http.StatusServiceUnavailable)
+		return
+	}
+
 	if !queued.IsZero() {
 		lag = queued.Sub(applied)
 	}
