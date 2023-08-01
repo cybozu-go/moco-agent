@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -135,7 +136,7 @@ func (a *Agent) GetMySQLReplicaStatus(ctx context.Context) (*MySQLReplicaStatus,
 	return status, nil
 }
 
-func (a *Agent) GetTransactionTimestamps(ctx context.Context) (queued, applied time.Time, err error) {
+func (a *Agent) GetTransactionTimestamps(ctx context.Context) (queued, applied time.Time, uptime time.Duration, err error) {
 	err = a.db.GetContext(ctx, &queued, `
 SELECT MAX(LAST_QUEUED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP)
 FROM performance_schema.replication_connection_status`)
@@ -145,5 +146,21 @@ FROM performance_schema.replication_connection_status`)
 	err = a.db.GetContext(ctx, &applied, `
 SELECT MAX(LAST_APPLIED_TRANSACTION_ORIGINAL_COMMIT_TIMESTAMP)
 FROM performance_schema.replication_applier_status_by_worker`)
+	if err != nil {
+		return
+	}
+	var uptime_seconds_string string
+	err = a.db.GetContext(ctx, &uptime_seconds_string, `
+SELECT VARIABLE_VALUE
+FROM performance_schema.global_status
+WHERE VARIABLE_NAME='Uptime'`)
+	if err != nil {
+		return
+	}
+	uptime_seconds, err := strconv.Atoi(uptime_seconds_string)
+	if err != nil {
+		return
+	}
+	uptime = time.Second * time.Duration(uptime_seconds)
 	return
 }

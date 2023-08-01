@@ -22,31 +22,33 @@ type agentService struct {
 }
 
 // New returns an Agent
-func New(config MySQLAccessorConfig, clusterName, socket, logDir string, maxDelay time.Duration, logger logr.Logger) (*Agent, error) {
+func New(config MySQLAccessorConfig, clusterName, socket, logDir string, maxDelay, transactionQueueingWait time.Duration, logger logr.Logger) (*Agent, error) {
 	db, err := getMySQLConn(config)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Agent{
-		config:            config,
-		db:                db,
-		logger:            logger,
-		mysqlSocketPath:   socket,
-		logDir:            logDir,
-		maxDelayThreshold: maxDelay,
-		cloneLock:         make(chan struct{}, 1),
+		config:                  config,
+		db:                      db,
+		logger:                  logger,
+		mysqlSocketPath:         socket,
+		logDir:                  logDir,
+		maxDelayThreshold:       maxDelay,
+		transactionQueueingWait: transactionQueueingWait,
+		cloneLock:               make(chan struct{}, 1),
 	}, nil
 }
 
 // Agent is the agent to executes some MySQL commands of the own Pod
 type Agent struct {
-	config            MySQLAccessorConfig
-	db                *sqlx.DB
-	logger            logr.Logger
-	mysqlSocketPath   string
-	logDir            string
-	maxDelayThreshold time.Duration
+	config                  MySQLAccessorConfig
+	db                      *sqlx.DB
+	logger                  logr.Logger
+	mysqlSocketPath         string
+	logDir                  string
+	maxDelayThreshold       time.Duration
+	transactionQueueingWait time.Duration
 
 	cloneLock    chan struct{}
 	registryLock sync.Mutex

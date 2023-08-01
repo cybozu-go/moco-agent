@@ -46,16 +46,17 @@ const (
 )
 
 var config struct {
-	address             string
-	probeAddress        string
-	metricsAddress      string
-	connIdleTime        time.Duration
-	connectionTimeout   time.Duration
-	logRotationSchedule string
-	readTimeout         time.Duration
-	maxDelayThreshold   time.Duration
-	socketPath          string
-	grpcCertDir         string
+	address                 string
+	probeAddress            string
+	metricsAddress          string
+	connIdleTime            time.Duration
+	connectionTimeout       time.Duration
+	logRotationSchedule     string
+	readTimeout             time.Duration
+	maxDelayThreshold       time.Duration
+	socketPath              string
+	grpcCertDir             string
+	transactionQueueingWait time.Duration
 }
 
 type mysqlLogger struct{}
@@ -108,7 +109,7 @@ var rootCmd = &cobra.Command{
 			ReadTimeout:       config.readTimeout,
 		}
 		agent, err := server.New(conf, clusterName, config.socketPath, mocoagent.VarLogPath,
-			config.maxDelayThreshold, rLogger.WithName("agent"))
+			config.maxDelayThreshold, config.transactionQueueingWait, rLogger.WithName("agent"))
 		if err != nil {
 			return err
 		}
@@ -236,6 +237,7 @@ func init() {
 	fs.DurationVar(&config.maxDelayThreshold, "max-delay", time.Minute, "Acceptable max commit delay considering as ready; the zero value accepts any delay")
 	fs.StringVar(&config.socketPath, "socket-path", socketPathDefault, "Path of mysqld socket file.")
 	fs.StringVar(&config.grpcCertDir, "grpc-cert-dir", "/grpc-cert", "gRPC certificate directory")
+	fs.DurationVar(&config.transactionQueueingWait, "transaction-queueing-wait", time.Minute, "The maximum amount of time for waiting transaction queueing on replica")
 }
 
 func initializeMySQLForMOCO(ctx context.Context, socketPath string, logger logr.Logger) error {

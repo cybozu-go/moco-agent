@@ -31,7 +31,7 @@ var _ = Describe("log rotation", func() {
 			ConnectionTimeout: 3 * time.Second,
 			ReadTimeout:       30 * time.Second,
 		}
-		agent, err := New(conf, testClusterName, sockFile, tmpDir, maxDelayThreshold, testLogger)
+		agent, err := New(conf, testClusterName, sockFile, tmpDir, maxDelayThreshold, time.Second, testLogger)
 		Expect(err).ShouldNot(HaveOccurred())
 		defer agent.CloseDB()
 

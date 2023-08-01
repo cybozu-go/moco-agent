@@ -25,7 +25,7 @@ var _ = Describe("health", func() {
 			ConnectionTimeout: 3 * time.Second,
 			ReadTimeout:       30 * time.Second,
 		}
-		agent, err := New(conf, testClusterName, sockFile, "", maxDelayThreshold, testLogger)
+		agent, err := New(conf, testClusterName, sockFile, "", maxDelayThreshold, time.Second, testLogger)
 		Expect(err).NotTo(HaveOccurred())
 		defer agent.CloseDB()
 
@@ -80,7 +80,7 @@ var _ = Describe("health", func() {
 			ConnectionTimeout: 3 * time.Second,
 			ReadTimeout:       30 * time.Second,
 		}
-		agent, err := New(conf, testClusterName, sockFile, "", 100*time.Millisecond, testLogger)
+		agent, err := New(conf, testClusterName, sockFile, "", 100*time.Millisecond, time.Second, testLogger)
 		Expect(err).ShouldNot(HaveOccurred())
 		defer agent.CloseDB()
 
@@ -134,6 +134,61 @@ var _ = Describe("health", func() {
 		Eventually(func() interface{} {
 			return getReady(agent)
 		}).Should(HaveHTTPStatus(http.StatusOK))
+	})
+
+	It("checks transactionQueueingWait works", func() {
+		By("starting primary/replica MySQLds")
+		StartMySQLD(donorHost, donorPort, donorServerID)
+		defer StopAndRemoveMySQLD(donorHost)
+
+		sockFile := filepath.Join(socketDir(donorHost), "mysqld.sock")
+
+		donorDB, err := GetMySQLConnLocalSocket(mocoagent.AdminUser, adminUserPassword, sockFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer donorDB.Close()
+
+		StartMySQLD(replicaHost, replicaPort, replicaServerID)
+		defer StopAndRemoveMySQLD(replicaHost)
+
+		sockFile = filepath.Join(socketDir(replicaHost), "mysqld.sock")
+		conf := MySQLAccessorConfig{
+			Host:              "localhost",
+			Port:              replicaPort,
+			Password:          agentUserPassword,
+			ConnMaxIdleTime:   30 * time.Minute,
+			ConnectionTimeout: 3 * time.Second,
+			ReadTimeout:       30 * time.Second,
+		}
+		agent, err := New(conf, testClusterName, sockFile, "", 100*time.Millisecond, time.Second*60, testLogger)
+		Expect(err).ShouldNot(HaveOccurred())
+		defer agent.CloseDB()
+
+		replicaDB, err := GetMySQLConnLocalSocket(mocoagent.AdminUser, adminUserPassword, sockFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer replicaDB.Close()
+
+		By("setting up donor")
+		_, err = replicaDB.Exec("SET GLOBAL clone_valid_donor_list = ?", donorHost+":3306")
+		Expect(err).NotTo(HaveOccurred())
+		_, err = donorDB.Exec("SET GLOBAL read_only=0")
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = replicaDB.Exec(`CHANGE MASTER TO MASTER_HOST=?, MASTER_PORT=3306, MASTER_USER=?, MASTER_PASSWORD=?, GET_MASTER_PUBLIC_KEY=1`,
+			donorHost, mocoagent.ReplicationUser, replicationUserPassword)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = replicaDB.Exec(`START SLAVE`)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("checking readiness")
+		// The uptime observed by the agent is about 15s smaller than the process uptime reported by kernel
+		// The test flow takes about 35s from the process start to this point.
+		// We set Consistently timeout to 60(transactionQueueingWait) - (35 - 15) - 5(margin) = 35
+		Consistently(func() interface{} {
+			return getReady(agent)
+		}).WithPolling(time.Second).WithTimeout(time.Second * 35).ShouldNot(HaveHTTPStatus(http.StatusOK))
+		Eventually(func() interface{} {
+			return getReady(agent)
+		}).WithPolling(time.Second).WithTimeout(time.Second * 10).Should(HaveHTTPStatus(http.StatusOK))
 	})
 })
 
