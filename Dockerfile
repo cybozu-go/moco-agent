@@ -1,5 +1,5 @@
 # stage1: build the binary
-FROM --platform=$BUILDPLATFORM quay.io/cybozu/golang:1.19-jammy as builder
+FROM --platform=$BUILDPLATFORM quay.io/cybozu/golang:1.21-jammy as builder
 
 ARG TARGETARCH
 
