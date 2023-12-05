@@ -18,9 +18,9 @@ PROTOC_BIN := $(PWD)/bin/protoc
 PROTOC_GEN_GO := $(PWD)/bin/protoc-gen-go
 PROTOC_GEN_GO_GRPC := $(PWD)/bin/protoc-gen-go-grpc
 PROTOC_GEN_DOC := $(PWD)/bin/protoc-gen-doc
-PROTOC_VERSION := 21.9
+PROTOC_VERSION := 25.1
 PROTOC_GEN_GO_VERSION := $(shell awk '/google.golang.org\/protobuf/ {print substr($$2, 2)}' go.mod)
-PROTOC_GEN_GO_GRPC_VERSON=1.2.0
+PROTOC_GEN_GO_GRPC_VERSON=1.3.0
 PROTOC_GEN_DOC_VERSION=1.5.1
 
 .PHONY: all
