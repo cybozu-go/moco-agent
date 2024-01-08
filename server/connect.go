@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
@@ -15,7 +16,7 @@ func getMySQLConn(config MySQLAccessorConfig) (*sqlx.DB, error) {
 	conf.User = mocoagent.AgentUser
 	conf.Passwd = config.Password
 	conf.Net = "tcp"
-	conf.Addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
+	conf.Addr = net.JoinHostPort(config.Host, fmt.Sprint(config.Port))
 	conf.Timeout = config.ConnectionTimeout
 	conf.ReadTimeout = config.ReadTimeout
 	conf.InterpolateParams = true

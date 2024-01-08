@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
@@ -56,7 +57,9 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 		metrics.CloneDurationSeconds.Observe(time.Since(startTime).Seconds())
 	}()
 
-	donorAddr := fmt.Sprintf("%s:%d", req.Host, req.Port)
+	// Unfortunately, MySQL 8.0 does not support IPv6 address format.
+	// https://dev.mysql.com/doc/refman/8.0/en/clone-plugin-options-variables.html#sysvar_clone_valid_donor_list
+	donorAddr := net.JoinHostPort(req.Host, fmt.Sprint(req.Port))
 	if _, err := a.db.ExecContext(ctx, `SET GLOBAL clone_valid_donor_list = ?`, donorAddr); err != nil {
 		return status.Errorf(codes.Internal, "failed to set clone_valid_donor_list: %+v", err)
 	}
