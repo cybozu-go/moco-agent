@@ -57,6 +57,7 @@ var config struct {
 	socketPath              string
 	grpcCertDir             string
 	transactionQueueingWait time.Duration
+	mysqldLocalHost         bool
 }
 
 type mysqlLogger struct{}
@@ -108,6 +109,11 @@ var rootCmd = &cobra.Command{
 			ConnectionTimeout: config.connectionTimeout,
 			ReadTimeout:       config.readTimeout,
 		}
+
+		if config.mysqldLocalHost {
+			conf.Host = "localhost"
+		}
+
 		agent, err := server.New(conf, clusterName, config.socketPath, mocoagent.VarLogPath,
 			config.maxDelayThreshold, config.transactionQueueingWait, rLogger.WithName("agent"))
 		if err != nil {
@@ -238,6 +244,7 @@ func init() {
 	fs.StringVar(&config.socketPath, "socket-path", socketPathDefault, "Path of mysqld socket file.")
 	fs.StringVar(&config.grpcCertDir, "grpc-cert-dir", "/grpc-cert", "gRPC certificate directory")
 	fs.DurationVar(&config.transactionQueueingWait, "transaction-queueing-wait", time.Minute, "The maximum amount of time for waiting transaction queueing on replica")
+	fs.BoolVar(&config.mysqldLocalHost, "mysqld-localhost", false, "If true, access mysqld on localhost instead of pod name")
 }
 
 func initializeMySQLForMOCO(ctx context.Context, socketPath string, logger logr.Logger) error {

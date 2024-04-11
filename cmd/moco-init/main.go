@@ -32,6 +32,8 @@ var config struct {
 	lowerCaseTableNames        int
 	visitedLowerCaseTableNames *int
 
+	mysqldLocalhost bool
+
 	podName  string
 	baseID   uint32
 	podIndex uint32
@@ -162,13 +164,16 @@ func initMySQL(mysqld string) error {
 
 func createConf() error {
 	tmpl := template.Must(template.New("my.cnf").Parse(mycnfTmpl))
-
+	adminAddress := config.podName
+	if config.mysqldLocalhost {
+		adminAddress = "localhost"
+	}
 	v := struct {
 		ServerID     uint32
 		AdminAddress string
 	}{
 		ServerID:     config.baseID + config.podIndex,
-		AdminAddress: config.podName,
+		AdminAddress: adminAddress,
 	}
 
 	f, err := os.OpenFile(filepath.Join(config.confDir, "my.cnf"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
@@ -202,4 +207,5 @@ func init() {
 	// On Unix, the default value of lower_case_table_names is 0.
 	// https://dev.mysql.com/doc/refman/8.0/en/identifier-case-sensitivity.html
 	rootCmd.Flags().IntVar(&config.lowerCaseTableNames, "lower-case-table-names", 0, "The value to pass to the '--lower-case-table-names' flag.")
+	rootCmd.Flags().BoolVar(&config.mysqldLocalhost, "mysqld-localhost", false, "If true, bind mysqld admin to localhost instead of pod name")
 }
