@@ -12,12 +12,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-go@v4
+    - uses: actions/setup-go@v5
       with:
         go-version-file: go.mod
     - name: Cache Tools
       id: cache-tools
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           bin
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-go@v4
+    - uses: actions/setup-go@v5
       with:
         go-version-file: go.mod
     - name: Set up Docker Buildx
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-go@v4
+    - uses: actions/setup-go@v5
       with:
         go-version-file: go.mod
     - run: make test MYSQL_VERSION=${{ matrix.mysql-version }}
