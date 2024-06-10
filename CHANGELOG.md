@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2024-06-10
+
+### Changed
+- Replace custom-checker [#87](https://github.com/cybozu-go/moco-agent/pull/87)
+- Upgrade go to 1.21 and update dependencies [#88](https://github.com/cybozu-go/moco-agent/pull/88)
+- Upgrade direct dependencies, GitHub Actions and tools[#89](https://github.com/cybozu-go/moco-agent/pull/89)
+- Fix moco#630 [#90](https://github.com/cybozu-go/moco-agent/pull/90)
+- Migrate to ghcr.io[#91](https://github.com/cybozu-go/moco-agent/pull/91)
+- Option to to use localhost instead of pod name[#92](https://github.com/cybozu-go/moco-agent/pull/92)
+- Update dependencies [#93](https://github.com/cybozu-go/moco-agent/pull/93)
+
 ## [0.10.0] - 2023-08-04
 
 ### Changed
@@ -147,7 +158,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/cybozu-go/moco-agent/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/cybozu-go/moco-agent/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/cybozu-go/moco-agent/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/cybozu-go/moco-agent/compare/v0.7.1...v0.8.0
