@@ -59,7 +59,7 @@ func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if replicaStatus.SlaveIORunning != "Yes" || replicaStatus.SlaveSQLRunning != "Yes" {
+	if replicaStatus.ReplicaIORunning != "Yes" || replicaStatus.ReplicaSQLRunning != "Yes" {
 		a.logger.Info("replication threads are stopped")
 		http.Error(w, "replication thread are stopped", http.StatusServiceUnavailable)
 		return
