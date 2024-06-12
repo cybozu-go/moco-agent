@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path"
 	"path/filepath"
 	"time"
@@ -30,7 +31,7 @@ const (
 	networkName = "moco-agent-test-net"
 )
 
-var socketBaseDir = path.Join(os.TempDir(), "moco-agent-test-server")
+var tmpBaseDir = path.Join(os.TempDir(), "moco-agent-test-server")
 
 var MySQLVersion = func() string {
 	if ver := os.Getenv("MYSQL_VERSION"); ver == "" {
@@ -49,7 +50,11 @@ var testMycnf = map[string]string{
 }
 
 func socketDir(name string) string {
-	return filepath.Join(socketBaseDir, name)
+	return filepath.Join(tmpBaseDir, name, "socket")
+}
+
+func dataDir(name string) string {
+	return filepath.Join(tmpBaseDir, name, "data")
 }
 
 func StartMySQLD(name string, port int, serverID int) {
@@ -59,31 +64,59 @@ func StartMySQLD(name string, port int, serverID int) {
 		serverID = 1
 	}
 
-	dir := socketDir(name)
-	ExpectWithOffset(1, os.MkdirAll(dir, 0755)).NotTo(HaveOccurred())
-	err := os.Chmod(dir, 0777)
+	// In order to delete MySQL's data directory after testing, run MySQL as the current user.
+	// If a user is not specified, the data files are created as 10000:10000 (the default user of
+	// ghcr.io/cybozu-go/moco/mysql), and the current user cannot delete the files.
+	currentUser, err := user.Current()
 	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+
+	socketDir := socketDir(name)
+	ExpectWithOffset(1, os.MkdirAll(socketDir, 0755)).NotTo(HaveOccurred())
+	ExpectWithOffset(1, os.Chmod(socketDir, 0777)).NotTo(HaveOccurred())
+
+	dataDir := dataDir(name)
+	ExpectWithOffset(1, os.RemoveAll(dataDir)).NotTo(HaveOccurred()) // If files exist in data dir, initialization fails.
+	ExpectWithOffset(1, os.MkdirAll(dataDir, 0755)).NotTo(HaveOccurred())
+	ExpectWithOffset(1, os.Chmod(dataDir, 0777)).NotTo(HaveOccurred())
+
+	initArgs := []string{
+		"run", "--name", name + "-init", "--rm",
+		"--user", currentUser.Uid,
+		"-v", dataDir + ":/var/lib/mysql",
+		"ghcr.io/cybozu-go/moco/mysql:" + MySQLVersion,
+		"--initialize-insecure",
+		"--datadir", "/var/lib/mysql",
+	}
+
+	cmd := well.CommandContext(ctx, "docker", initArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	ExpectWithOffset(1, cmd.Run()).NotTo(HaveOccurred())
 
 	args := []string{
 		"run", "--name", name, "-d", "--restart=always",
+		"--user", currentUser.Uid,
 		"--network=" + networkName,
 		"-e", "MYSQL_ALLOW_EMPTY_PASSWORD=true",
 		"-e", "MYSQL_ROOT_HOST=localhost",
 		"-p", fmt.Sprintf("%d:3306", port),
-		"-v", dir + ":/var/run/mysqld",
-		"mysql:" + MySQLVersion,
+		"-v", socketDir + ":/var/run/mysqld",
+		"-v", dataDir + ":/var/lib/mysql",
+		"ghcr.io/cybozu-go/moco/mysql:" + MySQLVersion,
 		fmt.Sprintf("--server-id=%d", serverID),
+		"--socket", "/var/run/mysqld/mysqld.sock",
+		"--datadir", "/var/lib/mysql",
 	}
 	for k, v := range testMycnf {
 		args = append(args, fmt.Sprintf("--%s=%s", k, v))
 	}
 
-	cmd := well.CommandContext(ctx, "docker", args...)
+	cmd = well.CommandContext(ctx, "docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	ExpectWithOffset(1, cmd.Run()).NotTo(HaveOccurred())
 
-	socket := filepath.Join(dir, "mysqld.sock")
+	socket := filepath.Join(socketDir, "mysqld.sock")
 	var db *sqlx.DB
 	EventuallyWithOffset(1, func() error {
 		var err error

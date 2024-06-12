@@ -39,7 +39,7 @@ var _ = BeforeSuite(func() {
 	mysql.SetLogger(log.New(GinkgoWriter, "[mysql] ", log.Ldate|log.Ltime|log.Lshortfile))
 	metrics.Init(prometheus.DefaultRegisterer, "test", 2)
 
-	os.RemoveAll(socketBaseDir)
+	os.RemoveAll(tmpBaseDir)
 	RemoveNetwork()
 	CreateNetwork()
 })
