@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
@@ -104,7 +105,7 @@ var _ = Describe("clone", func() {
 		By("starting replication")
 		_, err = donorDB.Exec(`INSERT INTO foo.bar (i) VALUES (9), (999)`)
 		Expect(err).NotTo(HaveOccurred())
-		if strings.hasPrefix(MySQLVersion, "8.4") {
+		if strings.HasPrefix(MySQLVersion, "8.4") {
 			_, err = replicaDB.Exec(`CHANGE REPLICATION SOURCE TO SOURCE_HOST=?, SOURCE_PORT=3306, SOURCE_USER=?, SOURCE_PASSWORD=?, GET_SOURCE_PUBLIC_KEY=1`,
 				donorHost, mocoagent.ReplicationUser, replicationUserPassword)
 			Expect(err).NotTo(HaveOccurred())

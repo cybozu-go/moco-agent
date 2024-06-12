@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
@@ -104,8 +105,8 @@ var _ = Describe("health", func() {
 		items := []interface{}{100, 299, 993, 9292}
 		_, err = donorDB.Exec("INSERT INTO foo.bar (i) VALUES (?), (?), (?), (?)", items...)
 		Expect(err).NotTo(HaveOccurred())
-		
-		if strings.hasPrefix(MYSQL_VERSION, "8.4") {
+
+		if strings.HasPrefix(MySQLVersion, "8.4") {
 			_, err = replicaDB.Exec(`CHANGE REPLICATION SOURCE TO SOURCE_HOST=?, SOURCE_PORT=3306, SOURCE_USER=?, SOURCE_PASSWORD=?, GET_SOURCE_PUBLIC_KEY=1`,
 				donorHost, mocoagent.ReplicationUser, replicationUserPassword)
 			Expect(err).NotTo(HaveOccurred())
@@ -179,7 +180,7 @@ var _ = Describe("health", func() {
 		_, err = donorDB.Exec("SET GLOBAL read_only=0")
 		Expect(err).NotTo(HaveOccurred())
 
-		if strings.hasPrefix(MYSQL_VERSION, "8.4") {
+		if strings.HasPrefix(MySQLVersion, "8.4") {
 			_, err = replicaDB.Exec(`CHANGE REPLICATION SOURCE TO SOURCE_HOST=?, SOURCE_PORT=3306, SOURCE_USER=?, SOURCE_PASSWORD=?, GET_SOURCE_PUBLIC_KEY=1`,
 				donorHost, mocoagent.ReplicationUser, replicationUserPassword)
 			Expect(err).NotTo(HaveOccurred())

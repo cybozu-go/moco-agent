@@ -321,15 +321,16 @@ func Init(ctx context.Context, db *sqlx.DB, socket string) error {
 	var version string
 	err := db.GetContext(ctx, &version, `SELECT SUBSTRING_INDEX(VERSION(), '.', 2)`)
 	if err != nil {
-		return false, fmt.Errorf("failed to get version: %w", err)
+		return fmt.Errorf("failed to get version: %w", err)
 	}
-	if version == "8.0" {
-		if _, err := db.ExecContext(ctx, "RESET MASTER"); err != nil {
-			return fmt.Errorf("failed to reset master: %w", err)
-		}
-	} else {
+	if version == "8.4" {
 		if _, err := db.ExecContext(ctx, "RESET BINARY LOGS AND GTIDS"); err != nil {
 			return fmt.Errorf("failed to reset binary logs and gtids: %w", err)
+		}
+
+	} else {
+		if _, err := db.ExecContext(ctx, "RESET MASTER"); err != nil {
+			return fmt.Errorf("failed to reset master: %w", err)
 		}
 	}
 	if _, err := db.ExecContext(ctx, "SET GLOBAL super_read_only=ON"); err != nil {
