@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2024-06-18
+
+### ⚠️ Breaking Changes
+ - MySQL Terminology Updates [#686](https://github.com/cybozu-go/moco/issues/686)
+
+### Changed
+ - Support MySQL 8.4.0 [#686](https://github.com/cybozu-go/moco/issues/686)
+
+### ⚠️ End support for older versions
+ - MySQL versions supported after this release are 8.0.28, 8.0.36, 8.0.37 and 8.4.0
+
 ## [0.11.0] - 2024-06-10
 
 ### Changed
@@ -158,7 +169,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/cybozu-go/moco-agent/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/cybozu-go/moco-agent/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/cybozu-go/moco-agent/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/cybozu-go/moco-agent/compare/v0.8.0...v0.9.0
