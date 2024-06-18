@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
@@ -40,8 +41,13 @@ var _ = Describe("clone", func() {
 		Expect(err).NotTo(HaveOccurred())
 		_, err = donorDB.Exec("INSERT INTO foo.bar (i) VALUES (100), (101), (102), (103)")
 		Expect(err).NotTo(HaveOccurred())
-		_, err = donorDB.Exec(`RESET MASTER`)
-		Expect(err).NotTo(HaveOccurred())
+		if strings.HasPrefix(MySQLVersion, "8.4") {
+			_, err = donorDB.Exec(`RESET BINARY LOGS AND GTIDS`)
+			Expect(err).NotTo(HaveOccurred())
+		} else {
+			_, err = donorDB.Exec(`RESET MASTER`)
+			Expect(err).NotTo(HaveOccurred())
+		}
 		_, err = donorDB.Exec("INSERT INTO foo.bar (i) VALUES (200), (800), (10000), (-3)")
 		Expect(err).NotTo(HaveOccurred())
 
@@ -99,10 +105,16 @@ var _ = Describe("clone", func() {
 		By("starting replication")
 		_, err = donorDB.Exec(`INSERT INTO foo.bar (i) VALUES (9), (999)`)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = replicaDB.Exec(`CHANGE MASTER TO MASTER_HOST=?, MASTER_PORT=3306, MASTER_USER=?, MASTER_PASSWORD=?, GET_MASTER_PUBLIC_KEY=1`,
-			donorHost, mocoagent.ReplicationUser, replicationUserPassword)
-		Expect(err).NotTo(HaveOccurred())
-		_, err = replicaDB.Exec(`START SLAVE`)
+		if strings.HasPrefix(MySQLVersion, "8.4") {
+			_, err = replicaDB.Exec(`CHANGE REPLICATION SOURCE TO SOURCE_HOST=?, SOURCE_PORT=3306, SOURCE_USER=?, SOURCE_PASSWORD=?, GET_SOURCE_PUBLIC_KEY=1`,
+				donorHost, mocoagent.ReplicationUser, replicationUserPassword)
+			Expect(err).NotTo(HaveOccurred())
+		} else {
+			_, err = replicaDB.Exec(`CHANGE MASTER TO MASTER_HOST=?, MASTER_PORT=3306, MASTER_USER=?, MASTER_PASSWORD=?, GET_MASTER_PUBLIC_KEY=1`,
+				donorHost, mocoagent.ReplicationUser, replicationUserPassword)
+			Expect(err).NotTo(HaveOccurred())
+		}
+		_, err = replicaDB.Exec(`START REPLICA`)
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(func() int {

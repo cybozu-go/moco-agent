@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
@@ -105,10 +106,16 @@ var _ = Describe("health", func() {
 		_, err = donorDB.Exec("INSERT INTO foo.bar (i) VALUES (?), (?), (?), (?)", items...)
 		Expect(err).NotTo(HaveOccurred())
 
-		_, err = replicaDB.Exec(`CHANGE MASTER TO MASTER_HOST=?, MASTER_PORT=3306, MASTER_USER=?, MASTER_PASSWORD=?, GET_MASTER_PUBLIC_KEY=1`,
-			donorHost, mocoagent.ReplicationUser, replicationUserPassword)
-		Expect(err).NotTo(HaveOccurred())
-		_, err = replicaDB.Exec(`START SLAVE`)
+		if strings.HasPrefix(MySQLVersion, "8.4") {
+			_, err = replicaDB.Exec(`CHANGE REPLICATION SOURCE TO SOURCE_HOST=?, SOURCE_PORT=3306, SOURCE_USER=?, SOURCE_PASSWORD=?, GET_SOURCE_PUBLIC_KEY=1`,
+				donorHost, mocoagent.ReplicationUser, replicationUserPassword)
+			Expect(err).NotTo(HaveOccurred())
+		} else {
+			_, err = replicaDB.Exec(`CHANGE MASTER TO MASTER_HOST=?, MASTER_PORT=3306, MASTER_USER=?, MASTER_PASSWORD=?, GET_MASTER_PUBLIC_KEY=1`,
+				donorHost, mocoagent.ReplicationUser, replicationUserPassword)
+			Expect(err).NotTo(HaveOccurred())
+		}
+		_, err = replicaDB.Exec(`START REPLICA`)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("checking readiness")
@@ -173,10 +180,16 @@ var _ = Describe("health", func() {
 		_, err = donorDB.Exec("SET GLOBAL read_only=0")
 		Expect(err).NotTo(HaveOccurred())
 
-		_, err = replicaDB.Exec(`CHANGE MASTER TO MASTER_HOST=?, MASTER_PORT=3306, MASTER_USER=?, MASTER_PASSWORD=?, GET_MASTER_PUBLIC_KEY=1`,
-			donorHost, mocoagent.ReplicationUser, replicationUserPassword)
-		Expect(err).NotTo(HaveOccurred())
-		_, err = replicaDB.Exec(`START SLAVE`)
+		if strings.HasPrefix(MySQLVersion, "8.4") {
+			_, err = replicaDB.Exec(`CHANGE REPLICATION SOURCE TO SOURCE_HOST=?, SOURCE_PORT=3306, SOURCE_USER=?, SOURCE_PASSWORD=?, GET_SOURCE_PUBLIC_KEY=1`,
+				donorHost, mocoagent.ReplicationUser, replicationUserPassword)
+			Expect(err).NotTo(HaveOccurred())
+		} else {
+			_, err = replicaDB.Exec(`CHANGE MASTER TO MASTER_HOST=?, MASTER_PORT=3306, MASTER_USER=?, MASTER_PASSWORD=?, GET_MASTER_PUBLIC_KEY=1`,
+				donorHost, mocoagent.ReplicationUser, replicationUserPassword)
+			Expect(err).NotTo(HaveOccurred())
+		}
+		_, err = replicaDB.Exec(`START REPLICA`)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("checking readiness")
