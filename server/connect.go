@@ -53,9 +53,14 @@ func GetMySQLConnLocalSocket(user, password, socket string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func IsAccessDenied(err error) bool {
+func UserNotExists(err error) bool {
+	// For security reason, error messages are randomly output when a user does not exist.
+	//   https://github.com/mysql/mysql-server/commit/b40001faf6229dca668c9d03ba75c451f999c9f5
+	// This function assumes the user does not exist when the following message is output:
+	//   ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: NO)
+	//   ERROR 1524 (HY000): Plugin 'mysql_native_password' is not loaded
 	var merr *mysql.MySQLError
-	if errors.As(err, &merr) && merr.Number == 1045 {
+	if errors.As(err, &merr) && (merr.Number == 1045 || merr.Number == 1524) {
 		return true
 	}
 

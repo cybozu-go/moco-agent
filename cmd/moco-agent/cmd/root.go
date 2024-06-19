@@ -259,7 +259,7 @@ func initializeMySQLForMOCO(ctx context.Context, socketPath string, logger logr.
 		if err == nil {
 			break
 		}
-		if server.IsAccessDenied(err) {
+		if server.UserNotExists(err) {
 			// There is no passwordless 'root'@'localhost' account.
 			// It means the initialization has been completed.
 			return nil
