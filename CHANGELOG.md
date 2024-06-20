@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.1] - 2024-06-20
+
+### Changed
+ - IsAccessDenied function is not determining correctly [#98](https://github.com/cybozu-go/moco-agent/issues/98)
+
 ## [0.12.0] - 2024-06-18
 
 ### ⚠️ Breaking Changes
@@ -169,7 +174,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.12.1...HEAD
+[0.12.0]: https://github.com/cybozu-go/moco-agent/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/cybozu-go/moco-agent/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/cybozu-go/moco-agent/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/cybozu-go/moco-agent/compare/v0.9.0...v0.10.0
