@@ -34,6 +34,7 @@ It should look like:
 
     ```console
     # Set VERSION and confirm it. It should not have "v" prefix.
+    # Patch version starts with 0
     $ VERSION=x.y.z
     $ echo $VERSION
     ```
@@ -41,7 +42,7 @@ It should look like:
 2. Make a branch to release
 
     ```console
-    $ git neco dev "bump-$VERSION"
+    $ git neco dev "bump-v$VERSION"
     ```
 
 3. Edit `CHANGELOG.md` for the new version ([example][]).
