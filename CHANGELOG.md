@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+- Update dependencies [#102](https://github.com/cybozu-go/moco-agent/pull/102)
+
 ## [0.12.1] - 2024-06-20
 
 ### Changed
