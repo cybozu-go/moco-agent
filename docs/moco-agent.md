@@ -11,6 +11,7 @@ Flags:
       --grpc-cert-dir string                 gRPC certificate directory (default "/grpc-cert")
   -h, --help                                 help for moco-agent
       --log-rotation-schedule string         Cron format schedule for MySQL log rotation (default "*/5 * * * *")
+      --log-rotation-size int                Rotate MySQL log files when it exceeds the specified size in bytes.
       --logfile string                       Log filename
       --logformat string                     Log format [plain,logfmt,json]
       --loglevel string                      Log level [critical,error,warning,info,debug]
