@@ -128,7 +128,7 @@ var rootCmd = &cobra.Command{
 		metrics.Init(registry, clusterName, index)
 
 		c := cron.New(cron.WithLogger(rLogger.WithName("cron")))
-		if _, err := c.AddFunc(config.logRotationSchedule, func() { agent.RotateErrorLog(); agent.RotateSlowLog() }); err != nil {
+		if _, err := c.AddFunc(config.logRotationSchedule, agent.RotateLog); err != nil {
 			rLogger.Error(err, "failed to parse the cron spec", "spec", config.logRotationSchedule)
 			return err
 		}
@@ -256,7 +256,7 @@ func init() {
 	fs.DurationVar(&config.connIdleTime, "max-idle-time", 30*time.Second, "The maximum amount of time a connection may be idle")
 	fs.DurationVar(&config.connectionTimeout, "connection-timeout", 5*time.Second, "Dial timeout")
 	fs.StringVar(&config.logRotationSchedule, "log-rotation-schedule", logRotationScheduleDefault, "Cron format schedule for MySQL log rotation")
-	fs.Int64Var(&config.logRotationSize, "log-rotation-size", 0, "Rotate MySQL log files when it exceeds the specified size in bytes.")
+	fs.Int64Var(&config.logRotationSize, "log-rotation-size", 0, "Rotate MySQL log file when it exceeds the specified size in bytes.")
 	fs.DurationVar(&config.readTimeout, "read-timeout", 30*time.Second, "I/O read timeout")
 	fs.DurationVar(&config.maxDelayThreshold, "max-delay", time.Minute, "Acceptable max commit delay considering as ready; the zero value accepts any delay")
 	fs.StringVar(&config.socketPath, "socket-path", socketPathDefault, "Path of mysqld socket file.")

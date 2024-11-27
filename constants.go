@@ -40,9 +40,6 @@ const (
 	// MySQLAdminPort is a port number for MySQL Admin
 	MySQLAdminPort = 33062
 
-	// MySQLErrorLogName is a filekey of error log for MySQL.
-	MySQLErrorLogName = "mysql.err"
-
 	// MySQLSlowLogName is a filekey of slow query log for MySQL.
 	MySQLSlowLogName = "mysql.slow"
 )
