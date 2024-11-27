@@ -52,6 +52,7 @@ var config struct {
 	connIdleTime            time.Duration
 	connectionTimeout       time.Duration
 	logRotationSchedule     string
+	logRotationSize         int64
 	readTimeout             time.Duration
 	maxDelayThreshold       time.Duration
 	socketPath              string
@@ -141,6 +142,22 @@ var rootCmd = &cobra.Command{
 				rLogger.Info("log rotate job did not finish")
 			}
 		}()
+
+		// Rotate if the file size exceeds logRotationSize
+		if config.logRotationSize > 0 {
+			ticker := time.NewTicker(time.Second)
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						agent.RotateLogIfSizeExceeded(config.logRotationSize)
+					}
+				}
+			}()
+			defer ticker.Stop()
+		}
 
 		reloader, err := cert.NewReloader(config.grpcCertDir, rLogger.WithName("cert-reloader"))
 		if err != nil {
@@ -239,6 +256,7 @@ func init() {
 	fs.DurationVar(&config.connIdleTime, "max-idle-time", 30*time.Second, "The maximum amount of time a connection may be idle")
 	fs.DurationVar(&config.connectionTimeout, "connection-timeout", 5*time.Second, "Dial timeout")
 	fs.StringVar(&config.logRotationSchedule, "log-rotation-schedule", logRotationScheduleDefault, "Cron format schedule for MySQL log rotation")
+	fs.Int64Var(&config.logRotationSize, "log-rotation-size", 0, "Rotate MySQL log file when it exceeds the specified size in bytes.")
 	fs.DurationVar(&config.readTimeout, "read-timeout", 30*time.Second, "I/O read timeout")
 	fs.DurationVar(&config.maxDelayThreshold, "max-delay", time.Minute, "Acceptable max commit delay considering as ready; the zero value accepts any delay")
 	fs.StringVar(&config.socketPath, "socket-path", socketPathDefault, "Path of mysqld socket file.")
