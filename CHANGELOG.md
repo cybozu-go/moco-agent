@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2024-11-29
+
+### Added
+- Add log-rotation-size option [#105](https://github.com/cybozu-go/moco-agent/pull/105)
+
+### Changed
+- Update golang version specified in Dockerfile [#106](https://github.com/cybozu-go/moco-agent/pull/106)
+
 ## [0.12.2] - 2024-09-10
 
 ### Changed
@@ -179,7 +187,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.12.2...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/cybozu-go/moco-agent/compare/v0.12.2...v0.13.0
 [0.12.2]: https://github.com/cybozu-go/moco-agent/compare/v0.12.1...v0.12.2
 [0.12.1]: https://github.com/cybozu-go/moco-agent/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/cybozu-go/moco-agent/compare/v0.11.0...v0.12.0
