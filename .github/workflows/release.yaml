@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Setup Aqua
+        uses: ./.github/actions/setup-aqua
       - run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 make build/moco-agent
       - name: Create Release
         env:
