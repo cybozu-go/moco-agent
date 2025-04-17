@@ -1,0 +1,18 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/aquaproj/aqua/main/json-schema/aqua-yaml.json
+# aqua - Declarative CLI Version Manager
+# https://aquaproj.github.io/
+checksum:
+  enabled: true
+  require_checksum: true
+#   supported_envs:
+#   - all
+registries:
+- type: standard
+  ref: v4.346.0 # renovate: depName=aquaproj/aqua-registry
+packages:
+- name: protocolbuffers/protobuf/protoc@v29.3
+- name: protocolbuffers/protobuf-go/protoc-gen-go@v1.36.4
+- name: grpc/grpc-go/protoc-gen-go-grpc@cmd/protoc-gen-go-grpc/v1.5.1
+- name: pseudomuto/protoc-gen-doc@v1.5.1
+- name: dominikh/go-tools/staticcheck@2025.1.1

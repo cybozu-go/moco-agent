@@ -17,3 +17,11 @@ Docker images are available on [GitHub Container Registry](https://github.com/or
 
 [releases]: https://github.com/cybozu-go/moco-agent/releases
 [MOCO]: https://github.com/cybozu-go/moco
+
+## Development
+
+### Prerequisites
+
+This project uses [aqua](https://aquaproj.github.io/) to manage development tools. Before starting development, please install aqua by following the instructions at https://aquaproj.github.io/docs/install.
+
+Once aqua is installed, the required development tools will be automatically installed when you run make commands.

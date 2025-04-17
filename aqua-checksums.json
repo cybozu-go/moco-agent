@@ -1,0 +1,149 @@
+{
+  "checksums": [
+    {
+      "id": "github_release/github.com/dominikh/go-tools/2025.1.1/staticcheck_darwin_amd64.tar.gz",
+      "checksum": "D66E2D65EFC02C314B578B28A8DB3008F82F8FC1C8EB6EDCBE04B3C3444A1F8A",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/dominikh/go-tools/2025.1.1/staticcheck_darwin_arm64.tar.gz",
+      "checksum": "CE1911C11EC2C079936A80163DBA10156C7C79FD1423D432B2A24825A22F5E8D",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/dominikh/go-tools/2025.1.1/staticcheck_linux_amd64.tar.gz",
+      "checksum": "AE320E410225295ECB2A2CD406113E3C2FE40521AAED984DD11DC41A0A50B253",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/dominikh/go-tools/2025.1.1/staticcheck_linux_arm64.tar.gz",
+      "checksum": "B135FD89DBC875F20D83E66948FFF256AF738B33B48A64024C0752F29EA1EB13",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/dominikh/go-tools/2025.1.1/staticcheck_windows_amd64.tar.gz",
+      "checksum": "434D2FC10049A39FE069C6370CD45C1330871B01A4500FAC970FCD6BFB1D1FE9",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/grpc/grpc-go/cmd/protoc-gen-go-grpc/v1.5.1/protoc-gen-go-grpc.v1.5.1.darwin.amd64.tar.gz",
+      "checksum": "C12C259D59C8B451F24B6ABDAD6D055FD0884C5268B7247FD7E5EC9D2432D1F1",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/grpc/grpc-go/cmd/protoc-gen-go-grpc/v1.5.1/protoc-gen-go-grpc.v1.5.1.darwin.arm64.tar.gz",
+      "checksum": "D6083FEB51DCFE59F26793E99EF01EF5EAC68B64294EC2546711F614AC5878F3",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/grpc/grpc-go/cmd/protoc-gen-go-grpc/v1.5.1/protoc-gen-go-grpc.v1.5.1.linux.amd64.tar.gz",
+      "checksum": "A6CAC4EA731E54AEA304AD44D704A69D1CDC82997084B33637E21A89DC9229D6",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/grpc/grpc-go/cmd/protoc-gen-go-grpc/v1.5.1/protoc-gen-go-grpc.v1.5.1.linux.arm64.tar.gz",
+      "checksum": "370A7CFA5786E61E6FDC5AA8F689E35C2D27D036A49CAAC7AA25F962C89A01E8",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/grpc/grpc-go/cmd/protoc-gen-go-grpc/v1.5.1/protoc-gen-go-grpc.v1.5.1.windows.amd64.tar.gz",
+      "checksum": "C2AD1460C9E34B5B37759826DA61220BE6EE0A8A11431723D205512A69319991",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/grpc/grpc-go/cmd/protoc-gen-go-grpc/v1.5.1/protoc-gen-go-grpc.v1.5.1.windows.arm64.tar.gz",
+      "checksum": "D63AA664B0453DF18E0FE6AF0D30CC434377A6AD4D6B1843EEEE404CE25F2B1F",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.4/protoc-gen-go.v1.36.4.darwin.amd64.tar.gz",
+      "checksum": "237C9756CBA9705EEEA037BEC57BD95B9EABBE702DA3D3BA4AD9C6EB56C181BC",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.4/protoc-gen-go.v1.36.4.darwin.arm64.tar.gz",
+      "checksum": "C795CA96CD21EE2776D2D9AF503FC06D07804E9FF4781332B31895086266BC27",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.4/protoc-gen-go.v1.36.4.linux.amd64.tar.gz",
+      "checksum": "F6495E38CEFA9B3E36598E8431C8CE0748D06166A22492D4CF3EFEF199BF21DC",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.4/protoc-gen-go.v1.36.4.linux.arm64.tar.gz",
+      "checksum": "7BF77D649927F86FBEA31CC5415FF8A26D42F4BA89304E139D5C3CCA2B50549B",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.4/protoc-gen-go.v1.36.4.windows.amd64.zip",
+      "checksum": "AEB5A42A4396D63D4EC88567EAA5038E120518F24A2610AFB04CF03DC5CD3238",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.4/protoc-gen-go.v1.36.4.windows.arm64.zip",
+      "checksum": "938867FE9894D0EB1DBE60F663B499DCAC9E8DADB0DA99439B9E2ACCE2A7CFAE",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf/v29.3/protoc-29.3-linux-aarch_64.zip",
+      "checksum": "6427349140E01F06E049E707A58709A4F221AE73AB9A0425BC4A00C8D0E1AB32",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf/v29.3/protoc-29.3-linux-x86_64.zip",
+      "checksum": "3E866620C5BE27664F3D2FA2D656B5F3E09B5152B42F1BEDBF427B333E90021A",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf/v29.3/protoc-29.3-osx-aarch_64.zip",
+      "checksum": "2B8A3403CD097F95F3BA656E14B76C732B6B26D7F183330B11E36EF2BC028765",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf/v29.3/protoc-29.3-osx-x86_64.zip",
+      "checksum": "9A788036D8F9854F7B03C305DF4777CF0E54E5B081E25BF15252DA87E0E90875",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf/v29.3/protoc-29.3-win64.zip",
+      "checksum": "57EA59E9F551AD8D71FFAA9B5CFBE0CA1F4E720972A1DB7EC2D12AB44BFF9383",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/pseudomuto/protoc-gen-doc/v1.5.1/protoc-gen-doc_1.5.1_darwin_amd64.tar.gz",
+      "checksum": "F429E5A5DDD886BFB68265F2F92C1C6A509780B7ADCAF7A8B3BE943F28E144BA",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/pseudomuto/protoc-gen-doc/v1.5.1/protoc-gen-doc_1.5.1_darwin_arm64.tar.gz",
+      "checksum": "6E8C737D9A67A6A873A3F1D37ED8BB2A0A9996F6DCF6701AA1048C7BD798AAF9",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/pseudomuto/protoc-gen-doc/v1.5.1/protoc-gen-doc_1.5.1_linux_amd64.tar.gz",
+      "checksum": "47CD72B07E6DAB3408D686A65D37D3A6AB616DA7D8B564B2BD2A2963A72B72FD",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/pseudomuto/protoc-gen-doc/v1.5.1/protoc-gen-doc_1.5.1_linux_arm64.tar.gz",
+      "checksum": "172E6A191DACED8EB31EBCD90D4523A1AFFA6D07900A89B548421823DDA796FE",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/pseudomuto/protoc-gen-doc/v1.5.1/protoc-gen-doc_1.5.1_windows_amd64.tar.gz",
+      "checksum": "8ACF0BF64EDA29183B4C6745C3C6A12562FD9A8AB08D61788CF56E6659C66B3B",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/pseudomuto/protoc-gen-doc/v1.5.1/protoc-gen-doc_1.5.1_windows_arm64.tar.gz",
+      "checksum": "BF8BC651C17E64BFEC663192E660655C2BCC415F6DFF9E88201D8B07FB23D493",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.346.0/registry.yaml",
+      "checksum": "68E1512DFAB0878E0788890012C28BE47E3B43738EB4910C6B867394482671EE",
+      "algorithm": "sha256"
+    }
+  ]
+}
