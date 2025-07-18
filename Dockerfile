@@ -3,7 +3,12 @@ FROM --platform=$BUILDPLATFORM ghcr.io/cybozu/golang:1.23-jammy as builder
 
 ARG TARGETARCH
 
+RUN apt-get update && apt-get install -y mysql-server
+
 COPY ./ .
+
+# Generate timezone.sql file before building
+RUN mysql_tzinfo_to_sql /usr/share/zoneinfo > cmd/moco-init/timezone.sql
 RUN GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -ldflags="-w -s" -a -o moco-agent ./cmd/moco-agent
 RUN GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -ldflags="-w -s" -a -o moco-init ./cmd/moco-init
 RUN GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -ldflags="-w -s" -a -o cp ./cmd/cp
