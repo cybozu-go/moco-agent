@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2025-07-28
+
+### Changed
+- Manage CLI tools by aquaproj/aqua [#110](https://github.com/cybozu-go/moco-agent/pull/110)
+
+### Added
+- Add init-timezones flag to populate timezone data [#111](https://github.com/cybozu-go/moco-agent/pull/111)
+
+
 ## [0.13.1] - 2025-01-29
 
 ### Changed
@@ -195,7 +204,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/cybozu-go/moco-agent/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/cybozu-go/moco-agent/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/cybozu-go/moco-agent/compare/v0.12.2...v0.13.0
 [0.12.2]: https://github.com/cybozu-go/moco-agent/compare/v0.12.1...v0.12.2
