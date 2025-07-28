@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -31,6 +32,7 @@ var config struct {
 
 	lowerCaseTableNames        int
 	visitedLowerCaseTableNames *int
+	initTimezones              bool
 
 	mysqldLocalhost bool
 
@@ -41,6 +43,9 @@ var config struct {
 
 //go:embed my.cnf
 var mycnfTmpl string
+
+//go:embed timezone.sql
+var timezoneSQL string
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -61,6 +66,9 @@ such as server_id and admin_address.`,
 		cmd.Flags().Visit(func(f *pflag.Flag) {
 			if f.Name == "lower-case-table-names" {
 				config.visitedLowerCaseTableNames = &config.lowerCaseTableNames
+			}
+			if f.Name == "init-timezones" {
+				config.initTimezones = f.Value.String() == "true"
 			}
 		})
 		return subMain(args[0])
@@ -135,6 +143,12 @@ func initMySQL(mysqld string) error {
 		return err
 	}
 
+	if config.initTimezones {
+		if err := loadTimezoneData(); err != nil {
+			return fmt.Errorf("failed to load timezone data: %w", err)
+		}
+	}
+
 	dotFile := filepath.Join(config.dataDir, "."+initializedFile)
 	if err := os.Remove(dotFile); err != nil && !os.IsNotExist(err) {
 		return err
@@ -160,6 +174,82 @@ func initMySQL(mysqld string) error {
 	}
 	defer g.Close()
 	return g.Sync()
+}
+
+// loadTimezoneData loads timezone information into MySQL using embedded SQL
+func loadTimezoneData() error {
+	fmt.Println("Loading timezone data...")
+
+	// Find required binaries
+	mysqldCmd, err := exec.LookPath("mysqld")
+	if err != nil {
+		return fmt.Errorf("mysqld not found: %w", err)
+	}
+
+	mysqladminCmd, err := exec.LookPath("mysqladmin")
+	if err != nil {
+		return fmt.Errorf("mysqladmin not found: %w", err)
+	}
+
+	mysqlCmd, err := exec.LookPath("mysql")
+	if err != nil {
+		return fmt.Errorf("mysql client not found: %w", err)
+	}
+
+	// Check if we have timezone SQL embedded
+	if len(timezoneSQL) == 0 {
+		fmt.Println("Warning: no timezone data embedded, skipping timezone data loading")
+		return nil
+	}
+
+	dataDir := filepath.Join(config.dataDir, "data")
+	socketPath := "/tmp/mysql.sock"
+
+	fmt.Println("Starting MySQL in background for setup...")
+	mysqldProcess := exec.Command(mysqldCmd,
+		"--datadir="+dataDir,
+		"--socket="+socketPath,
+		"--daemonize")
+	mysqldProcess.Stdout = os.Stdout
+	mysqldProcess.Stderr = os.Stderr
+
+	if err := mysqldProcess.Run(); err != nil {
+		return fmt.Errorf("failed to start mysqld: %w", err)
+	}
+
+	fmt.Println("Waiting for MySQL to come up...")
+	const maxAttempts = 30
+	for i := 1; i <= maxAttempts; i++ {
+		pingCmd := exec.Command(mysqladminCmd, "ping", "--socket="+socketPath, "--silent")
+		if err := pingCmd.Run(); err == nil {
+			break
+		}
+		if i == maxAttempts {
+			return fmt.Errorf("MySQL failed to start after %d attempts", maxAttempts)
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	defer func() {
+		fmt.Println("Shutting down setup instance...")
+		shutdownCmd := exec.Command(mysqladminCmd, "--user=root", "--socket="+socketPath, "shutdown")
+		if err := shutdownCmd.Run(); err != nil {
+			fmt.Printf("Warning: failed to gracefully shutdown MySQL: %v\n", err)
+		}
+	}()
+
+	// Execute the embedded timezone SQL
+	mysqlProcess := exec.Command(mysqlCmd, "--user=root", "--socket="+socketPath, "mysql")
+	mysqlProcess.Stdin = strings.NewReader(timezoneSQL)
+	mysqlProcess.Stdout = os.Stdout
+	mysqlProcess.Stderr = os.Stderr
+
+	if err := mysqlProcess.Run(); err != nil {
+		return fmt.Errorf("failed to load timezone data: %w", err)
+	}
+
+	fmt.Println("Timezone data loaded successfully")
+	return nil
 }
 
 func createConf() error {
@@ -208,4 +298,5 @@ func init() {
 	// https://dev.mysql.com/doc/refman/8.0/en/identifier-case-sensitivity.html
 	rootCmd.Flags().IntVar(&config.lowerCaseTableNames, "lower-case-table-names", 0, "The value to pass to the '--lower-case-table-names' flag.")
 	rootCmd.Flags().BoolVar(&config.mysqldLocalhost, "mysqld-localhost", false, "If true, bind mysqld admin to localhost instead of pod name")
+	rootCmd.Flags().BoolVar(&config.initTimezones, "init-timezones", false, "If true, initialize timezone data into MySQL")
 }
