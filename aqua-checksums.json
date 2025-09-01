@@ -86,6 +86,36 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.8/protoc-gen-go.v1.36.8.darwin.amd64.tar.gz",
+      "checksum": "B279A83A76BF861B271FDE09798AEC2E97A9AFA8FBF3E0A6BF929FCCFC696C60",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.8/protoc-gen-go.v1.36.8.darwin.arm64.tar.gz",
+      "checksum": "AC21CAE361B3E61B80CB52AFE11EF0DD13BC5BBDF61453603EE35059CA13CDED",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.8/protoc-gen-go.v1.36.8.linux.amd64.tar.gz",
+      "checksum": "F02C6146A6537FF6991C8A39ED0B79C861C0B326F08EE87EB5EF878E36CD6D2B",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.8/protoc-gen-go.v1.36.8.linux.arm64.tar.gz",
+      "checksum": "34BB72A8398D0E954364A38F135046BD7BA7C3B5C541F7626EF6637EBEC07A70",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.8/protoc-gen-go.v1.36.8.windows.amd64.zip",
+      "checksum": "682BDAA1BDBCAE9897E67185B2CC26041EA50F059CAF5A4A861EAC67362D7299",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf-go/v1.36.8/protoc-gen-go.v1.36.8.windows.arm64.zip",
+      "checksum": "26112754B7B4C2856F2D013612CBB1D3B9BC97D67FD0ACCCE8A579ACDCA261B3",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/protocolbuffers/protobuf/v29.3/protoc-29.3-linux-aarch_64.zip",
       "checksum": "6427349140E01F06E049E707A58709A4F221AE73AB9A0425BC4A00C8D0E1AB32",
       "algorithm": "sha256"
@@ -108,6 +138,31 @@
     {
       "id": "github_release/github.com/protocolbuffers/protobuf/v29.3/protoc-29.3-win64.zip",
       "checksum": "57EA59E9F551AD8D71FFAA9B5CFBE0CA1F4E720972A1DB7EC2D12AB44BFF9383",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf/v32.0/protoc-32.0-linux-aarch_64.zip",
+      "checksum": "56AF3FC2E43A0230802E6FADB621D890BA506C5C17A1AE1070F685FE79BA12D0",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf/v32.0/protoc-32.0-linux-x86_64.zip",
+      "checksum": "7CA037BFE5E5CABD4255CCD21DD265F79EB82D3C010117994F5DC81D2140EE88",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf/v32.0/protoc-32.0-osx-aarch_64.zip",
+      "checksum": "09A2C729CC821215CC0D4C564B761760961FE338C52F24B302FD7E18E7B675D1",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf/v32.0/protoc-32.0-osx-x86_64.zip",
+      "checksum": "63EEBA15DDC12AB11B0A8BCE81FB2D46CC69022C3E6AD21FECDE90D52139BFF6",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/protocolbuffers/protobuf/v32.0/protoc-32.0-win64.zip",
+      "checksum": "89C178E9F878CB6DD561F677688E1EB2E757CB9AC84AE30B64436BAC19646996",
       "algorithm": "sha256"
     },
     {
@@ -144,6 +199,11 @@
       "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.346.0/registry.yaml",
       "checksum": "68E1512DFAB0878E0788890012C28BE47E3B43738EB4910C6B867394482671EE",
       "algorithm": "sha256"
+    },
+    {
+      "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.407.0/registry.yaml",
+      "checksum": "42EAEACA57BFA53BD71C31B71249137B164C6335D001C50D6C4BB384C47E5E2DE24AF3E85D34801692B86F1C5212CA280CA2B81843F1A684C821820CA1703D38",
+      "algorithm": "sha512"
     }
   ]
 }
