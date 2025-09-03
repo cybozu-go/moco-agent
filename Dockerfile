@@ -1,5 +1,5 @@
 # stage1: build the binary
-FROM --platform=$BUILDPLATFORM ghcr.io/cybozu/golang:1.23-jammy as builder
+FROM --platform=$BUILDPLATFORM ghcr.io/cybozu/golang:1.24-noble as builder
 
 ARG TARGETARCH
 

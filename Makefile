@@ -58,7 +58,13 @@ docs/agentrpc.md: proto/agentrpc.proto
 	$(PROTOC) --doc_out=docs --doc_opt=markdown,$@ $<
 
 .PHONY: setup
-setup: custom-checker
+setup: custom-checker staticcheck
+
+.PHONY: staticcheck
+staticcheck:
+	if ! which staticcheck >/dev/null; then \
+		env GOFLAGS= go install honnef.co/go/tools/cmd/staticcheck@latest; \
+	fi
 
 .PHONY: custom-checker
 custom-checker:
