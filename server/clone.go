@@ -11,9 +11,8 @@ import (
 	"github.com/cybozu-go/moco-agent/metrics"
 	"github.com/cybozu-go/moco-agent/proto"
 	"github.com/go-logr/logr"
-	"github.com/go-logr/zapr"
 	"github.com/go-sql-driver/mysql"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -35,7 +34,7 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 	}
 	defer func() { <-a.cloneLock }()
 
-	logger := zapr.NewLogger(ctxzap.Extract(ctx))
+	logger := a.logger.WithValues(logging.ExtractFields(ctx)...)
 
 	primaryStatus, err := a.GetMySQLPrimaryStatus(ctx)
 	if err != nil {
@@ -127,10 +126,7 @@ func waitBootstrap(user, password, socket string, timeout time.Duration, logger 
 			db.Close()
 			return nil
 		}
-
-		if err != nil {
-			logger.Error(err, "connection failed")
-		}
+		logger.Error(err, "connection failed")
 	}
 }
 
