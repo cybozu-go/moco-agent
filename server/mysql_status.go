@@ -11,10 +11,10 @@ import (
 
 // MySQLGlobalVariablesStatus defines the observed global variable state of a MySQL instance
 type MySQLGlobalVariablesStatus struct {
-	ReadOnly                           bool           `db:"@@read_only"`
-	SuperReadOnly                      bool           `db:"@@super_read_only"`
-	RplSemiSyncMasterWaitForSlaveCount int            `db:"@@rpl_semi_sync_master_wait_for_slave_count"`
-	CloneValidDonorList                sql.NullString `db:"@@clone_valid_donor_list"`
+	ReadOnly                       bool           `db:"@@read_only"`
+	SuperReadOnly                  bool           `db:"@@super_read_only"`
+	RplSemiSyncWaitForReplicaCount int            `db:"wait_for_replica_count"`
+	CloneValidDonorList            sql.NullString `db:"@@clone_valid_donor_list"`
 }
 
 // MySQLCloneStateStatus defines the observed clone state of a MySQL instance
@@ -100,12 +100,34 @@ type MySQLReplicaStatus struct {
 }
 
 func (a *Agent) GetMySQLGlobalVariable(ctx context.Context) (*MySQLGlobalVariablesStatus, error) {
+	varName, err := a.detectWaitForReplicaCountVar(ctx)
+	if err != nil {
+		return nil, err
+	}
 	status := &MySQLGlobalVariablesStatus{}
-	err := a.db.GetContext(ctx, status, `SELECT @@read_only, @@super_read_only, @@rpl_semi_sync_master_wait_for_slave_count, @@clone_valid_donor_list`)
+	query := fmt.Sprintf("SELECT @@read_only, @@super_read_only, @@%s AS wait_for_replica_count, @@clone_valid_donor_list", varName)
+	err = a.db.GetContext(ctx, status, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get global variable: %w", err)
 	}
 	return status, nil
+}
+
+// detectWaitForReplicaCountVar detects which semi-sync variable exists and returns the appropriate variable name.
+func (a *Agent) detectWaitForReplicaCountVar(ctx context.Context) (string, error) {
+	const newVar = "rpl_semi_sync_source_wait_for_replica_count"
+	const oldVar = "rpl_semi_sync_master_wait_for_slave_count"
+
+	var count int
+	err := a.db.GetContext(ctx, &count,
+		"SELECT COUNT(*) FROM performance_schema.global_variables WHERE VARIABLE_NAME=?", newVar)
+	if err != nil {
+		return "", fmt.Errorf("failed to check semi-sync variable: %w", err)
+	}
+	if count > 0 {
+		return newVar, nil
+	}
+	return oldVar, nil
 }
 
 func (a *Agent) GetMySQLCloneStateStatus(ctx context.Context) (*MySQLCloneStateStatus, error) {
