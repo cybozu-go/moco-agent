@@ -278,7 +278,8 @@ func initializeMySQLForMOCO(ctx context.Context, socketPath string, logger logr.
 		if server.UserNotExists(err) {
 			// There is no passwordless 'root'@'localhost' account.
 			// It means the initialization has been completed.
-			return nil
+			// Still need to migrate plugins on already-initialized instances.
+			return migrateSemiSyncPlugins(ctx, socketPath, logger)
 		}
 
 		logger.Error(err, "connecting mysqld failed")
@@ -319,4 +320,15 @@ func InterceptorLogger(l logr.Logger) logging.Logger {
 			panic(fmt.Sprintf("unknown level %v", lvl))
 		}
 	})
+}
+
+func migrateSemiSyncPlugins(ctx context.Context, socketPath string, logger logr.Logger) error {
+	db, err := server.GetMySQLConnLocalSocket(
+		mocoagent.AdminUser, os.Getenv(mocoagent.AdminPasswordEnvKey), socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to connect as admin for plugin migration: %w", err)
+	}
+	defer db.Close()
+
+	return server.MigrateSemiSyncPlugins(ctx, db, logger)
 }
