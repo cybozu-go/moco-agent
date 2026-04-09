@@ -20,10 +20,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/go-sql-driver/mysql"
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
-	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/jmoiron/sqlx"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -64,8 +62,6 @@ var config struct {
 type mysqlLogger struct{}
 
 func (l mysqlLogger) Print(v ...interface{}) {}
-
-var grpcMetrics = grpc_prometheus.NewServerMetrics()
 
 var rootCmd = &cobra.Command{
 	Use:   "moco-agent",
@@ -164,29 +160,31 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
+		grpcMetrics := grpcprom.NewServerMetrics()
+		prometheus.MustRegister(grpcMetrics)
+
 		lis, err := net.Listen("tcp", config.address)
 		if err != nil {
 			return err
 		}
 
-		grpcLogger := zapLogger.Named("grpc")
+		grpcLogger := rLogger.WithName("grpc")
+		grpcLoggingOpts := []logging.Option{
+			logging.WithLogOnEvents(logging.FinishCall),
+		}
+
 		grpcServer := grpc.NewServer(
 			grpc.Creds(credentials.NewTLS(reloader.TLSServerConfig())),
 			grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
 				MinTime: 10 * time.Second,
 			}),
-			grpc.UnaryInterceptor(
-				grpc_middleware.ChainUnaryServer(
-					grpc_ctxtags.UnaryServerInterceptor(),
-					grpcMetrics.UnaryServerInterceptor(),
-					grpc_zap.UnaryServerInterceptor(grpcLogger),
-				),
+			grpc.ChainUnaryInterceptor(
+				grpcMetrics.UnaryServerInterceptor(),
+				logging.UnaryServerInterceptor(InterceptorLogger(grpcLogger), grpcLoggingOpts...),
 			),
 		)
 		proto.RegisterAgentServer(grpcServer, server.NewAgentService(agent))
-
-		// after all services are registered, initialize metrics.
-		grpc_prometheus.Register(grpcServer)
+		grpcMetrics.InitializeMetrics(grpcServer)
 
 		// enable server reflection service
 		// see https://github.com/grpc/grpc-go/blob/master/Documentation/server-reflection-tutorial.md
@@ -295,4 +293,30 @@ func initializeMySQLForMOCO(ctx context.Context, socketPath string, logger logr.
 	defer db.Close()
 
 	return server.Init(ctx, db, socketPath)
+}
+
+// https://github.com/grpc-ecosystem/go-grpc-middleware/blob/ab2131d954af9580c1b49a3d9475f6adbe5de9d3/interceptors/logging/examples/logr/example_test.go#L16-L42
+const (
+	debugVerbosity = 4
+	infoVerbosity  = 2
+	warnVerbosity  = 1
+	errorVerbosity = 0
+)
+
+func InterceptorLogger(l logr.Logger) logging.Logger {
+	return logging.LoggerFunc(func(_ context.Context, lvl logging.Level, msg string, fields ...any) {
+		l := l.WithValues(fields...)
+		switch lvl {
+		case logging.LevelDebug:
+			l.V(debugVerbosity).Info(msg)
+		case logging.LevelInfo:
+			l.V(infoVerbosity).Info(msg)
+		case logging.LevelWarn:
+			l.V(warnVerbosity).Info(msg)
+		case logging.LevelError:
+			l.V(errorVerbosity).Info(msg)
+		default:
+			panic(fmt.Sprintf("unknown level %v", lvl))
+		}
+	})
 }
