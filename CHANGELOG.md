@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Upgrade Go to 1.26 and update dependencies [#116](https://github.com/cybozu-go/moco-agent/pull/116) [#117](https://github.com/cybozu-go/moco-agent/pull/117)
 
 ## [0.15.0] - 2025-09-05
 
