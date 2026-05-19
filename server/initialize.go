@@ -497,12 +497,15 @@ func InitExternal(ctx context.Context, db *sqlx.DB) error {
 	// Always restore sql_log_bin before returning the connection to the pool,
 	// using a non-cancellable context with a short timeout so the cleanup runs
 	// even if the caller's ctx has been canceled. If the restore fails, the
-	// underlying connection still goes back to the pool with sql_log_bin=OFF;
-	// it will be discarded after ConnMaxIdleTime (30s) in the worst case.
+	// connection still goes back to the pool with sql_log_bin=OFF (idle
+	// connections expire after ConnMaxIdleTime, 30s), so we surface the
+	// failure via the context-attached logger to aid debugging.
 	defer func() {
 		restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		_, _ = conn.ExecContext(restoreCtx, "SET sql_log_bin=ON")
+		if _, err := conn.ExecContext(restoreCtx, "SET sql_log_bin=ON"); err != nil {
+			logr.FromContextOrDiscard(ctx).Error(err, "failed to re-enable sql_log_bin; pooled connection may retain sql_log_bin=OFF until idle expiry")
+		}
 	}()
 
 	if _, err := conn.ExecContext(ctx, "SET GLOBAL read_only=OFF"); err != nil {
