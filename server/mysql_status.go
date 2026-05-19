@@ -115,9 +115,12 @@ func (a *Agent) GetMySQLGlobalVariable(ctx context.Context) (*MySQLGlobalVariabl
 
 // detectWaitForReplicaCountVar detects which semi-sync variable exists and returns
 // the appropriate variable name. The result is cached for the lifetime of the Agent
-// because the available variables only change when mysqld restarts (which restarts
-// the agent as well). Only successful detections are cached so that a transient
-// error (e.g. ctx cancellation) does not get pinned for the agent's lifetime.
+// because the available variables change only when the semi-sync plugin is
+// (un)installed or when mysqld restarts. The agent performs plugin migration only
+// at startup before it begins serving traffic — and a mysqld restart restarts the
+// agent — so by the time this function is called the variable set is stable.
+// Only successful detections are cached so that a transient error (e.g. ctx
+// cancellation) does not get pinned for the agent's lifetime.
 func (a *Agent) detectWaitForReplicaCountVar(ctx context.Context) (string, error) {
 	a.waitForReplicaCountVarMu.Lock()
 	cached := a.waitForReplicaCountVar
