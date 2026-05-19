@@ -317,16 +317,29 @@ func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger
 	}
 	defer conn.Close()
 
-	// Disable binlog so that plugin (un)installation is not replicated.
-	if _, err := conn.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
-		return fmt.Errorf("failed to disable sql_log_bin: %w", err)
+	// Capture the original session value of sql_log_bin and only disable it if it
+	// was ON. We restore the captured value before returning the connection to the
+	// pool — leaving the connection with sql_log_bin permanently OFF would silently
+	// drop subsequent statements from the binary log.
+	var origSQLLogBin bool
+	if err := conn.GetContext(ctx, &origSQLLogBin, "SELECT @@session.sql_log_bin"); err != nil {
+		return fmt.Errorf("failed to read sql_log_bin: %w", err)
 	}
-	// Restore sql_log_bin before returning the connection to the pool.
-	defer func() {
-		if _, err := conn.ExecContext(ctx, "SET sql_log_bin=ON"); err != nil {
-			logger.Error(err, "failed to re-enable sql_log_bin")
+	if origSQLLogBin {
+		if _, err := conn.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
+			return fmt.Errorf("failed to disable sql_log_bin: %w", err)
 		}
-	}()
+		defer func() {
+			// Use a fresh context with a short timeout so the restore still runs if
+			// the caller's ctx has been canceled (e.g. on agent shutdown). Otherwise
+			// the connection would be returned to the pool with sql_log_bin=OFF.
+			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			if _, err := conn.ExecContext(restoreCtx, "SET sql_log_bin=ON"); err != nil {
+				logger.Error(err, "failed to re-enable sql_log_bin")
+			}
+		}()
+	}
 
 	var superReadOnly bool
 	if err := conn.GetContext(ctx, &superReadOnly, "SELECT @@global.super_read_only"); err != nil {
@@ -337,7 +350,9 @@ func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger
 			return fmt.Errorf("failed to disable super_read_only: %w", err)
 		}
 		defer func() {
-			if _, err := conn.ExecContext(ctx, "SET GLOBAL super_read_only=ON"); err != nil {
+			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			if _, err := conn.ExecContext(restoreCtx, "SET GLOBAL super_read_only=ON"); err != nil {
 				logger.Error(err, "failed to re-enable super_read_only")
 			}
 		}()
