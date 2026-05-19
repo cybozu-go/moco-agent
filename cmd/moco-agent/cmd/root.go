@@ -278,8 +278,15 @@ func initializeMySQLForMOCO(ctx context.Context, socketPath string, logger logr.
 		if server.UserNotExists(err) {
 			// There is no passwordless 'root'@'localhost' account.
 			// It means the initialization has been completed.
-			// Still need to migrate plugins on already-initialized instances.
-			return migrateSemiSyncPlugins(ctx, socketPath, logger)
+			// Attempt semi-sync plugin migration on already-initialized instances,
+			// but do not fail agent startup if migration cannot be applied: failing
+			// here would crash-loop a running pod and leave the instance with no
+			// semi-sync plugin loaded.
+			logger.Info("MySQL initialization already completed; attempting semi-sync plugin migration")
+			if err := migrateSemiSyncPlugins(ctx, socketPath, logger); err != nil {
+				logger.Error(err, "semi-sync plugin migration failed on already-initialized instance; continuing without migration")
+			}
+			return nil
 		}
 
 		logger.Error(err, "connecting mysqld failed")

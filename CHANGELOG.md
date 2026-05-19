@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 - Upgrade Go to 1.26 and update dependencies [#116](https://github.com/cybozu-go/moco-agent/pull/116) [#117](https://github.com/cybozu-go/moco-agent/pull/117)
+- Replace deprecated semi-sync plugins (`rpl_semi_sync_master`/`rpl_semi_sync_slave`) with the new names (`rpl_semi_sync_source`/`rpl_semi_sync_replica`). Already-initialized instances are migrated automatically on agent startup. Migration failures on already-initialized instances are logged and do not abort agent startup, to avoid crash-looping a running pod.
+
+### ⚠️ Breaking changes
+- `server.MySQLGlobalVariablesStatus`: the field `RplSemiSyncMasterWaitForSlaveCount` (db tag `@@rpl_semi_sync_master_wait_for_slave_count`) has been renamed to `RplSemiSyncWaitForReplicaCount` (db tag `wait_for_replica_count`). The agent now detects whether the new (`rpl_semi_sync_source_wait_for_replica_count`) or legacy (`rpl_semi_sync_master_wait_for_slave_count`) variable is available at runtime. Downstream consumers (e.g. `moco`) must update references.
 
 ## [0.15.0] - 2025-09-05
 

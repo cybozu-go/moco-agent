@@ -165,8 +165,7 @@ var Plugins = []Plugin{
 	},
 }
 
-// legacySemiSyncPlugins maps new plugin names to their legacy counterparts.
-// Used during migration to detect and replace old plugins.
+// legacySemiSyncPlugins maps new plugin names to their legacy counterparts for backward-compatible migration.
 var legacySemiSyncPlugins = map[string]string{
 	"rpl_semi_sync_source":  "rpl_semi_sync_master",
 	"rpl_semi_sync_replica": "rpl_semi_sync_slave",
@@ -269,8 +268,14 @@ func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user UserSetting, pwd str
 	return nil
 }
 
-func ensureMOCOPlugins(ctx context.Context, db *sqlx.DB) error {
-	logger := logr.Discard()
+// pluginExecer is implemented by both *sqlx.DB and *sqlx.Conn so that callers
+// can pin all plugin-related statements to a single connection when needed.
+type pluginExecer interface {
+	sqlx.ExecerContext
+	GetContext(ctx context.Context, dest any, query string, args ...any) error
+}
+
+func ensureMOCOPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger) error {
 	for _, p := range Plugins {
 		if err := ensurePlugin(ctx, db, p, logger); err != nil {
 			return err
@@ -281,8 +286,12 @@ func ensureMOCOPlugins(ctx context.Context, db *sqlx.DB) error {
 
 // MigrateSemiSyncPlugins replaces legacy semi-sync plugins (master/slave)
 // with the new ones (source/replica) on already-initialized instances.
+//
+// The work is pinned to a single physical connection so that session-scoped
+// settings (sql_log_bin) reliably apply to the subsequent UNINSTALL/INSTALL
+// statements.
 func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger) error {
-	// Check if any legacy plugins need migration
+	// Check if any legacy plugins need migration before opening a dedicated connection.
 	var needsMigration bool
 	for _, p := range Plugins {
 		oldName, ok := legacySemiSyncPlugins[p.name]
@@ -302,26 +311,33 @@ func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger
 		return nil
 	}
 
-	// Disable binlog and super_read_only only for actual plugin changes
-	if _, err := db.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
+	conn, err := db.Connx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire dedicated connection for plugin migration: %w", err)
+	}
+	defer conn.Close()
+
+	// Disable binlog so that plugin (un)installation is not replicated.
+	if _, err := conn.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
 		return fmt.Errorf("failed to disable sql_log_bin: %w", err)
 	}
+	// Restore sql_log_bin before returning the connection to the pool.
 	defer func() {
-		if _, err := db.ExecContext(ctx, "SET sql_log_bin=ON"); err != nil {
+		if _, err := conn.ExecContext(ctx, "SET sql_log_bin=ON"); err != nil {
 			logger.Error(err, "failed to re-enable sql_log_bin")
 		}
 	}()
 
-	var readOnly int
-	if err := db.GetContext(ctx, &readOnly, "SELECT @@global.super_read_only"); err != nil {
+	var superReadOnly bool
+	if err := conn.GetContext(ctx, &superReadOnly, "SELECT @@global.super_read_only"); err != nil {
 		return fmt.Errorf("failed to get super_read_only: %w", err)
 	}
-	if readOnly == 1 {
-		if _, err := db.ExecContext(ctx, "SET GLOBAL super_read_only=OFF"); err != nil {
+	if superReadOnly {
+		if _, err := conn.ExecContext(ctx, "SET GLOBAL super_read_only=OFF"); err != nil {
 			return fmt.Errorf("failed to disable super_read_only: %w", err)
 		}
 		defer func() {
-			if _, err := db.ExecContext(ctx, "SET GLOBAL super_read_only=ON"); err != nil {
+			if _, err := conn.ExecContext(ctx, "SET GLOBAL super_read_only=ON"); err != nil {
 				logger.Error(err, "failed to re-enable super_read_only")
 			}
 		}()
@@ -331,38 +347,49 @@ func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger
 		if _, ok := legacySemiSyncPlugins[p.name]; !ok {
 			continue
 		}
-		if err := ensurePlugin(ctx, db, p, logger); err != nil {
+		if err := ensurePlugin(ctx, conn, p, logger); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func ensurePlugin(ctx context.Context, db *sqlx.DB, plugin Plugin, logger logr.Logger) error {
-	// Check if the plugin is already installed and active
+func ensurePlugin(ctx context.Context, db pluginExecer, plugin Plugin, logger logr.Logger) error {
 	status, err := getPluginStatus(ctx, db, plugin.name)
 	if err != nil {
 		return err
 	}
-	if status == "ACTIVE" {
-		return nil
+
+	// If the plugin is registered but not ACTIVE (DISABLED / INACTIVE / DELETED),
+	// we cannot complete the migration safely: INSTALL would fail with
+	// ER_PLUGIN_INSTALLED, and uninstalling the legacy counterpart first would
+	// leave the instance with no semi-sync plugin loaded. Fail fast before
+	// touching anything so the operator can investigate.
+	if status != "" && status != "ACTIVE" {
+		return fmt.Errorf("plugin %s is registered but not active (status=%s); manual intervention required", plugin.name, status)
 	}
 
-	// For semi-sync plugins, check if the legacy version is installed and migrate
+	// For semi-sync plugins, always remove a legacy counterpart if it is registered
+	// (regardless of whether the new plugin is already ACTIVE) so that the two
+	// cannot coexist after migration. Without this, a system that ended up with
+	// both plugins registered would never get the legacy one cleaned up.
 	if oldName, ok := legacySemiSyncPlugins[plugin.name]; ok {
 		oldStatus, err := getPluginStatus(ctx, db, oldName)
 		if err != nil {
 			return err
 		}
 		if oldStatus != "" {
-			logger.Info("migrating semi-sync plugin", "from", oldName, "to", plugin.name, "oldStatus", oldStatus)
+			logger.Info("uninstalling legacy semi-sync plugin", "name", oldName, "status", oldStatus)
 			if _, err := db.ExecContext(ctx, fmt.Sprintf("UNINSTALL PLUGIN %s", oldName)); err != nil {
 				return fmt.Errorf("failed to uninstall legacy plugin %s: %w", oldName, err)
 			}
 		}
 	}
 
-	// Install the plugin
+	if status == "ACTIVE" {
+		return nil
+	}
+
 	queryStr := fmt.Sprintf(`INSTALL PLUGIN %s SONAME ?`, plugin.name)
 	if _, err := db.ExecContext(ctx, queryStr, plugin.soName); err != nil {
 		return fmt.Errorf("failed to install plugin %s: %w", plugin.name, err)
@@ -373,7 +400,7 @@ func ensurePlugin(ctx context.Context, db *sqlx.DB, plugin Plugin, logger logr.L
 
 // getPluginStatus returns the PLUGIN_STATUS for the given plugin name.
 // Returns "" if the plugin is not installed, or the status string ("ACTIVE", "INACTIVE", "DISABLED", etc.).
-func getPluginStatus(ctx context.Context, db *sqlx.DB, name string) (string, error) {
+func getPluginStatus(ctx context.Context, db pluginExecer, name string) (string, error) {
 	var status string
 	err := db.GetContext(ctx, &status,
 		"SELECT PLUGIN_STATUS FROM information_schema.plugins WHERE PLUGIN_NAME=?", name)
@@ -393,7 +420,7 @@ func Init(ctx context.Context, db *sqlx.DB, socket string) error {
 	if err := ensureMOCOUsers(ctx, db, false); err != nil {
 		return err
 	}
-	if err := ensureMOCOPlugins(ctx, db); err != nil {
+	if err := ensureMOCOPlugins(ctx, db, logr.Discard()); err != nil {
 		return err
 	}
 
@@ -447,7 +474,7 @@ func InitExternal(ctx context.Context, db *sqlx.DB) error {
 	if err := ensureMOCOUsers(ctx, db, true); err != nil {
 		return err
 	}
-	if err := ensureMOCOPlugins(ctx, db); err != nil {
+	if err := ensureMOCOPlugins(ctx, db, logr.Discard()); err != nil {
 		return err
 	}
 	if _, err := db.ExecContext(ctx, "SET GLOBAL super_read_only=ON"); err != nil {
