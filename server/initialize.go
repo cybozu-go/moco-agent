@@ -171,7 +171,7 @@ var legacySemiSyncPlugins = map[string]string{
 	"rpl_semi_sync_replica": "rpl_semi_sync_slave",
 }
 
-func ensureMOCOUsers(ctx context.Context, db *sqlx.DB, reset bool) error {
+func ensureMOCOUsers(ctx context.Context, db pluginExecer, reset bool) error {
 	_, err := db.ExecContext(ctx, "SET GLOBAL partial_revokes='ON'")
 	if err != nil {
 		return fmt.Errorf("failed to set global partial_revokes=ON: %w", err)
@@ -216,7 +216,7 @@ func dropLocalRootUser(ctx context.Context, db *sqlx.DB) error {
 	return nil
 }
 
-func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user UserSetting, pwd string, reset bool) error {
+func ensureMySQLUser(ctx context.Context, db pluginExecer, user UserSetting, pwd string, reset bool) error {
 	var count int
 	err := db.GetContext(ctx, &count, `SELECT COUNT(*) FROM mysql.user WHERE user=? and host='%'`, user.name)
 	if err != nil {
@@ -275,7 +275,7 @@ type pluginExecer interface {
 	GetContext(ctx context.Context, dest any, query string, args ...any) error
 }
 
-func ensureMOCOPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger) error {
+func ensureMOCOPlugins(ctx context.Context, db pluginExecer, logger logr.Logger) error {
 	for _, p := range Plugins {
 		if err := ensurePlugin(ctx, db, p, logger); err != nil {
 			return err
@@ -480,23 +480,42 @@ func Init(ctx context.Context, db *sqlx.DB, socket string) error {
 }
 
 func InitExternal(ctx context.Context, db *sqlx.DB) error {
-	if _, err := db.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
+	// Pin all statements to a single physical connection so that session-scoped
+	// sql_log_bin=OFF reliably applies to the subsequent user / plugin setup.
+	// Without pinning, *sqlx.DB may hop across pooled connections and silently
+	// re-enable binary logging for some statements, and may leave an idle
+	// connection in the pool with sql_log_bin=OFF.
+	conn, err := db.Connx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire dedicated connection: %w", err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
 		return fmt.Errorf("failed to disable binary logging: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, "SET GLOBAL read_only=OFF"); err != nil {
+	// Always restore sql_log_bin before returning the connection to the pool,
+	// using a non-cancellable context with a short timeout so the cleanup runs
+	// even if the caller's ctx has been canceled. If the restore fails, the
+	// underlying connection still goes back to the pool with sql_log_bin=OFF;
+	// it will be discarded after ConnMaxIdleTime (30s) in the worst case.
+	defer func() {
+		restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_, _ = conn.ExecContext(restoreCtx, "SET sql_log_bin=ON")
+	}()
+
+	if _, err := conn.ExecContext(ctx, "SET GLOBAL read_only=OFF"); err != nil {
 		return fmt.Errorf("failed to disable read_only: %w", err)
 	}
-	if err := ensureMOCOUsers(ctx, db, true); err != nil {
+	if err := ensureMOCOUsers(ctx, conn, true); err != nil {
 		return err
 	}
-	if err := ensureMOCOPlugins(ctx, db, logr.Discard()); err != nil {
+	if err := ensureMOCOPlugins(ctx, conn, logr.Discard()); err != nil {
 		return err
 	}
-	if _, err := db.ExecContext(ctx, "SET GLOBAL super_read_only=ON"); err != nil {
+	if _, err := conn.ExecContext(ctx, "SET GLOBAL super_read_only=ON"); err != nil {
 		return fmt.Errorf("failed to enable super_read_only: %w", err)
-	}
-	if _, err := db.ExecContext(ctx, "SET sql_log_bin=ON"); err != nil {
-		return fmt.Errorf("failed to enable binary logging: %w", err)
 	}
 	return nil
 }

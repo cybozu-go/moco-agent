@@ -194,9 +194,18 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 	})
 })
 
+// execAll runs each query through a single pinned *sqlx.Conn so that
+// session-scoped settings (e.g. SET sql_log_bin=OFF) reliably apply to
+// the subsequent statements. Without pinning, *sqlx.DB may hop across
+// pooled connections and silently lose those settings.
 func execAll(ctx context.Context, db *sqlx.DB, queries ...string) error {
+	conn, err := db.Connx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire connection: %w", err)
+	}
+	defer conn.Close()
 	for _, q := range queries {
-		if _, err := db.ExecContext(ctx, q); err != nil {
+		if _, err := conn.ExecContext(ctx, q); err != nil {
 			return fmt.Errorf("failed to run %q: %w", q, err)
 		}
 	}
