@@ -113,21 +113,39 @@ func (a *Agent) GetMySQLGlobalVariable(ctx context.Context) (*MySQLGlobalVariabl
 	return status, nil
 }
 
-// detectWaitForReplicaCountVar detects which semi-sync variable exists and returns the appropriate variable name.
+// detectWaitForReplicaCountVar detects which semi-sync variable exists and returns
+// the appropriate variable name. The result is cached for the lifetime of the Agent
+// because the available variables only change when mysqld restarts (which restarts
+// the agent as well). Only successful detections are cached so that a transient
+// error (e.g. ctx cancellation) does not get pinned for the agent's lifetime.
 func (a *Agent) detectWaitForReplicaCountVar(ctx context.Context) (string, error) {
+	a.waitForReplicaCountVarMu.Lock()
+	cached := a.waitForReplicaCountVar
+	a.waitForReplicaCountVarMu.Unlock()
+	if cached != "" {
+		return cached, nil
+	}
+
 	const newVar = "rpl_semi_sync_source_wait_for_replica_count"
 	const oldVar = "rpl_semi_sync_master_wait_for_slave_count"
 
-	var count int
-	err := a.db.GetContext(ctx, &count,
-		"SELECT COUNT(*) FROM performance_schema.global_variables WHERE VARIABLE_NAME=?", newVar)
+	var name string
+	err := a.db.GetContext(ctx, &name,
+		`SELECT VARIABLE_NAME FROM performance_schema.global_variables
+		 WHERE VARIABLE_NAME IN (?, ?)
+		 ORDER BY FIELD(VARIABLE_NAME, ?, ?) LIMIT 1`,
+		newVar, oldVar, newVar, oldVar)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("no semi-sync variable found: neither %s nor %s exists", newVar, oldVar)
+		}
 		return "", fmt.Errorf("failed to check semi-sync variable: %w", err)
 	}
-	if count > 0 {
-		return newVar, nil
-	}
-	return oldVar, nil
+
+	a.waitForReplicaCountVarMu.Lock()
+	a.waitForReplicaCountVar = name
+	a.waitForReplicaCountVarMu.Unlock()
+	return name, nil
 }
 
 func (a *Agent) GetMySQLCloneStateStatus(ctx context.Context) (*MySQLCloneStateStatus, error) {
