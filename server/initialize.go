@@ -491,22 +491,32 @@ func InitExternal(ctx context.Context, db *sqlx.DB) error {
 	}
 	defer conn.Close()
 
-	if _, err := conn.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
-		return fmt.Errorf("failed to disable binary logging: %w", err)
+	// Capture the original session value of sql_log_bin and only disable it if
+	// it was ON. Restoring to the captured value (rather than unconditionally
+	// forcing ON) avoids changing the connection's semantics when the caller
+	// — or the mysqld instance — intentionally has binary logging off.
+	var origSQLLogBin bool
+	if err := conn.GetContext(ctx, &origSQLLogBin, "SELECT @@session.sql_log_bin"); err != nil {
+		return fmt.Errorf("failed to read sql_log_bin: %w", err)
 	}
-	// Always restore sql_log_bin before returning the connection to the pool,
-	// using a non-cancellable context with a short timeout so the cleanup runs
-	// even if the caller's ctx has been canceled. If the restore fails, the
-	// connection still goes back to the pool with sql_log_bin=OFF (idle
-	// connections expire after ConnMaxIdleTime, 30s), so we surface the
-	// failure via the context-attached logger to aid debugging.
-	defer func() {
-		restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		if _, err := conn.ExecContext(restoreCtx, "SET sql_log_bin=ON"); err != nil {
-			logr.FromContextOrDiscard(ctx).Error(err, "failed to re-enable sql_log_bin; pooled connection may retain sql_log_bin=OFF until idle expiry")
+	if origSQLLogBin {
+		if _, err := conn.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
+			return fmt.Errorf("failed to disable binary logging: %w", err)
 		}
-	}()
+		// Restore sql_log_bin before returning the connection to the pool,
+		// using a non-cancellable context with a short timeout so the cleanup
+		// runs even if the caller's ctx has been canceled. If the restore
+		// fails, the connection still goes back to the pool with
+		// sql_log_bin=OFF (idle connections expire after ConnMaxIdleTime,
+		// 30s); surface the failure via the context-attached logger.
+		defer func() {
+			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			if _, err := conn.ExecContext(restoreCtx, "SET sql_log_bin=ON"); err != nil {
+				logr.FromContextOrDiscard(ctx).Error(err, "failed to re-enable sql_log_bin; pooled connection may retain sql_log_bin=OFF until idle expiry")
+			}
+		}()
+	}
 
 	if _, err := conn.ExecContext(ctx, "SET GLOBAL read_only=OFF"); err != nil {
 		return fmt.Errorf("failed to disable read_only: %w", err)
