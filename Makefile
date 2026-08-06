@@ -1,16 +1,5 @@
 MYSQL_VERSION = 8.4.4
 
-# For Go
-GOOS := $(shell go env GOOS)
-GOARCH := $(shell go env GOARCH)
-
-# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
-ifeq (,$(shell go env GOBIN))
-GOBIN=$(shell go env GOPATH)/bin
-else
-GOBIN=$(shell go env GOBIN)
-endif
-
 GO_FILES := $(shell find . -name '*.go' -print)
 
 PROTOC := protoc
