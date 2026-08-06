@@ -68,7 +68,7 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to mysqld through %s: %w", a.mysqlSocketPath, err)
 	}
-	defer cloneDB.Close()
+	defer func() { _ = cloneDB.Close() }()
 
 	logger.Info("start cloning instance", "donor", donorAddr)
 	_, err = cloneDB.Exec(`CLONE INSTANCE FROM ?@?:? IDENTIFIED BY ?`, req.User, req.Host, req.Port, req.Password)
@@ -100,7 +100,7 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 		logger.Error(err, "failed to connect to mysqld after bootstrap")
 		return err
 	}
-	defer initDB.Close()
+	defer func() { _ = initDB.Close() }()
 
 	if err := InitExternal(context.Background(), initDB); err != nil {
 		logger.Error(err, "failed to initialize after clone")
@@ -123,7 +123,7 @@ func waitBootstrap(user, password, socket string, timeout time.Duration, logger 
 
 		db, err := GetMySQLConnLocalSocket(user, password, socket)
 		if err == nil {
-			db.Close()
+			_ = db.Close()
 			return nil
 		}
 		logger.Error(err, "connection failed")

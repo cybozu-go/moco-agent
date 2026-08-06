@@ -31,7 +31,7 @@ func run() error {
 		return fmt.Errorf("unable to open source file %q: %w", os.Args[1], err)
 	}
 
-	defer sf.Close()
+	defer func() { _ = sf.Close() }()
 
 	fi, err := sf.Stat()
 	if err != nil {
@@ -52,7 +52,7 @@ func run() error {
 		return fmt.Errorf("unable to create destination file %q: %w", os.Args[1], err)
 	}
 
-	defer df.Close()
+	defer func() { _ = df.Close() }()
 
 	if _, err = io.Copy(df, sf); err != nil {
 		return fmt.Errorf("unable to copy %q to %q: %w", os.Args[1], os.Args[2], err)

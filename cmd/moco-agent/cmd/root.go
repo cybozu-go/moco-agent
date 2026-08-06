@@ -61,7 +61,7 @@ var config struct {
 
 type mysqlLogger struct{}
 
-func (l mysqlLogger) Print(v ...interface{}) {}
+func (l mysqlLogger) Print(v ...any) {}
 
 var rootCmd = &cobra.Command{
 	Use:   "moco-agent",
@@ -72,7 +72,7 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		defer zapLogger.Sync()
+		defer func() { _ = zapLogger.Sync() }()
 		rLogger := zapr.NewLogger(zapLogger)
 
 		// Read required values for agent from ENV
@@ -80,9 +80,8 @@ var rootCmd = &cobra.Command{
 		if podName == "" {
 			return fmt.Errorf("%s is empty", mocoagent.PodNameEnvKey)
 		}
-		index := -1
 		fields := strings.Split(podName, "-")
-		index, _ = strconv.Atoi(fields[len(fields)-1])
+		index, _ := strconv.Atoi(fields[len(fields)-1])
 		agentPassword := os.Getenv(mocoagent.AgentPasswordEnvKey)
 		if agentPassword == "" {
 			return fmt.Errorf("%s is empty", mocoagent.AgentPasswordEnvKey)
@@ -116,9 +115,11 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		defer agent.CloseDB()
+		defer func() { _ = agent.CloseDB() }()
 
-		mysql.SetLogger(mysqlLogger{})
+		if err := mysql.SetLogger(mysqlLogger{}); err != nil {
+			return err
+		}
 
 		registry := prometheus.DefaultRegisterer
 		metrics.Init(registry, clusterName, index)
@@ -290,7 +291,7 @@ func initializeMySQLForMOCO(ctx context.Context, socketPath string, logger logr.
 		}
 	}
 
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	return server.Init(ctx, db, socketPath)
 }

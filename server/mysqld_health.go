@@ -17,7 +17,7 @@ func (a *Agent) MySQLDHealth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to execute a query", http.StatusServiceUnavailable)
 		return
 	}
-	rows.Close()
+	_ = rows.Close()
 }
 
 func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
