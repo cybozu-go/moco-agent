@@ -22,13 +22,9 @@ all: build/moco-agent
 aqua-install:
 	aqua install
 
-.PHONY: validate
-validate: setup aqua-install
-	test -z "$$(gofmt -s -l . | tee /dev/stderr)"
-	staticcheck ./...
-	test -z "$$(custom-checker -restrictpkg.packages=html/template,log $$(go list -tags='$(GOTAGS)' ./... ) 2>&1 | tee /dev/stderr)"
-	go build ./...
-	go vet ./...
+.PHONY: lint
+lint: aqua-install
+	@golangci-lint run --timeout 5m
 
 .PHONY: check-generate
 check-generate:
@@ -56,21 +52,6 @@ proto/agentrpc_grpc.pb.go: proto/agentrpc.proto
 
 docs/agentrpc.md: proto/agentrpc.proto
 	$(PROTOC) --doc_out=docs --doc_opt=markdown,$@ $<
-
-.PHONY: setup
-setup: custom-checker staticcheck
-
-.PHONY: staticcheck
-staticcheck:
-	if ! which staticcheck >/dev/null; then \
-		env GOFLAGS= go install honnef.co/go/tools/cmd/staticcheck@latest; \
-	fi
-
-.PHONY: custom-checker
-custom-checker:
-	if ! which custom-checker >/dev/null; then \
-		env GOFLAGS= go install github.com/cybozu-go/golang-custom-analyzer/cmd/custom-checker@latest; \
-	fi
 
 .PHONY: clean
 clean:

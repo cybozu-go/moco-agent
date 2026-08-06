@@ -1,0 +1,46 @@
+version: "2"
+run:
+  allow-parallel-runners: true
+linters:
+  default: none
+  enable:
+    - copyloopvar
+    - errcheck
+    - goconst
+    - gocyclo
+    - govet
+    - ineffassign
+    - modernize
+    - misspell
+    - nakedret
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - nilerr
+  settings:
+    govet:
+      disable:
+        - fieldalignment
+        - shadow
+      enable-all: true
+    modernize:
+      disable:
+        - omitzero
+  exclusions:
+    rules:
+      - path: (.+)(_test\.go|test_(.+)\.go)
+        linters:
+        - noctx
+        - errcheck
+        - goconst
+        - unparam
+      # MySQL privilege names in the user definitions naturally repeat
+      # across users; they are clearer as literals than as constants.
+      - path: server/initialize\.go
+        linters:
+        - goconst
+formatters:
+  enable:
+    - gofmt
+    - goimports

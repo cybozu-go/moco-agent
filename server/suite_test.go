@@ -1,7 +1,7 @@
 package server
 
 import (
-	"log" // restrictpkg:ignore to suppress mysql client logs.
+	"log"
 	"os"
 	"testing"
 	"time"
