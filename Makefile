@@ -22,6 +22,10 @@ all: build/moco-agent
 aqua-install:
 	aqua install
 
+.PHONY: pinact
+pinact:
+	pinact run -update -min-age 7 -verify
+
 .PHONY: validate
 validate: setup aqua-install
 	test -z "$$(gofmt -s -l . | tee /dev/stderr)"
