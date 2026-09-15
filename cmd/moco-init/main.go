@@ -158,7 +158,7 @@ func initMySQL(mysqld string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := unix.Syncfs(int(f.Fd())); err != nil {
 		return fmt.Errorf("failed to sync fs: %w", err)
@@ -172,7 +172,7 @@ func initMySQL(mysqld string) error {
 	if err != nil {
 		return err
 	}
-	defer g.Close()
+	defer func() { _ = g.Close() }()
 	return g.Sync()
 }
 
@@ -270,7 +270,7 @@ func createConf() error {
 	if err != nil {
 		return fmt.Errorf("failed to create my.cnf file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := tmpl.Execute(f, v); err != nil {
 		return err

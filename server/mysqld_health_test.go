@@ -102,7 +102,7 @@ var _ = Describe("health", func() {
 		Expect(err).NotTo(HaveOccurred())
 		_, err = donorDB.Exec("CREATE TABLE foo.bar (i INT PRIMARY KEY) ENGINE=InnoDB")
 		Expect(err).NotTo(HaveOccurred())
-		items := []interface{}{100, 299, 993, 9292}
+		items := []any{100, 299, 993, 9292}
 		_, err = donorDB.Exec("INSERT INTO foo.bar (i) VALUES (?), (?), (?), (?)", items...)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -119,7 +119,7 @@ var _ = Describe("health", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("checking readiness")
-		Eventually(func() interface{} {
+		Eventually(func() any {
 			return getReady(agent)
 		}).Should(HaveHTTPStatus(http.StatusOK))
 
@@ -131,14 +131,14 @@ var _ = Describe("health", func() {
 		time.Sleep(200 * time.Millisecond)
 		_, err = donorDB.Exec("ALTER TABLE foo.bar ADD COLUMN hoge TEXT")
 		Expect(err).NotTo(HaveOccurred())
-		Eventually(func() interface{} {
+		Eventually(func() any {
 			return getReady(agent)
 		}).Should(HaveHTTPStatus(http.StatusServiceUnavailable))
 
 		By("unlocking replica")
 		_, err = replicaDB.Exec(`UNLOCK INSTANCE`)
 		Expect(err).NotTo(HaveOccurred())
-		Eventually(func() interface{} {
+		Eventually(func() any {
 			return getReady(agent)
 		}).Should(HaveHTTPStatus(http.StatusOK))
 	})
@@ -196,10 +196,10 @@ var _ = Describe("health", func() {
 		// The uptime observed by the agent is about 15s smaller than the process uptime reported by kernel
 		// The test flow takes about 35s from the process start to this point.
 		// We set Consistently timeout to 60(transactionQueueingWait) - (35 - 15) - 5(margin) = 35
-		Consistently(func() interface{} {
+		Consistently(func() any {
 			return getReady(agent)
 		}).WithPolling(time.Second).WithTimeout(time.Second * 35).ShouldNot(HaveHTTPStatus(http.StatusOK))
-		Eventually(func() interface{} {
+		Eventually(func() any {
 			return getReady(agent)
 		}).WithPolling(time.Second).WithTimeout(time.Second * 10).Should(HaveHTTPStatus(http.StatusOK))
 	})

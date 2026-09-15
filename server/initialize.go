@@ -312,7 +312,7 @@ func Init(ctx context.Context, db *sqlx.DB, socket string) error {
 		}
 		time.Sleep(1 * time.Second)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := dropLocalRootUser(ctx, db); err != nil {
 		return err

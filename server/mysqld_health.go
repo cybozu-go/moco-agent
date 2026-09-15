@@ -11,13 +11,12 @@ import (
 
 // Health returns the health check result of own MySQL
 func (a *Agent) MySQLDHealth(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.db.QueryxContext(r.Context(), `SELECT VERSION()`)
-	if err != nil {
+	var version string
+	if err := a.db.GetContext(r.Context(), &version, `SELECT VERSION()`); err != nil {
 		a.logger.Info("health check failed")
 		http.Error(w, "failed to execute a query", http.StatusServiceUnavailable)
 		return
 	}
-	rows.Close()
 }
 
 func (a *Agent) MySQLDReady(w http.ResponseWriter, r *http.Request) {
