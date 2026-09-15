@@ -9,10 +9,11 @@ checksum:
 #   - all
 registries:
 - type: standard
-  ref: v4.492.0 # renovate: depName=aquaproj/aqua-registry
+  ref: v4.554.0 # renovate: depName=aquaproj/aqua-registry
 packages:
 - name: protocolbuffers/protobuf/protoc@v34.1
 - name: protocolbuffers/protobuf-go/protoc-gen-go@v1.36.11
 - name: grpc/grpc-go/protoc-gen-go-grpc@cmd/protoc-gen-go-grpc/v1.6.1
 - name: pseudomuto/protoc-gen-doc@v1.5.1
 - name: golangci/golangci-lint@v2.12.2
+- name: suzuki-shunsuke/pinact@v4.1.1

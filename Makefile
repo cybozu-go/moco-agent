@@ -15,6 +15,10 @@ aqua-install:
 lint: aqua-install
 	@golangci-lint run --timeout 5m
 
+.PHONY: pinact
+pinact:
+	pinact run -update -min-age 7 -verify
+
 .PHONY: check-generate
 check-generate:
 	$(MAKE) proto
