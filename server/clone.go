@@ -102,7 +102,10 @@ func (a *Agent) Clone(ctx context.Context, req *proto.CloneRequest) error {
 	}
 	defer func() { _ = initDB.Close() }()
 
-	if err := InitExternal(context.Background(), initDB); err != nil {
+	// Attach the agent logger to the context so deferred cleanup inside
+	// InitExternal (e.g. sql_log_bin restore failures) can surface via
+	// logr.FromContextOrDiscard rather than being silently discarded.
+	if err := InitExternal(logr.NewContext(context.Background(), logger), initDB); err != nil {
 		logger.Error(err, "failed to initialize after clone")
 		return err
 	}
