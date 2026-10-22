@@ -17,11 +17,12 @@ lint: aqua-install
 
 .PHONY: pinact
 pinact:
-	pinact run -update -min-age 7 -verify
+	pinact run --update --min-age 7 --verify
 
 .PHONY: check-generate
 check-generate:
-	$(MAKE) proto
+	# To ensure that updates to protoc-gen-go can be detected even if the proto files haven't been updated, always regenerate the `*.pb.go` files.
+	$(MAKE) -B proto
 	git diff --exit-code --name-only
 
 # Run tests
