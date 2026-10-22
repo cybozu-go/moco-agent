@@ -11,10 +11,10 @@ import (
 
 // MySQLGlobalVariablesStatus defines the observed global variable state of a MySQL instance
 type MySQLGlobalVariablesStatus struct {
-	ReadOnly                           bool           `db:"@@read_only"`
-	SuperReadOnly                      bool           `db:"@@super_read_only"`
-	RplSemiSyncMasterWaitForSlaveCount int            `db:"@@rpl_semi_sync_master_wait_for_slave_count"`
-	CloneValidDonorList                sql.NullString `db:"@@clone_valid_donor_list"`
+	ReadOnly                       bool           `db:"@@read_only"`
+	SuperReadOnly                  bool           `db:"@@super_read_only"`
+	RplSemiSyncWaitForReplicaCount int            `db:"wait_for_replica_count"`
+	CloneValidDonorList            sql.NullString `db:"@@clone_valid_donor_list"`
 }
 
 // MySQLCloneStateStatus defines the observed clone state of a MySQL instance
@@ -100,12 +100,55 @@ type MySQLReplicaStatus struct {
 }
 
 func (a *Agent) GetMySQLGlobalVariable(ctx context.Context) (*MySQLGlobalVariablesStatus, error) {
+	varName, err := a.detectWaitForReplicaCountVar(ctx)
+	if err != nil {
+		return nil, err
+	}
 	status := &MySQLGlobalVariablesStatus{}
-	err := a.db.GetContext(ctx, status, `SELECT @@read_only, @@super_read_only, @@rpl_semi_sync_master_wait_for_slave_count, @@clone_valid_donor_list`)
+	query := fmt.Sprintf("SELECT @@read_only, @@super_read_only, @@%s AS wait_for_replica_count, @@clone_valid_donor_list", varName)
+	err = a.db.GetContext(ctx, status, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get global variable: %w", err)
 	}
 	return status, nil
+}
+
+// detectWaitForReplicaCountVar detects which semi-sync variable exists and returns
+// the appropriate variable name. The result is cached for the lifetime of the Agent
+// because the available variables change only when the semi-sync plugin is
+// (un)installed or when mysqld restarts. The agent performs plugin migration only
+// at startup before it begins serving traffic — and a mysqld restart restarts the
+// agent — so by the time this function is called the variable set is stable.
+// Only successful detections are cached so that a transient error (e.g. ctx
+// cancellation) does not get pinned for the agent's lifetime.
+func (a *Agent) detectWaitForReplicaCountVar(ctx context.Context) (string, error) {
+	a.waitForReplicaCountVarMu.Lock()
+	cached := a.waitForReplicaCountVar
+	a.waitForReplicaCountVarMu.Unlock()
+	if cached != "" {
+		return cached, nil
+	}
+
+	const newVar = "rpl_semi_sync_source_wait_for_replica_count"
+	const oldVar = "rpl_semi_sync_master_wait_for_slave_count"
+
+	var name string
+	err := a.db.GetContext(ctx, &name,
+		`SELECT VARIABLE_NAME FROM performance_schema.global_variables
+		 WHERE VARIABLE_NAME IN (?, ?)
+		 ORDER BY FIELD(VARIABLE_NAME, ?, ?) LIMIT 1`,
+		newVar, oldVar, newVar, oldVar)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("no semi-sync variable found: neither %s nor %s exists", newVar, oldVar)
+		}
+		return "", fmt.Errorf("failed to check semi-sync variable: %w", err)
+	}
+
+	a.waitForReplicaCountVarMu.Lock()
+	a.waitForReplicaCountVar = name
+	a.waitForReplicaCountVarMu.Unlock()
+	return name, nil
 }
 
 func (a *Agent) GetMySQLCloneStateStatus(ctx context.Context) (*MySQLCloneStateStatus, error) {
