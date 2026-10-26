@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-26
+
+### Changed
+- Introduce golangci-lint [#121](https://github.com/cybozu-go/moco-agent/pull/121)
+- Upgrade Go to 1.27 and update dependencies [#124](https://github.com/cybozu-go/moco-agent/pull/124)
+
+## [0.16.0] - 2026-04-09
+
 ### Changed
 - Upgrade Go to 1.26 and update dependencies [#116](https://github.com/cybozu-go/moco-agent/pull/116) [#117](https://github.com/cybozu-go/moco-agent/pull/117)
 
@@ -13,7 +21,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 - Upgrade Go to 1.24 and update dependencies[#113](https://github.com/cybozu-go/moco-agent/pull/113)
 
-
 ## [0.14.0] - 2025-07-28
 
 ### Changed
@@ -21,7 +28,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 - Add init-timezones flag to populate timezone data [#111](https://github.com/cybozu-go/moco-agent/pull/111)
-
 
 ## [0.13.1] - 2025-01-29
 
@@ -213,7 +219,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Move moco agent code from cybozu-go/moco repo. (#1)
 - Move ping function from shellscript to moco-agent. (#4)
 
-[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/cybozu-go/moco-agent/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/cybozu-go/moco-agent/compare/v0.16.0...v0.17.0
+[0.16.0]: https://github.com/cybozu-go/moco-agent/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/cybozu-go/moco-agent/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/cybozu-go/moco-agent/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/cybozu-go/moco-agent/compare/v0.13.0...v0.13.1
