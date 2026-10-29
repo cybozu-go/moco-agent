@@ -311,6 +311,20 @@ func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger
 		return nil
 	}
 
+	// Uninstalling a legacy plugin with semi-sync enabled would leave the new
+	// plugin disabled until moco-controller reconfigures it. On a primary with
+	// no connected replicas, commits would not wait for acks in that window.
+	var enabled int
+	if err := db.GetContext(ctx, &enabled,
+		`SELECT COUNT(*) FROM performance_schema.global_variables
+		 WHERE VARIABLE_NAME IN ('rpl_semi_sync_master_enabled', 'rpl_semi_sync_slave_enabled') AND VARIABLE_VALUE='ON'`); err != nil {
+		return fmt.Errorf("failed to check semi-sync state: %w", err)
+	}
+	if enabled > 0 {
+		logger.Info("skipping semi-sync plugin migration because semi-sync is enabled; it will be migrated after mysqld restarts")
+		return nil
+	}
+
 	conn, err := db.Connx(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to acquire dedicated connection for plugin migration: %w", err)

@@ -163,6 +163,18 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 			`SET sql_log_bin=ON`,
 		)).To(Succeed())
 
+		By("skipping migration while semi-sync is enabled")
+		_, err = db.ExecContext(ctx, `SET GLOBAL rpl_semi_sync_master_enabled=ON`)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(MigrateSemiSyncPlugins(ctx, db, testLogger)).To(Succeed())
+		var status string
+		Expect(db.GetContext(ctx, &status,
+			`SELECT PLUGIN_STATUS FROM information_schema.plugins WHERE PLUGIN_NAME='rpl_semi_sync_master'`,
+		)).To(Succeed())
+		Expect(status).To(Equal("ACTIVE"))
+		_, err = db.ExecContext(ctx, `SET GLOBAL rpl_semi_sync_master_enabled=OFF`)
+		Expect(err).NotTo(HaveOccurred())
+
 		By("running migration")
 		Expect(MigrateSemiSyncPlugins(ctx, db, testLogger)).To(Succeed())
 
