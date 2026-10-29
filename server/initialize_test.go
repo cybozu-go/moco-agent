@@ -4,34 +4,12 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/jmoiron/sqlx"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-// legacySemiSyncAvailable reports whether the test MySQL has the legacy
-// semi-sync plugin shared objects (semisync_master.so / semisync_slave.so).
-// They were removed in MySQL 8.4, so we can only exercise the legacy-to-new
-// migration on 8.0.x containers.
-func legacySemiSyncAvailable() bool {
-	parts := strings.SplitN(MySQLVersion, ".", 3)
-	if len(parts) < 2 {
-		return false
-	}
-	major, err := strconv.Atoi(parts[0])
-	if err != nil || major != 8 {
-		return false
-	}
-	minor, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return false
-	}
-	return minor < 4
-}
 
 var _ = Describe("initialize", func() {
 	It("should create users", func() {
@@ -133,10 +111,6 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 	})
 
 	It("should migrate legacy plugins to new ones", func() {
-		if !legacySemiSyncAvailable() {
-			Skip("legacy semi-sync plugins are not available on MySQL " + MySQLVersion)
-		}
-
 		By("starting MySQLd")
 		StartMySQLD(replicaHost, replicaPort, replicaServerID)
 		defer StopAndRemoveMySQLD(replicaHost)
