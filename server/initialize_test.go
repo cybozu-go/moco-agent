@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
 	"github.com/jmoiron/sqlx"
@@ -208,6 +209,62 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 
 		By("running migration again is a no-op")
 		Expect(MigrateSemiSyncPlugins(ctx, db, testLogger)).To(Succeed())
+	})
+
+	It("should make GetMySQLGlobalVariable follow the installed plugins", func() {
+		By("starting MySQLd")
+		StartMySQLD(donorHost, donorPort, donorServerID)
+		defer StopAndRemoveMySQLD(donorHost)
+
+		sockFile := filepath.Join(socketDir(donorHost), "mysqld.sock")
+		conf := MySQLAccessorConfig{
+			Host:              "localhost",
+			Port:              donorPort,
+			Password:          agentUserPassword,
+			ConnMaxIdleTime:   30 * time.Minute,
+			ConnectionTimeout: 3 * time.Second,
+			ReadTimeout:       30 * time.Second,
+		}
+		agent, err := New(conf, testClusterName, sockFile, "", maxDelayThreshold, time.Second, testLogger)
+		Expect(err).NotTo(HaveOccurred())
+		defer agent.CloseDB()
+
+		db, err := GetMySQLConnLocalSocket(mocoagent.AdminUser, adminUserPassword, sockFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer db.Close()
+
+		ctx := context.Background()
+
+		By("reading the wait count with the source/replica plugins")
+		_, err = db.ExecContext(ctx, `SET GLOBAL rpl_semi_sync_source_wait_for_replica_count=3`)
+		Expect(err).NotTo(HaveOccurred())
+		gv, err := agent.GetMySQLGlobalVariable(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(gv.RplSemiSyncWaitForReplicaCount).To(Equal(3))
+
+		By("reading the wait count after switching to the master/slave plugins")
+		Expect(execAll(ctx, db,
+			`SET sql_log_bin=OFF`,
+			`SET GLOBAL super_read_only=OFF`,
+			`UNINSTALL PLUGIN rpl_semi_sync_replica`,
+			`UNINSTALL PLUGIN rpl_semi_sync_source`,
+			`INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master.so'`,
+			`INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so'`,
+			`SET GLOBAL rpl_semi_sync_master_wait_for_slave_count=2`,
+			`SET GLOBAL super_read_only=ON`,
+			`SET sql_log_bin=ON`,
+		)).To(Succeed())
+		gv, err = agent.GetMySQLGlobalVariable(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(gv.RplSemiSyncWaitForReplicaCount).To(Equal(2))
+
+		By("reading the wait count after migrating back to the source/replica plugins")
+		Expect(MigrateSemiSyncPlugins(ctx, db, testLogger)).To(Succeed())
+		_, err = db.ExecContext(ctx, `SET GLOBAL rpl_semi_sync_source_wait_for_replica_count=4`)
+		Expect(err).NotTo(HaveOccurred())
+		gv, err = agent.GetMySQLGlobalVariable(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(gv.RplSemiSyncWaitForReplicaCount).To(Equal(4))
 	})
 })
 
