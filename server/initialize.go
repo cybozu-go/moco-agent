@@ -371,7 +371,11 @@ func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger
 		defer func() {
 			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancel()
-			if _, err := conn.ExecContext(restoreCtx, "SET GLOBAL super_read_only=ON"); err != nil {
+			if _, err := conn.ExecContext(restoreCtx, "SET GLOBAL super_read_only=ON"); err == nil {
+				return
+			}
+			// The dedicated connection may have been killed; super_read_only is global, so retry on another connection.
+			if _, err := db.ExecContext(restoreCtx, "SET GLOBAL super_read_only=ON"); err != nil {
 				logger.Error(err, "failed to re-enable super_read_only")
 			}
 		}()
