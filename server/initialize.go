@@ -449,7 +449,7 @@ func Init(ctx context.Context, db *sqlx.DB, socket string) error {
 	if err := ensureMOCOUsers(ctx, db, false); err != nil {
 		return err
 	}
-	if err := ensureMOCOPlugins(ctx, db, logr.Discard()); err != nil {
+	if err := ensureMOCOPlugins(ctx, db, logr.FromContextOrDiscard(ctx)); err != nil {
 		return err
 	}
 
@@ -538,7 +538,7 @@ func InitExternal(ctx context.Context, db *sqlx.DB) error {
 	if err := ensureMOCOUsers(ctx, conn, true); err != nil {
 		return err
 	}
-	if err := ensureMOCOPlugins(ctx, conn, logr.Discard()); err != nil {
+	if err := ensureMOCOPlugins(ctx, conn, logr.FromContextOrDiscard(ctx)); err != nil {
 		return err
 	}
 	if _, err := conn.ExecContext(ctx, "SET GLOBAL super_read_only=ON"); err != nil {

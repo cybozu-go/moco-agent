@@ -301,7 +301,7 @@ func initializeMySQLForMOCO(ctx context.Context, socketPath string, logger logr.
 
 	defer func() { _ = db.Close() }()
 
-	return server.Init(ctx, db, socketPath)
+	return server.Init(logr.NewContext(ctx, logger), db, socketPath)
 }
 
 // https://github.com/grpc-ecosystem/go-grpc-middleware/blob/ab2131d954af9580c1b49a3d9475f6adbe5de9d3/interceptors/logging/examples/logr/example_test.go#L16-L42
