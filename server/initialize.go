@@ -298,6 +298,10 @@ func ensureMOCOPlugins(ctx context.Context, db pluginExecer, logger logr.Logger)
 	return nil
 }
 
+// restoreSuperReadOnly re-enables super_read_only unless moco-controller has made the instance
+// writable (read_only=OFF) during the migration. It is one statement so that no check-then-set gap exists.
+const restoreSuperReadOnly = "SET GLOBAL super_read_only=@@global.read_only"
+
 // MigrateSemiSyncPlugins replaces legacy semi-sync plugins (master/slave)
 // with the new ones (source/replica) on already-initialized instances.
 //
@@ -385,21 +389,14 @@ func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger
 		defer func() {
 			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancel()
-			// moco-controller sets read_only=OFF when it makes this instance writable during the migration.
-			// Restoring super_read_only then would turn read_only back ON.
-			var readOnly bool
-			if err := conn.GetContext(restoreCtx, &readOnly, "SELECT @@global.read_only"); err == nil && !readOnly {
-				logger.Info("leaving super_read_only OFF because read_only was turned OFF during the migration")
-				return
-			}
-			if _, err := conn.ExecContext(restoreCtx, "SET GLOBAL super_read_only=ON"); err == nil {
+			if _, err := conn.ExecContext(restoreCtx, restoreSuperReadOnly); err == nil {
 				return
 			}
 			// The dedicated connection may have been killed; super_read_only is global, so retry on another connection.
 			// The first attempt may have used up restoreCtx, so give the retry its own timeout.
 			retryCtx, cancelRetry := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancelRetry()
-			if _, err := db.ExecContext(retryCtx, "SET GLOBAL super_read_only=ON"); err != nil {
+			if _, err := db.ExecContext(retryCtx, restoreSuperReadOnly); err != nil {
 				logger.Error(err, "failed to re-enable super_read_only")
 			}
 		}()
