@@ -440,9 +440,12 @@ func ensurePlugin(ctx context.Context, db pluginExecer, plugin Plugin, logger lo
 		}
 		if oldStatus != "" {
 			// moco-controller may have configured the legacy plugin after the caller's checks.
-			carried, err = getLegacySemiSyncVariables(ctx, db, oldName)
-			if err != nil {
-				return err
+			// A plugin that is not ACTIVE has no variables and semi-sync is off.
+			if oldStatus == "ACTIVE" {
+				carried, err = getLegacySemiSyncVariables(ctx, db, oldName)
+				if err != nil {
+					return err
+				}
 			}
 			logger.Info("uninstalling legacy semi-sync plugin", "name", oldName, "status", oldStatus)
 			if _, err := db.ExecContext(ctx, fmt.Sprintf("UNINSTALL PLUGIN %s", oldName)); err != nil {
