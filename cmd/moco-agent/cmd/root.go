@@ -336,7 +336,7 @@ func migrateSemiSyncPlugins(ctx context.Context, socketPath string, logger logr.
 	if err != nil {
 		return fmt.Errorf("failed to connect as admin for plugin migration: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	return server.MigrateSemiSyncPlugins(ctx, db, logger)
 }

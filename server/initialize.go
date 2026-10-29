@@ -329,7 +329,7 @@ func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger
 	if err != nil {
 		return fmt.Errorf("failed to acquire dedicated connection for plugin migration: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Capture the original session value of sql_log_bin and only disable it if it
 	// was ON. We restore the captured value before returning the connection to the
@@ -503,7 +503,7 @@ func InitExternal(ctx context.Context, db *sqlx.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to acquire dedicated connection: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Capture the original session value of sql_log_bin and only disable it if
 	// it was ON. Restoring to the captured value (rather than unconditionally
