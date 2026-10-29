@@ -211,6 +211,59 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 		Expect(MigrateSemiSyncPlugins(ctx, db, testLogger)).To(Succeed())
 	})
 
+	It("should carry over semi-sync variables set after the enabled check", func() {
+		By("starting MySQLd")
+		StartMySQLD(replicaHost, replicaPort, replicaServerID)
+		defer StopAndRemoveMySQLD(replicaHost)
+
+		sockFile := filepath.Join(socketDir(replicaHost), "mysqld.sock")
+		db, err := GetMySQLConnLocalSocket(mocoagent.AdminUser, adminUserPassword, sockFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer db.Close()
+
+		ctx := context.Background()
+
+		By("configuring the legacy plugins as moco-controller does")
+		Expect(execAll(ctx, db,
+			`SET sql_log_bin=OFF`,
+			`SET GLOBAL super_read_only=OFF`,
+			`UNINSTALL PLUGIN rpl_semi_sync_replica`,
+			`UNINSTALL PLUGIN rpl_semi_sync_source`,
+			`INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master.so'`,
+			`INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so'`,
+			`SET GLOBAL rpl_semi_sync_master_timeout=12345`,
+			`SET GLOBAL rpl_semi_sync_master_wait_for_slave_count=2`,
+			`SET GLOBAL rpl_semi_sync_master_enabled=ON`,
+			`SET GLOBAL rpl_semi_sync_slave_enabled=ON`,
+			`SET sql_log_bin=ON`,
+		)).To(Succeed())
+
+		By("replacing the plugins")
+		for _, p := range Plugins {
+			Expect(ensurePlugin(ctx, db, p, testLogger)).To(Succeed())
+		}
+		_, err = db.ExecContext(ctx, `SET GLOBAL super_read_only=ON`)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("verifying the values are carried over")
+		var vars struct {
+			Timeout        int  `db:"timeout"`
+			WaitCount      int  `db:"wait_count"`
+			SourceEnabled  bool `db:"source_enabled"`
+			ReplicaEnabled bool `db:"replica_enabled"`
+		}
+		Expect(db.GetContext(ctx, &vars,
+			`SELECT @@rpl_semi_sync_source_timeout AS timeout,
+			 @@rpl_semi_sync_source_wait_for_replica_count AS wait_count,
+			 @@rpl_semi_sync_source_enabled AS source_enabled,
+			 @@rpl_semi_sync_replica_enabled AS replica_enabled`,
+		)).To(Succeed())
+		Expect(vars.Timeout).To(Equal(12345))
+		Expect(vars.WaitCount).To(Equal(2))
+		Expect(vars.SourceEnabled).To(BeTrue())
+		Expect(vars.ReplicaEnabled).To(BeTrue())
+	})
+
 	It("should make GetMySQLGlobalVariable follow the installed plugins", func() {
 		By("starting MySQLd")
 		StartMySQLD(donorHost, donorPort, donorServerID)
@@ -260,6 +313,9 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 
 		By("reading the wait count after migrating back to the source/replica plugins")
 		Expect(MigrateSemiSyncPlugins(ctx, db, testLogger)).To(Succeed())
+		gv, err = agent.GetMySQLGlobalVariable(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(gv.RplSemiSyncWaitForReplicaCount).To(Equal(2))
 		_, err = db.ExecContext(ctx, `SET GLOBAL rpl_semi_sync_source_wait_for_replica_count=4`)
 		Expect(err).NotTo(HaveOccurred())
 		gv, err = agent.GetMySQLGlobalVariable(ctx)

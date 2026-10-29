@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -169,6 +170,19 @@ var Plugins = []Plugin{
 var legacySemiSyncPlugins = map[string]string{
 	"rpl_semi_sync_source":  "rpl_semi_sync_master",
 	"rpl_semi_sync_replica": "rpl_semi_sync_slave",
+}
+
+// legacySemiSyncVariables lists, per legacy plugin, the variables moco-controller sets
+// and their new names. "enabled" comes last so that it is applied after the others.
+var legacySemiSyncVariables = map[string][][2]string{
+	"rpl_semi_sync_master": {
+		{"rpl_semi_sync_master_timeout", "rpl_semi_sync_source_timeout"},
+		{"rpl_semi_sync_master_wait_for_slave_count", "rpl_semi_sync_source_wait_for_replica_count"},
+		{"rpl_semi_sync_master_enabled", "rpl_semi_sync_source_enabled"},
+	},
+	"rpl_semi_sync_slave": {
+		{"rpl_semi_sync_slave_enabled", "rpl_semi_sync_replica_enabled"},
+	},
 }
 
 func ensureMOCOUsers(ctx context.Context, db pluginExecer, reset bool) error {
@@ -414,12 +428,18 @@ func ensurePlugin(ctx context.Context, db pluginExecer, plugin Plugin, logger lo
 	// (regardless of whether the new plugin is already ACTIVE) so that the two
 	// cannot coexist after migration. Without this, a system that ended up with
 	// both plugins registered would never get the legacy one cleaned up.
+	var carried [][2]string
 	if oldName, ok := legacySemiSyncPlugins[plugin.name]; ok {
 		oldStatus, err := getPluginStatus(ctx, db, oldName)
 		if err != nil {
 			return err
 		}
 		if oldStatus != "" {
+			// moco-controller may have configured the legacy plugin after the caller's checks.
+			carried, err = getLegacySemiSyncVariables(ctx, db, oldName)
+			if err != nil {
+				return err
+			}
 			logger.Info("uninstalling legacy semi-sync plugin", "name", oldName, "status", oldStatus)
 			if _, err := db.ExecContext(ctx, fmt.Sprintf("UNINSTALL PLUGIN %s", oldName)); err != nil {
 				return fmt.Errorf("failed to uninstall legacy plugin %s: %w", oldName, err)
@@ -436,7 +456,34 @@ func ensurePlugin(ctx context.Context, db pluginExecer, plugin Plugin, logger lo
 		return fmt.Errorf("failed to install plugin %s: %w", plugin.name, err)
 	}
 	logger.Info("installed plugin", "name", plugin.name)
+
+	for _, v := range carried {
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("SET GLOBAL %s=%s", v[0], v[1])); err != nil {
+			return fmt.Errorf("failed to set %s: %w", v[0], err)
+		}
+		logger.Info("carried over semi-sync variable", "name", v[0], "value", v[1])
+	}
 	return nil
+}
+
+// getLegacySemiSyncVariables returns pairs of the new variable name and the current value of its legacy counterpart.
+func getLegacySemiSyncVariables(ctx context.Context, db pluginExecer, oldName string) ([][2]string, error) {
+	var vars [][2]string
+	for _, v := range legacySemiSyncVariables[oldName] {
+		var value string
+		if err := db.GetContext(ctx, &value,
+			"SELECT VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME=?", v[0]); err != nil {
+			return nil, fmt.Errorf("failed to get %s: %w", v[0], err)
+		}
+		// The value is embedded in SET GLOBAL because integer variables reject string arguments.
+		if value != "ON" && value != "OFF" {
+			if _, err := strconv.ParseUint(value, 10, 64); err != nil {
+				return nil, fmt.Errorf("unexpected value of %s: %q", v[0], value)
+			}
+		}
+		vars = append(vars, [2]string{v[1], value})
+	}
+	return vars, nil
 }
 
 // getPluginStatus returns the PLUGIN_STATUS for the given plugin name.
