@@ -110,6 +110,37 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 		Expect(superReadOnly).To(BeTrue())
 	})
 
+	It("should install a new plugin missing after an interrupted migration", func() {
+		By("starting MySQLd")
+		StartMySQLD(replicaHost, replicaPort, replicaServerID)
+		defer StopAndRemoveMySQLD(replicaHost)
+
+		sockFile := filepath.Join(socketDir(replicaHost), "mysqld.sock")
+		db, err := GetMySQLConnLocalSocket(mocoagent.AdminUser, adminUserPassword, sockFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer db.Close()
+
+		ctx := context.Background()
+
+		By("removing the new replica plugin with no legacy plugin left")
+		Expect(execAll(ctx, db,
+			`SET sql_log_bin=OFF`,
+			`SET GLOBAL super_read_only=OFF`,
+			`UNINSTALL PLUGIN rpl_semi_sync_replica`,
+			`SET GLOBAL super_read_only=ON`,
+			`SET sql_log_bin=ON`,
+		)).To(Succeed())
+
+		By("running migration")
+		Expect(MigrateSemiSyncPlugins(ctx, db, testLogger)).To(Succeed())
+
+		var status string
+		Expect(db.GetContext(ctx, &status,
+			`SELECT PLUGIN_STATUS FROM information_schema.plugins WHERE PLUGIN_NAME='rpl_semi_sync_replica'`,
+		)).To(Succeed())
+		Expect(status).To(Equal("ACTIVE"))
+	})
+
 	It("should migrate legacy plugins to new ones", func() {
 		By("starting MySQLd")
 		StartMySQLD(replicaHost, replicaPort, replicaServerID)

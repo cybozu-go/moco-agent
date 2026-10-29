@@ -291,7 +291,8 @@ func ensureMOCOPlugins(ctx context.Context, db pluginExecer, logger logr.Logger)
 // settings (sql_log_bin) reliably apply to the subsequent UNINSTALL/INSTALL
 // statements.
 func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger) error {
-	// Check if any legacy plugins need migration before opening a dedicated connection.
+	// A missing new plugin also needs migration so that a migration interrupted
+	// after uninstalling the last legacy plugin is retried on the next start.
 	var needsMigration bool
 	for _, p := range Plugins {
 		oldName, ok := legacySemiSyncPlugins[p.name]
@@ -302,7 +303,11 @@ func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger
 		if err != nil {
 			return err
 		}
-		if oldStatus != "" {
+		newStatus, err := getPluginStatus(ctx, db, p.name)
+		if err != nil {
+			return err
+		}
+		if oldStatus != "" || newStatus != "ACTIVE" {
 			needsMigration = true
 			break
 		}
