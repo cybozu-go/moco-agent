@@ -385,6 +385,13 @@ func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger
 		defer func() {
 			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancel()
+			// moco-controller sets read_only=OFF when it makes this instance writable during the migration.
+			// Restoring super_read_only then would turn read_only back ON.
+			var readOnly bool
+			if err := conn.GetContext(restoreCtx, &readOnly, "SELECT @@global.read_only"); err == nil && !readOnly {
+				logger.Info("leaving super_read_only OFF because read_only was turned OFF during the migration")
+				return
+			}
 			if _, err := conn.ExecContext(restoreCtx, "SET GLOBAL super_read_only=ON"); err == nil {
 				return
 			}
