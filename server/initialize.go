@@ -471,6 +471,7 @@ func ensurePlugin(ctx context.Context, db pluginExecer, plugin Plugin, logger lo
 }
 
 // getLegacySemiSyncVariables returns pairs of the new variable name and the current value of its legacy counterpart.
+// It returns nothing if semi-sync is not enabled on the legacy plugin.
 func getLegacySemiSyncVariables(ctx context.Context, db pluginExecer, oldName string) ([][2]string, error) {
 	// Read in reverse order. moco-controller sets "enabled" last, so once it is read as ON,
 	// the other variables read afterwards are the ones set together with it.
@@ -488,6 +489,11 @@ func getLegacySemiSyncVariables(ctx context.Context, db pluginExecer, oldName st
 			if _, err := strconv.ParseUint(value, 10, 64); err != nil {
 				return nil, fmt.Errorf("unexpected value of %s: %q", v[0], value)
 			}
+		}
+		// Carrying OFF values could overwrite settings moco-controller applies to the new plugin
+		// in the meantime, e.g. leaving it enabled with the default timeout.
+		if i == len(defs)-1 && value != "ON" {
+			return nil, nil
 		}
 		vars[i] = [2]string{v[1], value}
 	}

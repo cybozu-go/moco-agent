@@ -315,7 +315,7 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 		Expect(MigrateSemiSyncPlugins(ctx, db, testLogger)).To(Succeed())
 		gv, err = agent.GetMySQLGlobalVariable(ctx)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(gv.RplSemiSyncWaitForReplicaCount).To(Equal(2))
+		Expect(gv.RplSemiSyncWaitForReplicaCount).To(Equal(1), "variables are not carried over while semi-sync is disabled")
 		_, err = db.ExecContext(ctx, `SET GLOBAL rpl_semi_sync_source_wait_for_replica_count=4`)
 		Expect(err).NotTo(HaveOccurred())
 		gv, err = agent.GetMySQLGlobalVariable(ctx)
