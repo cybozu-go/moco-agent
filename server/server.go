@@ -53,9 +53,6 @@ type Agent struct {
 	cloneLock    chan struct{}
 	registryLock sync.Mutex
 	registered   bool
-
-	waitForReplicaCountVarMu sync.Mutex
-	waitForReplicaCountVar   string
 }
 
 func (a *Agent) configureReplicationMetrics(enable bool) {

@@ -113,22 +113,9 @@ func (a *Agent) GetMySQLGlobalVariable(ctx context.Context) (*MySQLGlobalVariabl
 	return status, nil
 }
 
-// detectWaitForReplicaCountVar detects which semi-sync variable exists and returns
-// the appropriate variable name. The result is cached for the lifetime of the Agent
-// because the available variables change only when the semi-sync plugin is
-// (un)installed or when mysqld restarts. The agent performs plugin migration only
-// at startup before it begins serving traffic — and a mysqld restart restarts the
-// agent — so by the time this function is called the variable set is stable.
-// Only successful detections are cached so that a transient error (e.g. ctx
-// cancellation) does not get pinned for the agent's lifetime.
+// detectWaitForReplicaCountVar returns the wait-for-replica-count variable name of the installed semi-sync plugin.
+// It is not cached because InitExternal after a clone can replace the plugin while the agent is running.
 func (a *Agent) detectWaitForReplicaCountVar(ctx context.Context) (string, error) {
-	a.waitForReplicaCountVarMu.Lock()
-	cached := a.waitForReplicaCountVar
-	a.waitForReplicaCountVarMu.Unlock()
-	if cached != "" {
-		return cached, nil
-	}
-
 	const newVar = "rpl_semi_sync_source_wait_for_replica_count"
 	const oldVar = "rpl_semi_sync_master_wait_for_slave_count"
 
@@ -144,10 +131,6 @@ func (a *Agent) detectWaitForReplicaCountVar(ctx context.Context) (string, error
 		}
 		return "", fmt.Errorf("failed to check semi-sync variable: %w", err)
 	}
-
-	a.waitForReplicaCountVarMu.Lock()
-	a.waitForReplicaCountVar = name
-	a.waitForReplicaCountVarMu.Unlock()
 	return name, nil
 }
 
