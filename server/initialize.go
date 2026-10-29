@@ -475,8 +475,12 @@ func ensurePlugin(ctx context.Context, db pluginExecer, plugin Plugin, logger lo
 
 // getLegacySemiSyncVariables returns pairs of the new variable name and the current value of its legacy counterpart.
 func getLegacySemiSyncVariables(ctx context.Context, db pluginExecer, oldName string) ([][2]string, error) {
-	var vars [][2]string
-	for _, v := range legacySemiSyncVariables[oldName] {
+	// Read in reverse order. moco-controller sets "enabled" last, so once it is read as ON,
+	// the other variables read afterwards are the ones set together with it.
+	defs := legacySemiSyncVariables[oldName]
+	vars := make([][2]string, len(defs))
+	for i := len(defs) - 1; i >= 0; i-- {
+		v := defs[i]
 		var value string
 		if err := db.GetContext(ctx, &value,
 			"SELECT VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME=?", v[0]); err != nil {
@@ -488,7 +492,7 @@ func getLegacySemiSyncVariables(ctx context.Context, db pluginExecer, oldName st
 				return nil, fmt.Errorf("unexpected value of %s: %q", v[0], value)
 			}
 		}
-		vars = append(vars, [2]string{v[1], value})
+		vars[i] = [2]string{v[1], value}
 	}
 	return vars, nil
 }
