@@ -2,12 +2,16 @@ package server
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	mocoagent "github.com/cybozu-go/moco-agent"
+	"github.com/go-logr/logr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -149,12 +153,12 @@ type Plugin struct {
 
 var Plugins = []Plugin{
 	{
-		name:   "rpl_semi_sync_master",
-		soName: "semisync_master.so",
+		name:   "rpl_semi_sync_source",
+		soName: "semisync_source.so",
 	},
 	{
-		name:   "rpl_semi_sync_slave",
-		soName: "semisync_slave.so",
+		name:   "rpl_semi_sync_replica",
+		soName: "semisync_replica.so",
 	},
 	{
 		name:   "clone",
@@ -162,7 +166,26 @@ var Plugins = []Plugin{
 	},
 }
 
-func ensureMOCOUsers(ctx context.Context, db *sqlx.DB, reset bool) error {
+// legacySemiSyncPlugins maps new plugin names to their legacy counterparts for backward-compatible migration.
+var legacySemiSyncPlugins = map[string]string{
+	"rpl_semi_sync_source":  "rpl_semi_sync_master",
+	"rpl_semi_sync_replica": "rpl_semi_sync_slave",
+}
+
+// legacySemiSyncVariables lists, per legacy plugin, the variables moco-controller sets
+// and their new names. "enabled" comes last so that it is applied after the others.
+var legacySemiSyncVariables = map[string][][2]string{
+	"rpl_semi_sync_master": {
+		{"rpl_semi_sync_master_timeout", "rpl_semi_sync_source_timeout"},
+		{"rpl_semi_sync_master_wait_for_slave_count", "rpl_semi_sync_source_wait_for_replica_count"},
+		{"rpl_semi_sync_master_enabled", "rpl_semi_sync_source_enabled"},
+	},
+	"rpl_semi_sync_slave": {
+		{"rpl_semi_sync_slave_enabled", "rpl_semi_sync_replica_enabled"},
+	},
+}
+
+func ensureMOCOUsers(ctx context.Context, db pluginExecer, reset bool) error {
 	_, err := db.ExecContext(ctx, "SET GLOBAL partial_revokes='ON'")
 	if err != nil {
 		return fmt.Errorf("failed to set global partial_revokes=ON: %w", err)
@@ -207,7 +230,7 @@ func dropLocalRootUser(ctx context.Context, db *sqlx.DB) error {
 	return nil
 }
 
-func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user UserSetting, pwd string, reset bool) error {
+func ensureMySQLUser(ctx context.Context, db pluginExecer, user UserSetting, pwd string, reset bool) error {
 	var count int
 	err := db.GetContext(ctx, &count, `SELECT COUNT(*) FROM mysql.user WHERE user=? and host='%'`, user.name)
 	if err != nil {
@@ -259,33 +282,276 @@ func ensureMySQLUser(ctx context.Context, db *sqlx.DB, user UserSetting, pwd str
 	return nil
 }
 
-func ensureMOCOPlugins(ctx context.Context, db *sqlx.DB) error {
+// pluginExecer is implemented by both *sqlx.DB and *sqlx.Conn so that callers
+// can pin all plugin-related statements to a single connection when needed.
+type pluginExecer interface {
+	sqlx.ExecerContext
+	GetContext(ctx context.Context, dest any, query string, args ...any) error
+}
+
+func ensureMOCOPlugins(ctx context.Context, db pluginExecer, logger logr.Logger) error {
 	for _, p := range Plugins {
-		err := ensurePlugin(ctx, db, p)
-		if err != nil {
+		if err := ensurePlugin(ctx, db, p, logger); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
-func ensurePlugin(ctx context.Context, db *sqlx.DB, plugin Plugin) error {
-	var installed bool
-	err := db.GetContext(ctx, &installed, "SELECT COUNT(*) FROM information_schema.plugins WHERE PLUGIN_NAME=? and PLUGIN_STATUS='ACTIVE'", plugin.name)
-	if err != nil {
-		return fmt.Errorf("failed to select from information_schema.plugins: %w", err)
+// restoreSuperReadOnly re-enables super_read_only unless moco-controller has made the instance
+// writable (read_only=OFF) during the migration. It is one statement so that no check-then-set gap exists.
+const restoreSuperReadOnly = "SET GLOBAL super_read_only=@@global.read_only"
+
+// MigrateSemiSyncPlugins replaces legacy semi-sync plugins (master/slave)
+// with the new ones (source/replica) on already-initialized instances.
+//
+// The work is pinned to a single physical connection so that session-scoped
+// settings (sql_log_bin) reliably apply to the subsequent UNINSTALL/INSTALL
+// statements.
+func MigrateSemiSyncPlugins(ctx context.Context, db *sqlx.DB, logger logr.Logger) error {
+	// A missing new plugin also needs migration so that a migration interrupted
+	// after uninstalling the last legacy plugin is retried on the next start.
+	var needsMigration bool
+	for _, p := range Plugins {
+		oldName, ok := legacySemiSyncPlugins[p.name]
+		if !ok {
+			continue
+		}
+		oldStatus, err := getPluginStatus(ctx, db, oldName)
+		if err != nil {
+			return err
+		}
+		newStatus, err := getPluginStatus(ctx, db, p.name)
+		if err != nil {
+			return err
+		}
+		if oldStatus != "" || newStatus != "ACTIVE" {
+			needsMigration = true
+			break
+		}
+	}
+	if !needsMigration {
+		return nil
 	}
 
-	if !installed {
-		queryStr := fmt.Sprintf(`INSTALL PLUGIN %s SONAME ?`, plugin.name)
-		_, err = db.ExecContext(ctx, queryStr, plugin.soName)
+	// Uninstalling a legacy plugin with semi-sync enabled would leave the new
+	// plugin disabled until moco-controller reconfigures it. On a primary with
+	// no connected replicas, commits would not wait for acks in that window.
+	var enabled int
+	if err := db.GetContext(ctx, &enabled,
+		`SELECT COUNT(*) FROM performance_schema.global_variables
+		 WHERE VARIABLE_NAME IN ('rpl_semi_sync_master_enabled', 'rpl_semi_sync_slave_enabled') AND VARIABLE_VALUE='ON'`); err != nil {
+		return fmt.Errorf("failed to check semi-sync state: %w", err)
+	}
+	if enabled > 0 {
+		logger.Info("skipping semi-sync plugin migration because semi-sync is enabled; it will be migrated after mysqld restarts")
+		return nil
+	}
+
+	conn, err := db.Connx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire dedicated connection for plugin migration: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	// Capture the original session value of sql_log_bin and only disable it if it
+	// was ON. We restore the captured value before returning the connection to the
+	// pool — leaving the connection with sql_log_bin permanently OFF would silently
+	// drop subsequent statements from the binary log.
+	var origSQLLogBin bool
+	if err := conn.GetContext(ctx, &origSQLLogBin, "SELECT @@session.sql_log_bin"); err != nil {
+		return fmt.Errorf("failed to read sql_log_bin: %w", err)
+	}
+	if origSQLLogBin {
+		if _, err := conn.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
+			return fmt.Errorf("failed to disable sql_log_bin: %w", err)
+		}
+		defer func() {
+			// Use a fresh context with a short timeout so the restore still runs if
+			// the caller's ctx has been canceled (e.g. on agent shutdown). Otherwise
+			// the connection would be returned to the pool with sql_log_bin=OFF.
+			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			if _, err := conn.ExecContext(restoreCtx, "SET sql_log_bin=ON"); err != nil {
+				logger.Error(err, "failed to re-enable sql_log_bin")
+			}
+		}()
+	}
+
+	var superReadOnly bool
+	if err := conn.GetContext(ctx, &superReadOnly, "SELECT @@global.super_read_only"); err != nil {
+		return fmt.Errorf("failed to get super_read_only: %w", err)
+	}
+	if superReadOnly {
+		if _, err := conn.ExecContext(ctx, "SET GLOBAL super_read_only=OFF"); err != nil {
+			return fmt.Errorf("failed to disable super_read_only: %w", err)
+		}
+		defer func() {
+			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			if _, err := conn.ExecContext(restoreCtx, restoreSuperReadOnly); err == nil {
+				return
+			}
+			// The dedicated connection may have been killed; super_read_only is global, so retry on another connection.
+			// The first attempt may have used up restoreCtx, so give the retry its own timeout.
+			retryCtx, cancelRetry := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancelRetry()
+			if _, err := db.ExecContext(retryCtx, restoreSuperReadOnly); err != nil {
+				logger.Error(err, "failed to re-enable super_read_only")
+			}
+		}()
+	}
+
+	for _, p := range Plugins {
+		if _, ok := legacySemiSyncPlugins[p.name]; !ok {
+			continue
+		}
+		if err := ensurePlugin(ctx, conn, p, logger); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensurePlugin(ctx context.Context, db pluginExecer, plugin Plugin, logger logr.Logger) error {
+	status, err := getPluginStatus(ctx, db, plugin.name)
+	if err != nil {
+		return err
+	}
+
+	// If the plugin is registered but not ACTIVE (DISABLED / INACTIVE / DELETED),
+	// we cannot complete the migration safely: INSTALL would fail with
+	// ER_PLUGIN_INSTALLED, and uninstalling the legacy counterpart first would
+	// leave the instance with no semi-sync plugin loaded. Fail fast before
+	// touching anything so the operator can investigate.
+	if status != "" && status != "ACTIVE" {
+		return fmt.Errorf("plugin %s is registered but not active (status=%s); manual intervention required", plugin.name, status)
+	}
+
+	// For semi-sync plugins, always remove a legacy counterpart if it is registered
+	// (regardless of whether the new plugin is already ACTIVE) so that the two
+	// cannot coexist after migration. Without this, a system that ended up with
+	// both plugins registered would never get the legacy one cleaned up.
+	var carried [][2]string
+	if oldName, ok := legacySemiSyncPlugins[plugin.name]; ok {
+		oldStatus, err := getPluginStatus(ctx, db, oldName)
 		if err != nil {
-			return fmt.Errorf("failed to install plugin %s: %w", plugin.name, err)
+			return err
+		}
+		if oldStatus != "" {
+			// moco-controller may have configured the legacy plugin after the caller's checks.
+			// A plugin that is not ACTIVE has no variables and semi-sync is off.
+			if oldStatus == "ACTIVE" {
+				carried, err = getLegacySemiSyncVariables(ctx, db, oldName)
+				if err != nil {
+					return err
+				}
+			}
+			logger.Info("uninstalling legacy semi-sync plugin", "name", oldName, "status", oldStatus)
+			if err := uninstallSemiSyncPlugin(ctx, db, oldName, logger); err != nil {
+				return err
+			}
 		}
 	}
 
+	if status == "ACTIVE" {
+		return nil
+	}
+
+	queryStr := fmt.Sprintf(`INSTALL PLUGIN %s SONAME ?`, plugin.name)
+	if _, err := db.ExecContext(ctx, queryStr, plugin.soName); err != nil {
+		return fmt.Errorf("failed to install plugin %s: %w", plugin.name, err)
+	}
+	logger.Info("installed plugin", "name", plugin.name)
+
+	for _, v := range carried {
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("SET GLOBAL %s=%s", v[0], v[1])); err != nil {
+			return fmt.Errorf("failed to set %s: %w", v[0], err)
+		}
+		logger.Info("carried over semi-sync variable", "name", v[0], "value", v[1])
+	}
 	return nil
+}
+
+// uninstallSemiSyncPlugin uninstalls a semi-sync plugin and makes sure that it is unloaded.
+//
+// While replication_optimize_for_static_plugin_config is ON, which moco sets, UNINSTALL leaves
+// the plugin DELETED and still running. Installing the new plugin then would run both and
+// break replication, so the variable is turned OFF during UNINSTALL.
+func uninstallSemiSyncPlugin(ctx context.Context, db pluginExecer, name string, logger logr.Logger) error {
+	var optimize bool
+	if err := db.GetContext(ctx, &optimize, "SELECT @@global.replication_optimize_for_static_plugin_config"); err != nil {
+		return fmt.Errorf("failed to get replication_optimize_for_static_plugin_config: %w", err)
+	}
+	if optimize {
+		if _, err := db.ExecContext(ctx, "SET GLOBAL replication_optimize_for_static_plugin_config=OFF"); err != nil {
+			return fmt.Errorf("failed to disable replication_optimize_for_static_plugin_config: %w", err)
+		}
+		defer func() {
+			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			if _, err := db.ExecContext(restoreCtx, "SET GLOBAL replication_optimize_for_static_plugin_config=ON"); err != nil {
+				logger.Error(err, "failed to re-enable replication_optimize_for_static_plugin_config")
+			}
+		}()
+	}
+
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("UNINSTALL PLUGIN %s", name)); err != nil {
+		return fmt.Errorf("failed to uninstall legacy plugin %s: %w", name, err)
+	}
+	status, err := getPluginStatus(ctx, db, name)
+	if err != nil {
+		return err
+	}
+	if status != "" {
+		return fmt.Errorf("legacy plugin %s is still loaded after UNINSTALL (status=%s)", name, status)
+	}
+	return nil
+}
+
+// getLegacySemiSyncVariables returns pairs of the new variable name and the current value of its legacy counterpart.
+// It returns nothing if semi-sync is not enabled on the legacy plugin.
+func getLegacySemiSyncVariables(ctx context.Context, db pluginExecer, oldName string) ([][2]string, error) {
+	// Read in reverse order. moco-controller sets "enabled" last, so once it is read as ON,
+	// the other variables read afterwards are the ones set together with it.
+	defs := legacySemiSyncVariables[oldName]
+	vars := make([][2]string, len(defs))
+	for i := len(defs) - 1; i >= 0; i-- {
+		v := defs[i]
+		var value string
+		if err := db.GetContext(ctx, &value,
+			"SELECT VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME=?", v[0]); err != nil {
+			return nil, fmt.Errorf("failed to get %s: %w", v[0], err)
+		}
+		// The value is embedded in SET GLOBAL because integer variables reject string arguments.
+		if value != "ON" && value != "OFF" {
+			if _, err := strconv.ParseUint(value, 10, 64); err != nil {
+				return nil, fmt.Errorf("unexpected value of %s: %q", v[0], value)
+			}
+		}
+		// Carrying OFF values could overwrite settings moco-controller applies to the new plugin
+		// in the meantime, e.g. leaving it enabled with the default timeout.
+		if i == len(defs)-1 && value != "ON" {
+			return nil, nil
+		}
+		vars[i] = [2]string{v[1], value}
+	}
+	return vars, nil
+}
+
+// getPluginStatus returns the PLUGIN_STATUS for the given plugin name.
+// Returns "" if the plugin is not installed, or the status string ("ACTIVE", "INACTIVE", "DISABLED", etc.).
+func getPluginStatus(ctx context.Context, db pluginExecer, name string) (string, error) {
+	var status string
+	err := db.GetContext(ctx, &status,
+		"SELECT PLUGIN_STATUS FROM information_schema.plugins WHERE PLUGIN_NAME=?", name)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to check plugin %s: %w", name, err)
+	}
+	return status, nil
 }
 
 func Init(ctx context.Context, db *sqlx.DB, socket string) error {
@@ -295,7 +561,7 @@ func Init(ctx context.Context, db *sqlx.DB, socket string) error {
 	if err := ensureMOCOUsers(ctx, db, false); err != nil {
 		return err
 	}
-	if err := ensureMOCOPlugins(ctx, db); err != nil {
+	if err := ensureMOCOPlugins(ctx, db, logr.FromContextOrDiscard(ctx)); err != nil {
 		return err
 	}
 
@@ -340,23 +606,55 @@ func Init(ctx context.Context, db *sqlx.DB, socket string) error {
 }
 
 func InitExternal(ctx context.Context, db *sqlx.DB) error {
-	if _, err := db.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
-		return fmt.Errorf("failed to disable binary logging: %w", err)
+	// Pin all statements to a single physical connection so that session-scoped
+	// sql_log_bin=OFF reliably applies to the subsequent user / plugin setup.
+	// Without pinning, *sqlx.DB may hop across pooled connections and silently
+	// re-enable binary logging for some statements, and may leave an idle
+	// connection in the pool with sql_log_bin=OFF.
+	conn, err := db.Connx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire dedicated connection: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, "SET GLOBAL read_only=OFF"); err != nil {
+	defer func() { _ = conn.Close() }()
+
+	// Capture the original session value of sql_log_bin and only disable it if
+	// it was ON. Restoring to the captured value (rather than unconditionally
+	// forcing ON) avoids changing the connection's semantics when the caller
+	// — or the mysqld instance — intentionally has binary logging off.
+	var origSQLLogBin bool
+	if err := conn.GetContext(ctx, &origSQLLogBin, "SELECT @@session.sql_log_bin"); err != nil {
+		return fmt.Errorf("failed to read sql_log_bin: %w", err)
+	}
+	if origSQLLogBin {
+		if _, err := conn.ExecContext(ctx, "SET sql_log_bin=OFF"); err != nil {
+			return fmt.Errorf("failed to disable binary logging: %w", err)
+		}
+		// Restore sql_log_bin before returning the connection to the pool,
+		// using a non-cancellable context with a short timeout so the cleanup
+		// runs even if the caller's ctx has been canceled. If the restore
+		// fails, the connection still goes back to the pool with
+		// sql_log_bin=OFF (idle connections expire after ConnMaxIdleTime,
+		// 30s); surface the failure via the context-attached logger.
+		defer func() {
+			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			if _, err := conn.ExecContext(restoreCtx, "SET sql_log_bin=ON"); err != nil {
+				logr.FromContextOrDiscard(ctx).Error(err, "failed to re-enable sql_log_bin; pooled connection may retain sql_log_bin=OFF until idle expiry")
+			}
+		}()
+	}
+
+	if _, err := conn.ExecContext(ctx, "SET GLOBAL read_only=OFF"); err != nil {
 		return fmt.Errorf("failed to disable read_only: %w", err)
 	}
-	if err := ensureMOCOUsers(ctx, db, true); err != nil {
+	if err := ensureMOCOUsers(ctx, conn, true); err != nil {
 		return err
 	}
-	if err := ensureMOCOPlugins(ctx, db); err != nil {
+	if err := ensureMOCOPlugins(ctx, conn, logr.FromContextOrDiscard(ctx)); err != nil {
 		return err
 	}
-	if _, err := db.ExecContext(ctx, "SET GLOBAL super_read_only=ON"); err != nil {
+	if _, err := conn.ExecContext(ctx, "SET GLOBAL super_read_only=ON"); err != nil {
 		return fmt.Errorf("failed to enable super_read_only: %w", err)
-	}
-	if _, err := db.ExecContext(ctx, "SET sql_log_bin=ON"); err != nil {
-		return fmt.Errorf("failed to enable binary logging: %w", err)
 	}
 	return nil
 }
