@@ -448,8 +448,8 @@ func ensurePlugin(ctx context.Context, db pluginExecer, plugin Plugin, logger lo
 				}
 			}
 			logger.Info("uninstalling legacy semi-sync plugin", "name", oldName, "status", oldStatus)
-			if _, err := db.ExecContext(ctx, fmt.Sprintf("UNINSTALL PLUGIN %s", oldName)); err != nil {
-				return fmt.Errorf("failed to uninstall legacy plugin %s: %w", oldName, err)
+			if err := uninstallSemiSyncPlugin(ctx, db, oldName, logger); err != nil {
+				return err
 			}
 		}
 	}
@@ -469,6 +469,42 @@ func ensurePlugin(ctx context.Context, db pluginExecer, plugin Plugin, logger lo
 			return fmt.Errorf("failed to set %s: %w", v[0], err)
 		}
 		logger.Info("carried over semi-sync variable", "name", v[0], "value", v[1])
+	}
+	return nil
+}
+
+// uninstallSemiSyncPlugin uninstalls a semi-sync plugin and makes sure that it is unloaded.
+//
+// While replication_optimize_for_static_plugin_config is ON, which moco sets, UNINSTALL leaves
+// the plugin DELETED and still running. Installing the new plugin then would run both and
+// break replication, so the variable is turned OFF during UNINSTALL.
+func uninstallSemiSyncPlugin(ctx context.Context, db pluginExecer, name string, logger logr.Logger) error {
+	var optimize bool
+	if err := db.GetContext(ctx, &optimize, "SELECT @@global.replication_optimize_for_static_plugin_config"); err != nil {
+		return fmt.Errorf("failed to get replication_optimize_for_static_plugin_config: %w", err)
+	}
+	if optimize {
+		if _, err := db.ExecContext(ctx, "SET GLOBAL replication_optimize_for_static_plugin_config=OFF"); err != nil {
+			return fmt.Errorf("failed to disable replication_optimize_for_static_plugin_config: %w", err)
+		}
+		defer func() {
+			restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			if _, err := db.ExecContext(restoreCtx, "SET GLOBAL replication_optimize_for_static_plugin_config=ON"); err != nil {
+				logger.Error(err, "failed to re-enable replication_optimize_for_static_plugin_config")
+			}
+		}()
+	}
+
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("UNINSTALL PLUGIN %s", name)); err != nil {
+		return fmt.Errorf("failed to uninstall legacy plugin %s: %w", name, err)
+	}
+	status, err := getPluginStatus(ctx, db, name)
+	if err != nil {
+		return err
+	}
+	if status != "" {
+		return fmt.Errorf("legacy plugin %s is still loaded after UNINSTALL (status=%s)", name, status)
 	}
 	return nil
 }

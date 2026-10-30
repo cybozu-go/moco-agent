@@ -47,6 +47,8 @@ var testMycnf = map[string]string{
 	"disabled_storage_engines": "MyISAM",
 	"enforce_gtid_consistency": "ON",
 	"gtid_mode":                "ON",
+	// moco sets this, and it keeps an uninstalled semi-sync plugin running.
+	"replication_optimize_for_static_plugin_config": "ON",
 }
 
 func socketDir(name string) string {

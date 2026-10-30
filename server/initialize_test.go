@@ -127,7 +127,9 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 		Expect(execAll(ctx, db,
 			`SET sql_log_bin=OFF`,
 			`SET GLOBAL super_read_only=OFF`,
+			`SET GLOBAL replication_optimize_for_static_plugin_config=OFF`,
 			`UNINSTALL PLUGIN rpl_semi_sync_replica`,
+			`SET GLOBAL replication_optimize_for_static_plugin_config=ON`,
 			`SET GLOBAL super_read_only=ON`,
 			`SET sql_log_bin=ON`,
 		)).To(Succeed())
@@ -161,10 +163,12 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 		Expect(execAll(ctx, db,
 			`SET sql_log_bin=OFF`,
 			`SET GLOBAL super_read_only=OFF`,
+			`SET GLOBAL replication_optimize_for_static_plugin_config=OFF`,
 			`UNINSTALL PLUGIN rpl_semi_sync_replica`,
 			`UNINSTALL PLUGIN rpl_semi_sync_source`,
 			`INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master.so'`,
 			`INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so'`,
+			`SET GLOBAL replication_optimize_for_static_plugin_config=ON`,
 			`SET GLOBAL super_read_only=ON`,
 			`SET sql_log_bin=ON`,
 		)).To(Succeed())
@@ -207,6 +211,11 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 		Expect(db.GetContext(ctx, &superReadOnly, `SELECT @@global.super_read_only`)).To(Succeed())
 		Expect(superReadOnly).To(BeTrue())
 
+		By("verifying replication_optimize_for_static_plugin_config was restored to ON")
+		var optimize bool
+		Expect(db.GetContext(ctx, &optimize, `SELECT @@global.replication_optimize_for_static_plugin_config`)).To(Succeed())
+		Expect(optimize).To(BeTrue())
+
 		By("running migration again is a no-op")
 		Expect(MigrateSemiSyncPlugins(ctx, db, testLogger)).To(Succeed())
 	})
@@ -227,10 +236,12 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 		Expect(execAll(ctx, db,
 			`SET sql_log_bin=OFF`,
 			`SET GLOBAL super_read_only=OFF`,
+			`SET GLOBAL replication_optimize_for_static_plugin_config=OFF`,
 			`UNINSTALL PLUGIN rpl_semi_sync_replica`,
 			`UNINSTALL PLUGIN rpl_semi_sync_source`,
 			`INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master.so'`,
 			`INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so'`,
+			`SET GLOBAL replication_optimize_for_static_plugin_config=ON`,
 			`SET GLOBAL rpl_semi_sync_master_timeout=12345`,
 			`SET GLOBAL rpl_semi_sync_master_wait_for_slave_count=2`,
 			`SET GLOBAL rpl_semi_sync_master_enabled=ON`,
@@ -299,10 +310,12 @@ var _ = Describe("MigrateSemiSyncPlugins", func() {
 		Expect(execAll(ctx, db,
 			`SET sql_log_bin=OFF`,
 			`SET GLOBAL super_read_only=OFF`,
+			`SET GLOBAL replication_optimize_for_static_plugin_config=OFF`,
 			`UNINSTALL PLUGIN rpl_semi_sync_replica`,
 			`UNINSTALL PLUGIN rpl_semi_sync_source`,
 			`INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master.so'`,
 			`INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so'`,
+			`SET GLOBAL replication_optimize_for_static_plugin_config=ON`,
 			`SET GLOBAL rpl_semi_sync_master_wait_for_slave_count=2`,
 			`SET GLOBAL super_read_only=ON`,
 			`SET sql_log_bin=ON`,
